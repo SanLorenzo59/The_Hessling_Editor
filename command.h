@@ -30,7 +30,7 @@
  */
 
 /*
-$Id: command.h,v 1.20 2003/01/14 10:11:31 mark Exp $
+$Id: command.h,v 1.24 2011/04/11 21:38:43 mark Exp $
 */
 /*
  * Definitions of various CUA behaviours
@@ -51,7 +51,7 @@ $Id: command.h,v 1.20 2003/01/14 10:11:31 mark Exp $
  * Definitions of various THIGHLIGHT behaviours
  * THIGHLIGHT_NONE:
  * - no affect. ie no automatic resetting of the THIGHLIGHT
- *   area.  
+ *   area.
  *
  * THIGHLIGHT_RESET_ALL
  * - reset the THIGHLIGHT area in all circumstances
@@ -101,7 +101,6 @@ typedef struct commands COMMAND;
 /*                                                                  Batch/ Set / SOS / RO   /edit/strip     /readv/input/reprof/CUA             /THIGHLIGHT  */
 COMMAND command[] =
 {
- {(CHARTYPE *)"birthday",    8,  (-1),            Birthday,         TRUE, TRUE, FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* commset1.c */
 #if defined(DOS) || defined(OS2) || defined(USE_XCURSES) || defined(WIN32)
  {(CHARTYPE *)"cursor",      0,  KEY_CURR,        Cursor,           FALSE,FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,TRUE, FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)"right"},  /* comm1.c */
  {(CHARTYPE *)"cursor",      0,  KEY_CURL,        Cursor,           FALSE,FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,TRUE, FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)"left"},  /* comm1.c */
@@ -119,7 +118,7 @@ COMMAND command[] =
 #endif
  {(CHARTYPE *)"add",         1,  (-1),            Add,              TRUE, FALSE,FALSE,FALSE,FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_RESET_ALL    ,(CHARTYPE *)""}, /* comm1.c */
  {(CHARTYPE *)"alert",       5,  (-1),            Alert,            FALSE,FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,FALSE,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* comm1.c */
- {(CHARTYPE *)"all",         3,  (-1),            All,              TRUE, FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* comm1.c */
+ {(CHARTYPE *)"all",         3,  (-1),            All,              TRUE, FALSE,FALSE,TRUE, FALSE,STRIP_NONE,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* comm1.c */
  {(CHARTYPE *)"arbchar",     3,  (-1),            Arbchar,          TRUE, TRUE, FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* commset1.c */
  {(CHARTYPE *)"alt",         3,  (-1),            Alt,              TRUE, TRUE, FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* commset1.c */
  {(CHARTYPE *)"autocolour", 10,  (-1),            Autocolour,       TRUE, TRUE, FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* commset1.c */
@@ -174,7 +173,7 @@ COMMAND command[] =
 #  else
  {(CHARTYPE *)"copy",        0,  ALT_C,           Copy,             FALSE,FALSE,FALSE,FALSE,FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_RESET_ALL    ,(CHARTYPE *)"block reset"},  /* comm1.c */
  {(CHARTYPE *)"copy",        0,  ALT_K,           Copy,             FALSE,FALSE,FALSE,FALSE,FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_RESET_ALL    ,(CHARTYPE *)"block"},  /* comm1.c */
-#  endif                                                                                                                                         
+#  endif
  {(CHARTYPE *)"cursor",      3,  KEY_HOME,        Cursor,           TRUE, FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)"home save"},  /* comm1.c */
  {(CHARTYPE *)"cursor",      0,  PADPLUS,         Cursor,           FALSE,FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)"prefix"},  /* comm1.c */
  {(CHARTYPE *)"cursor",      0,  KEY_F12,         Cursor,           FALSE,FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)"prefix"},  /* comm1.c */
@@ -224,6 +223,7 @@ COMMAND command[] =
  {(CHARTYPE *)"emsg",        4,  (-1),            Emsg,             TRUE, FALSE,FALSE,TRUE, FALSE,STRIP_NONE,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* comm2.c */
  {(CHARTYPE *)"eolout",      4,  (-1),            Eolout,           TRUE, TRUE, FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* commset1.c */
  {(CHARTYPE *)"equivchar",   6,  (-1),            Equivchar,        TRUE, TRUE, FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* commset1.c */
+ {(CHARTYPE *)"erroroutput", 8,  (-1),            Erroroutput,      TRUE, TRUE, FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* commset1.c */
  {(CHARTYPE *)"etmode",      6,  (-1),            Etmode,           TRUE, TRUE, FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* commset1.c */
  {(CHARTYPE *)"expand",      3,  (-1),            Expand,           TRUE, FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_RESET_ALL    ,(CHARTYPE *)""},  /* comm2.c */
  {(CHARTYPE *)"extract",     3,  (-1),            Extract,          TRUE, FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* comm2.c */
@@ -390,12 +390,13 @@ COMMAND command[] =
  {(CHARTYPE *)"reset",       0,  KEY_C_u,         Reset,            FALSE,FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)"block"},  /* comm4.c */
 #endif
  {(CHARTYPE *)"restore",     3,  (-1),            Restore,          TRUE, FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* comm4.c */
+ {(CHARTYPE *)"rexxhalt",    8,  (-1),            Rexxhalt,         TRUE, TRUE, FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* commset2.c */
  {(CHARTYPE *)"rexxoutput",  7,  (-1),            Rexxoutput,       TRUE, TRUE, FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* commset2.c */
  {(CHARTYPE *)"rgtleft",     7,  (-1),            Rgtleft,          TRUE, FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* comm4.c */
  {(CHARTYPE *)"rexx",        4,  (-1),            THERexx,          TRUE, FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* comm4.c */
  {(CHARTYPE *)"right",       2,  (-1),            Right,            TRUE, FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* comm4.c */
  {(CHARTYPE *)"=",           1,  (-1),            Reexecute,        TRUE, FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* comm5.c */
-#if defined(DOS) || defined(OS2) || defined(XCURSES) || defined(WIN32)
+#if defined(DOS) || defined(OS2) || defined(USE_XCURSES) || defined(WIN32)
  {(CHARTYPE *)"?",           1,  KEY_F6,          Retrieve,         FALSE,FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* comm5.c */
 #else
  {(CHARTYPE *)"?",           1,  KEY_F(6),        Retrieve,         FALSE,FALSE,FALSE,TRUE, FALSE,STRIP_BOTH,FALSE,FALSE,TRUE ,CUA_RESET_BLOCK  ,THIGHLIGHT_NONE         ,(CHARTYPE *)""},  /* comm5.c */

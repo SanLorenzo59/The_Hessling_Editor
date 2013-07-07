@@ -5,7 +5,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -31,10 +31,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: comm2.c,v 1.20 2006/01/29 08:00:09 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -118,12 +117,26 @@ CHARTYPE *params;
    if (word[0][0] == '\\')
    {
        if ((key_value = atoi((DEFCHAR *)word[0]+1)) == 0)
-          rc = RC_INVALID_OPERAND;
+       {
+          display_error(1,word[0],FALSE);
+          TRACE_RETURN();
+          return(RC_INVALID_OPERAND);
+       }
    }
    else
    {
-       if ((key_value = find_key_value(word[0])) == (-1))
+       if ( ( key_value = find_key_value( word[0] ) ) == (-1) )
+       {
+          if ( ( key_value = find_mouse_key_value( word[0] ) ) == (-1) )
+          {
+             TRACE_RETURN();
+             return(RC_INVALID_OPERAND);
+          }
+          /*
+           * We have an invalid key, but a valid mouse key
+           */
           rc = RC_INVALID_OPERAND;
+       }
    }
    if (rc == RC_OK)
    {
@@ -146,8 +159,7 @@ CHARTYPE *params;
       return(rc);
    }
    /*
-    * To get here, either it is an invalid KEY definition, or it is a
-    * MOUSE key definition waiting to be validated.
+    * To get here it is a MOUSE key definition waiting to be validated.
     */
    strip[0] = STRIP_BOTH;
    strip[1] = STRIP_BOTH;
@@ -166,7 +178,7 @@ CHARTYPE *params;
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
-   if ((key_value = find_mouse_key_value(word[0],word[2])) == (-1))
+   if ((key_value = find_mouse_key_value_in_window(word[0],word[2])) == (-1))
    {
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
@@ -223,7 +235,7 @@ CHARTYPE *params;
    short rc=RC_OK;
    CHARTYPE *args=NULL;
    TARGET target;
-   short target_type=TARGET_NORMAL|TARGET_ALL|TARGET_BLOCK_CURRENT;
+   long target_type=TARGET_NORMAL|TARGET_ALL|TARGET_BLOCK_CURRENT;
    bool lines_based_on_scope=FALSE;
 
    TRACE_FUNCTION("comm2.c:   DeleteLine");
@@ -313,8 +325,8 @@ DESCRIPTION
      The DIALOG command displays a dialog box in the middle of the screen
      with user-configurable settings.
 
-     The mandatory 'prompt' parameter, is the text of a prompt displayed
-     near the top of the dialog window. Up to 10 lines can be displayed
+     The mandatory 'prompt' parameter is the text of a prompt displayed
+     near the top of the dialog window. Up to 100 lines can be displayed
      by separating lines with a character (decimal 10).
 
      'EDITfield' creates a user enterable field, with a default value
@@ -380,8 +392,7 @@ CHARTYPE *params;
    short rc=RC_OK;
 
    TRACE_FUNCTION( "comm2.c:   Dialog" );
-   rc = prepare_dialog( params, FALSE, (CHARTYPE *)"DIALOG", BIRTHDAYx );
-   BIRTHDAYx = FALSE;
+   rc = prepare_dialog( params, FALSE, (CHARTYPE *)"DIALOG" );
    TRACE_RETURN();
    return(rc);
 }
@@ -474,7 +485,7 @@ CHARTYPE *params;
    /*
     * Edit the DIR.DIR file
     */
-   Xedit( temp_cmd );
+   rc = EditFile( temp_cmd, FALSE );
 
    TRACE_RETURN();
    return(RC_OK);
@@ -606,7 +617,7 @@ CHARTYPE *params;
    LINETYPE start_line=0L,end_line=0L,dest_line=0L,lines_affected=0L;
    CHARTYPE command_source=0;
    TARGET target;
-   short target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
+   long target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
    bool lines_based_on_scope=FALSE;
 
    TRACE_FUNCTION("comm2.c:   Duplicate");
@@ -681,11 +692,23 @@ CHARTYPE *params;
          lines_based_on_scope = TRUE;
          break;
    }
-   post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
-   rc = rearrange_line_blocks(COMMAND_DUPLICATE,command_source,
-                            start_line,end_line,dest_line,num_occ,
-                            CURRENT_VIEW,CURRENT_VIEW,lines_based_on_scope,
-                            &lines_affected);
+   /*
+    * Fix for Bug #1521467
+    */
+   if ( ( start_line == 0
+   &&   end_line == 0 )
+      || target.num_lines == 0 )
+   {
+      ;
+   }
+   else
+   {
+      post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
+      rc = rearrange_line_blocks(COMMAND_DUPLICATE,command_source,
+                                 start_line,end_line,dest_line,num_occ,
+                                 CURRENT_VIEW,CURRENT_VIEW,lines_based_on_scope,
+                                 &lines_affected);
+   }
    free_target(&target);
    TRACE_RETURN();
    return(rc);
@@ -701,8 +724,7 @@ SYNTAX
 DESCRIPTION
      The EDIT command allows the user to edit another 'file'. The new file
      is placed in the file <ring>. The previous file being edited remains
-     in memory and can be returned to by issuing an EDIT command without
-     any parameters. Several files can be edited at once, and all files
+     in memory. Several files can be edited at once, and all files
      are arranged in a ring, with subsequent EDIT commands moving through
      the ring, one file at a time.
 
@@ -747,7 +769,7 @@ DESCRIPTION
      EDITV SET stores an edit variable with a value.
 
      EDITV SET can only work with variable values comprising a single
-     space-seperated word.  To specify a variable value that contains
+     space-separated word.  To specify a variable value that contains
      spaces, use EDITV SETL.
 
      EDITV LIST displays the values of the specified edit variables, or
@@ -782,99 +804,99 @@ CHARTYPE *params;
    short rc=RC_OK;
    bool editv_file = FALSE;
 
-   TRACE_FUNCTION("comm2.c:   THEEditv");
+   TRACE_FUNCTION( "comm2.c:   THEEditv" );
    strip[0] = STRIP_BOTH;
    strip[1] = STRIP_LEADING;
-   num_params = param_split(params,word,EDITV_PARAMS,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
-   if (num_params == 0)
+   num_params = param_split( params, word, EDITV_PARAMS, WORD_DELIMS, TEMP_PARAM, strip, FALSE );
+   if ( num_params == 0 )
    {
-      display_error(3,(CHARTYPE *)"",FALSE);
+      display_error( 3, (CHARTYPE *)"", FALSE );
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
    /*
     * Determine the subcommand...
     */
-   if (equal((CHARTYPE *)"get",word[0],3))
+   if ( equal( (CHARTYPE *)"get", word[0], 3 ) )
    {
       editv_type = EDITV_GET;
    }
-   else if (equal((CHARTYPE *)"put",word[0],3))
+   else if ( equal( (CHARTYPE *)"put", word[0], 3 ) )
    {
       editv_type = EDITV_PUT;
    }
-   else if (equal((CHARTYPE *)"set",word[0],3))
+   else if ( equal( (CHARTYPE *)"set", word[0], 3 ) )
    {
       editv_type = EDITV_SET;
    }
-   else if (equal((CHARTYPE *)"setl",word[0],4))
+   else if ( equal( (CHARTYPE *)"setl", word[0], 4 ) )
    {
       editv_type = EDITV_SETL;
    }
-   else if (equal((CHARTYPE *)"list",word[0],4))
+   else if ( equal( (CHARTYPE *)"list", word[0], 4 ) )
    {
       editv_type = EDITV_LIST;
    }
-   else if (equal((CHARTYPE *)"getf",word[0],4))
+   else if ( equal( (CHARTYPE *)"getf", word[0], 4 ) )
    {
       editv_type = EDITV_GET;
       editv_file = TRUE;
    }
-   else if (equal((CHARTYPE *)"putf",word[0],4))
+   else if ( equal( (CHARTYPE *)"putf", word[0], 4 ) )
    {
       editv_type = EDITV_PUT;
       editv_file = TRUE;
    }
-   else if (equal((CHARTYPE *)"setf",word[0],4))
+   else if ( equal( (CHARTYPE *)"setf", word[0], 4 ) )
    {
       editv_type = EDITV_SET;
       editv_file = TRUE;
    }
-   else if (equal((CHARTYPE *)"setlf",word[0],5))
+   else if ( equal( (CHARTYPE *)"setlf", word[0], 5 ) )
    {
       editv_type = EDITV_SETL;
       editv_file = TRUE;
    }
-   else if (equal((CHARTYPE *)"setfl",word[0],5))
+   else if ( equal( (CHARTYPE *)"setfl", word[0], 5 ) )
    {
       editv_type = EDITV_SETL;
       editv_file = TRUE;
    }
-   else if (equal((CHARTYPE *)"listf",word[0],5))
+   else if ( equal( (CHARTYPE *)"listf", word[0], 5 ) )
    {
       editv_type = EDITV_LIST;
       editv_file = TRUE;
    }
    else
    {
-      display_error(1,word[0],FALSE);
+      display_error( 1, word[0], FALSE );
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
    /*
     * Only LIST and LISTF are allowed no parameters...
     */
-   if (editv_type != EDITV_LIST
-   &&  num_params == 1)
+   if ( editv_type != EDITV_LIST
+   &&   num_params == 1 )
    {
-      display_error(3,(CHARTYPE *)"",FALSE);
+      display_error( 3, (CHARTYPE *)"", FALSE );
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
    /*
     * GET, PUT, GETF and PUTF only allowed in a macro...
     */
-   if (editv_type == EDITV_GET
-   ||  editv_type == EDITV_PUT)
+   if ( editv_type == EDITV_GET
+   ||   editv_type == EDITV_PUT )
    {
-      if (!in_macro)
+      if ( !in_macro )
       {
-         display_error(53,(CHARTYPE *)"",FALSE);
+         display_error( 53, (CHARTYPE *)"", FALSE );
          TRACE_RETURN();
          return(RC_INVALID_ENVIRON);
       }
    }
-   rc = execute_editv(editv_type,editv_file,word[1]);
+   rc = execute_editv( editv_type, editv_file, word[1] );
    TRACE_RETURN();
    return(RC_OK);
 }
@@ -967,7 +989,7 @@ CHARTYPE *params;
          post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
          if (CURRENT_FILE->first_ppc == NULL)/* no pending prefix cmds */
          {
-            THEcursor_down(TRUE);
+            THEcursor_down( current_screen, CURRENT_VIEW, TRUE );
             rc = Sos_firstcol((CHARTYPE *)"");
          }
          else
@@ -995,7 +1017,7 @@ CHARTYPE *params;
                   rc = execute_split_join(SPLTJOIN_SPLIT,FALSE,TRUE);
                   rc = Sos_firstcol((CHARTYPE *)"");
                }
-               THEcursor_down(TRUE);
+               THEcursor_down( current_screen, CURRENT_VIEW, TRUE );
                TRACE_RETURN();
                return(rc);
             }
@@ -1004,12 +1026,12 @@ CHARTYPE *params;
                if (CURRENT_VIEW->inputmode == INPUTMODE_LINE)
                {
                   post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
-                  insert_new_line((CHARTYPE *)"",0,1,get_true_line(FALSE),FALSE,FALSE,TRUE,CURRENT_VIEW->display_low,TRUE,TRUE);
+                  insert_new_line( current_screen, CURRENT_VIEW, (CHARTYPE *)"", 0, 1, get_true_line(FALSE), FALSE, FALSE, TRUE, CURRENT_VIEW->display_low, TRUE, TRUE );
                   break;
                }
             }
          }
-         THEcursor_down(TRUE);
+         THEcursor_down( current_screen, CURRENT_VIEW, TRUE );
          getyx(CURRENT_WINDOW,y,x);
          wmove(CURRENT_WINDOW,y,0);
          break;
@@ -1128,12 +1150,12 @@ CHARTYPE *params;
    /*
     * Allow for no trailing delimiter...
     */
-   if ((*(params+len-1) == delim))
+   if (*(params+len-1) == delim)
       num_items = 0;
    else
       num_items = 1;
    /*
-    * Replace all / with nul character to give us seperate strings.
+    * Replace all / with nul character to give us separate strings.
     */
    for (i=0;i<len;i++)
    {
@@ -1360,11 +1382,21 @@ CHARTYPE *params;
     */
    if (CURRENT_VIEW->hex)
    {
-      if ((len_params = convert_hex_strings(params)) == (-1))
+      len_params = convert_hex_strings( params );
+      switch( len_params )
       {
-         display_error(32,params,FALSE);
-         TRACE_RETURN();
-         return(RC_INVALID_OPERAND);
+         case -1: /* invalid hex value */
+            display_error( 32, params, FALSE );
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+            break;
+         case -2: /* memory exhausted */
+            display_error( 30, (CHARTYPE *)"", FALSE );
+            TRACE_RETURN();
+            return(RC_OUT_OF_MEMORY);
+            break;
+         default:
+            break;
       }
    }
    else
@@ -1391,7 +1423,7 @@ CHARTYPE *params;
       wrefresh(CURRENT_WINDOW_FILEAREA);
       while(1)
       {
-         key = my_getch(stdscr);
+         key = my_getch( CURRENT_WINDOW );
          if ( !is_modifier_key( key ) )
             break;
       }
@@ -1489,30 +1521,35 @@ CHARTYPE *params;
 }
 /*man-start*********************************************************************
 COMMAND
-     forward - scroll forwards [n] screens
+     forward - scroll forward by number of screens or lines
 
 SYNTAX
-     FOrward [n]
+     FOrward [n|*|HALF] [Lines]
 
 DESCRIPTION
-     The FORWARD command scrolls the file contents forwards 'n' screens.
+     The FORWARD command scrolls the file contents forwards 'n' screens
+     or 'n' lines if the optional 'Lines' argument is specified.
 
-     If 0 is specified as the number of screens to scroll, the
+     If '*' is specified, the <Bottom-of-File line> becomes the <current line>.
+
+     If 'HALF' is specified, the file contents are scrolled one half of a screen.
+
+     If 0 is specified as the number of lines or screens to scroll, the
      <Top-of-File line> becomes the <current line>.
 
      If the FORWARD command is issued while the <current line> is the
-     <Bottom-of-File line>, the <Top-of-File line> becomes the
-     <current line>.
+     <Bottom-of-File line> and <SET PAGEWRAP> is ON, the <Top-of-File line> becomes
+     the <current line>.
 
 COMPATIBILITY
      XEDIT: Compatible.
-     KEDIT: Does not support HALF or Lines options.
+     KEDIT: Compatible.
 
 DEFAULT
      1
 
 SEE ALSO
-     <BACKWARD>, <TOP>
+     <BACKWARD>, <TOP>, <SET PAGEWRAP>
 
 STATUS
      Complete
@@ -1525,10 +1562,11 @@ CHARTYPE *params;
 #endif
 /***********************************************************************/
 {
-#define FOR_PARAMS  1
+#define FOR_PARAMS  2
    CHARTYPE *word[FOR_PARAMS+1];
    CHARTYPE strip[FOR_PARAMS];
    unsigned short num_params=0;
+   short scroll_by_page = 1; /* by default we scroll pages */
    LINETYPE num_pages=0L;
    short rc=RC_OK;
 
@@ -1537,48 +1575,72 @@ CHARTYPE *params;
     * Validate parameters...
     */
    strip[0]=STRIP_BOTH;
+   strip[1]=STRIP_BOTH;
    num_params = param_split(params,word,FOR_PARAMS,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
-   if (num_params == 0)
+   switch( num_params )
    {
-      num_params = 1;
-      word[0] = (CHARTYPE *)"1";
-   }
-   if (num_params != 1)
-   {
-      display_error(1,(CHARTYPE *)word[1],FALSE);
-      TRACE_RETURN();
-      return(RC_INVALID_OPERAND);
-   }
-   /*
-    * If parameter is '*', set current line equal to last line in file...
-    */
-   if (strcmp((DEFCHAR *)word[0],"*") == 0)
-   {
-      rc = Bottom((CHARTYPE *)"");
-      TRACE_RETURN();
-      return(rc);
-   }
-   /*
-    * If the parameter is not a valid integer, error.
-    */
-   if (!valid_integer(word[0]))
-   {
-      display_error(1,(CHARTYPE *)word[0],FALSE);
-      TRACE_RETURN();
-      return(RC_INVALID_OPERAND);
-   }
-   /*
-    * Number of screens to scroll is set here.
-    */
-   num_pages = atol((DEFCHAR *)word[0]);
-   /*
-    * If the number specified is < 0, error...
-    */
-   if (num_pages < 0L)
-   {
-      display_error(5,(CHARTYPE *)word[0],FALSE);
-      TRACE_RETURN();
-      return(RC_INVALID_OPERAND);
+      case 0:
+         num_pages = 1;
+         break;
+      case 1:
+         /*
+          * If parameter is '*', set current line equal to last line in file...
+          */
+         if (strcmp((DEFCHAR *)word[0],"*") == 0)
+         {
+            rc = Bottom((CHARTYPE *)"");
+            TRACE_RETURN();
+            return(rc);
+         }
+         /*
+          * If parameter is 'HALF', advance half a page
+          */
+         else if (equal((CHARTYPE *)"HALF",word[0],4))
+         {
+            scroll_by_page = 0;
+            num_pages = CURRENT_SCREEN.rows[WINDOW_FILEAREA] / 2;
+         }
+         /*
+          * If the parameter is not a valid positive integer, error.
+          */
+         else if (!valid_positive_integer(word[0]))
+         {
+            display_error(1,(CHARTYPE *)word[0],FALSE);
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+         }
+         else
+         {
+            /*
+             * Number of screens to scroll is set here.
+             */
+            num_pages = atol((DEFCHAR *)word[0]);
+         }
+         break;
+      case 2:
+         if (equal((CHARTYPE *)"Lines",word[1],1))
+         {
+            scroll_by_page = 0;
+            if (!valid_positive_integer(word[0]))
+            {
+               display_error(1,(CHARTYPE *)word[0],FALSE);
+               TRACE_RETURN();
+               return(RC_INVALID_OPERAND);
+            }
+         }
+         else
+         {
+            display_error(1,(CHARTYPE *)word[1],FALSE);
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+         }
+         num_pages = atol((DEFCHAR *)word[0]);
+         break;
+      default:
+         display_error(2,(CHARTYPE *)"",FALSE);
+         TRACE_RETURN();
+         return(RC_INVALID_OPERAND);
+         break;
    }
    /*
     * If the current line is already on "Bottom of File" or the parameter
@@ -1594,7 +1656,14 @@ CHARTYPE *params;
    /*
     * Scroll the screen num_pages...
     */
-   rc = scroll_page(DIRECTION_FORWARD,num_pages,FALSE);
+   if ( scroll_by_page )
+   {
+      rc = scroll_page(DIRECTION_FORWARD,num_pages,FALSE);
+   }
+   else
+   {
+      rc = advance_current_line(num_pages);
+   }
    TRACE_RETURN();
    return(rc);
 }
@@ -1909,7 +1978,7 @@ CHARTYPE *params;
          strcpy((DEFCHAR *)the_help_file,(DEFCHAR *)the_home_dir);
          strcat((DEFCHAR *)the_help_file,"THE_Help.txt");
       }
-      (void *)strrmdup(strtrans(the_help_file,OSLASH,ISLASH),ISLASH,TRUE);
+      strrmdup(strtrans(the_help_file,OSLASH,ISLASH),ISLASH,TRUE);
       first = FALSE;
    }
    if (!file_exists(the_help_file))
@@ -1964,7 +2033,7 @@ CHARTYPE *params;
 
    TRACE_FUNCTION("comm2.c:   Hit");
    /*
-    * Prase the parameters into multiple words. If only one word then it
+    * Parse the parameters into multiple words. If only one word then it
     * must be a key.  If 3 words its a mouse key, otherwise asn error.
     */
    strip[0] = STRIP_BOTH;
@@ -1990,7 +2059,7 @@ CHARTYPE *params;
             TRACE_RETURN();
             return(RC_INVALID_OPERAND);
          }
-         if ((key = find_mouse_key_value(word[0],word[2])) == (-1))
+         if ((key = find_mouse_key_value_in_window(word[0],word[2])) == (-1))
          {
             TRACE_RETURN();
             return(RC_INVALID_OPERAND);
@@ -2053,11 +2122,21 @@ CHARTYPE *params;
    post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
    if (CURRENT_VIEW->hex)
    {
-      if ((len_params = convert_hex_strings(params)) == (-1))
+      len_params = convert_hex_strings( params );
+      switch( len_params )
       {
-         display_error(32,params,FALSE);
-         TRACE_RETURN();
-         return(RC_INVALID_OPERAND);
+         case -1: /* invalid hex value */
+            display_error( 32, params, FALSE );
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+            break;
+         case -2: /* memory exhausted */
+            display_error( 30, (CHARTYPE *)"", FALSE );
+            TRACE_RETURN();
+            return(RC_OUT_OF_MEMORY);
+            break;
+         default:
+            break;
       }
    }
    else
@@ -2067,7 +2146,7 @@ CHARTYPE *params;
       display_error(0,(CHARTYPE *)"Truncated",FALSE);
       len_params = max_line_length;
    }
-   insert_new_line( params, len_params, 1L, get_true_line(TRUE),TRUE,TRUE,TRUE,CURRENT_VIEW->display_low,TRUE,FALSE);
+   insert_new_line( current_screen, CURRENT_VIEW, params, len_params, 1L, get_true_line(TRUE),TRUE,TRUE,TRUE,CURRENT_VIEW->display_low,TRUE,FALSE);
    TRACE_RETURN();
    return(RC_OK);
 }

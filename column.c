@@ -5,7 +5,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -31,10 +31,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: column.c,v 1.4 2005/06/19 00:35:52 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -79,11 +78,21 @@ int cmd_type;
     */
    if (CURRENT_VIEW->hex)
    {
-      if ((len_params = convert_hex_strings(cmd_text)) == (-1))
+      len_params = convert_hex_strings( cmd_text );
+      switch( len_params )
       {
-         display_error(32,(CHARTYPE *)"",FALSE);
-         TRACE_RETURN();
-         return(RC_INVALID_OPERAND);
+         case -1: /* invalid hex value */
+            display_error( 32, cmd_text, FALSE );
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+            break;
+         case -2: /* memory exhausted */
+            display_error( 30, (CHARTYPE *)"", FALSE );
+            TRACE_RETURN();
+            return(RC_OUT_OF_MEMORY);
+            break;
+         default:
+            break;
       }
    }
    else
@@ -191,7 +200,7 @@ int cmd_type;
                if (curses_started)
                   wmove(CURRENT_WINDOW,y,0);
             }
-            rc = execute_move_cursor(CURRENT_VIEW->current_column-1);
+            rc = execute_move_cursor( current_screen, CURRENT_VIEW, CURRENT_VIEW->current_column-1);
             break;
          case COLUMN_CINSERT:
             break;

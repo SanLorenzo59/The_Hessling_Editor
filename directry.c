@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: directry.c,v 1.10 2004/09/13 11:01:26 florian Exp $";
 
 #if defined(__OS2__) && !defined(__EMX__)
 #   define INCL_DOS
@@ -43,12 +42,6 @@ static char RCSid[] = "$Id: directry.c,v 1.10 2004/09/13 11:01:26 florian Exp $"
 
 #include "directry.h"
 #include "thematch.h"
-
-#ifdef HAVE_PROTO
-int is_a_dir(ATTR_TYPE);
-#else
-int is_a_dir();
-#endif
 
 #define NUM_DIRTYPE 5
 static ATTR_TYPE curr_dirtype =
@@ -296,6 +289,7 @@ struct dirfile **dplast;
          dp->f_yy = YY_MASK(ffblk.DATE_NAME);
          dp->fsize = ffblk.SIZE_NAME;
          dp->lname = NULL;
+         dp->facl  = 0;
          dp++;
          if (dp == *dplast)
          {
@@ -543,8 +537,8 @@ CHARTYPE *str_date;
 #endif
 /*********************************************************************/
 {
-   static CHARTYPE _THE_FAR mon[12][4] =
-   { "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+   static CHARTYPE _THE_FAR *mon[12] =
+   { (CHARTYPE *)"Jan",(CHARTYPE *)"Feb",(CHARTYPE *)"Mar",(CHARTYPE *)"Apr",(CHARTYPE *)"May",(CHARTYPE *)"Jun",(CHARTYPE *)"Jul",(CHARTYPE *)"Aug",(CHARTYPE *)"Sep",(CHARTYPE *)"Oct",(CHARTYPE *)"Nov",(CHARTYPE *)"Dec"};
    sprintf((DEFCHAR *)str_date,"%2d-%3.3s-%4.4d",date->f_dd,mon[date->f_mm],date->f_yy);
    return(str_date);
 }
@@ -573,7 +567,11 @@ int facl;
 /*********************************************************************/
 {
 #if defined(UNIX) || defined(AMIGA) || defined(VMS)
+#if 0
    ATTR_TYPE ftype=(attrs & S_IFMT);
+#else
+   ATTR_TYPE ftype=attrs;
+#endif
 
    str_attr[11] = '\0';
    str_attr[10] = ' ';
@@ -632,26 +630,6 @@ int facl;
       strcat(str_attr,"       ");
 #endif
    return(str_attr);
-}
-/*********************************************************************/
-#ifdef HAVE_PROTO
-int is_a_dir(ATTR_TYPE attrs)
-#else
-int is_a_dir(attrs)
-ATTR_TYPE attrs;
-#endif
-/*********************************************************************/
-{
-#if defined(UNIX) || defined(AMIGA)
-   ATTR_TYPE ftype=(attrs & S_IFMT);
-
-   if (ftype == S_IFDIR)
-      return(1);
-#else
-   if ((attrs & F_DI) == F_DI)
-      return(1);
-#endif
-   return(0);
 }
 /*********************************************************************/
 #ifdef HAVE_PROTO

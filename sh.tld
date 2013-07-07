@@ -1,5 +1,5 @@
 *
-* This file contains the THE Language Definition for C/C++
+* This file contains the THE Language Definition for Un*x shell.
 * It is based heavily on Kedit's KLD file format.
 *
 * Name = *SH

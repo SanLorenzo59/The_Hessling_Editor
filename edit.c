@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: edit.c,v 1.17 2005/06/19 01:04:30 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -121,7 +120,7 @@ bool mouse_details_present;
 #endif
    if (key == (-1))
    {
-      key = my_getch(stdscr);
+      key = my_getch( CURRENT_WINDOW );
    }
 #if defined(PDCURSES_MOUSE_ENABLED) || defined(NCURSES_MOUSE_VERSION)
    if (key == KEY_MOUSE)
@@ -165,7 +164,14 @@ bool mouse_details_present;
       else
          current_key++;
    }
+   /*
+    * Save details about the last key pressed
+    */
    lastkeys[current_key] = key;
+   if ( key == KEY_MOUSE )
+      lastkeys_is_mouse[current_key] = 1;
+   else
+      lastkeys_is_mouse[current_key] = 0;
    /*
     * If we are recording a macro, check if the key hit is the end-of-record
     * key.
@@ -203,7 +209,9 @@ bool mouse_details_present;
        */
       write_macro( get_key_definition( key, THE_KEY_DEFINE_RAW, TRUE, (bool)((key == KEY_MOUSE) ? TRUE : FALSE ) ) );
    }
+   save_for_repeat = 0;
    rc = function_key( key, OPTION_NORMAL, mouse_details_present );
+   save_for_repeat = 1;
    if ( number_of_files == 0 )
    {
       TRACE_RETURN();
@@ -233,6 +241,7 @@ bool mouse_details_present;
 
    show_statarea();
 
+   /* display the file tabs window. should only do this when changing views; not every key */
    if ( FILETABSx )
       display_filetabs( NULL );
 
@@ -473,7 +482,7 @@ bool external_command_line;
    if (rexx_support)
    {
       CHARTYPE tmp[20];
-      sprintf( (DEFCHAR *)tmp, "ring.%d", number_of_files+(compatible_feel==COMPAT_XEDIT) ? 1 : 0 );
+      sprintf( (DEFCHAR *)tmp, "ring.%ld", number_of_files + ( (compatible_feel==COMPAT_XEDIT) ? 1 : 0 ) );
       MyRexxRegisterFunctionExe( tmp );
    }
    TRACE_RETURN();

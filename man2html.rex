@@ -8,6 +8,7 @@
  */
 Trace o
 Parse Arg html_ext ver section infile tocfile .
+If Left( infile, 2 ) = './' Then infile = Substr( infile, 3 )
 Select
   When section = 'TOCSTART'  Then Call toc 'START' ver
   When section = 'TOCEND'    Then Call toc 'END' ver
@@ -1166,10 +1167,16 @@ Do Forever    /* handle links */
 End
 line = tmp
 tmp = ''
-Do Forever              /* handle arguments */
-   Parse Var line pre "'" keyword "'" line
+/*
+ * Fix mishandling of apostrophes being mistaken for argument names.
+ */
+nondisp = x2c( 'EE' )
+line = Changestr( "'", line, nondisp )
+line = Changestr( nondisp's ', line, "'s " )
+Do Forever              /* handle arguments - single words with single quotes*/
+   Parse Var line pre (nondisp) keyword (nondisp) line
    Select
-     When keyword = '' Then tmp = tmp pre
+     When keyword = '' Then tmp = tmp pre /* end of line */
      Otherwise
        Do
          If Words(syntax_words) \= 0 & Wordpos(Translate(keyword),Translate(syntax_words)) = 0 Then
@@ -1184,7 +1191,10 @@ Do Forever              /* handle arguments */
                    If Substr(strip_pre,Length(strip_pre)) = "#" Then
                       tmp = tmp pre || keyword
                    Else
-                      tmp = tmp pre Italic(keyword)
+                      Do
+                            tmp = tmp pre Italic(keyword)
+                      End
+
                  End
             End
        End
@@ -1237,6 +1247,7 @@ Do i = 1 To Length(val)
       When char = '"' & intag = 0 Then newval = newval || '&quot;'
       When char = '>' & intag = 0 Then newval = newval || '&gt;'
       When char = '<' & intag = 0 Then newval = newval || '&lt;'
+      When char = "'" & intag = 0 Then newval = newval || '&apos;'
       Otherwise newval = newval || char
    End
 End

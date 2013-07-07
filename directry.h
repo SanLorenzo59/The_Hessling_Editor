@@ -30,8 +30,10 @@
  */
 
 /*
-$Id: directry.h,v 1.7 2004/08/03 07:26:00 mark Exp $
+$Id: directry.h,v 1.8 2013/01/23 04:13:42 mark Exp $
 */
+#ifndef _DIRECTRY_H_INCLUDED
+#define _DIRECTRY_H_INCLUDED
 
 #if defined(DOS) && defined(TC)
 # define F_RO FA_RDONLY
@@ -473,4 +475,6 @@ CHARTYPE *file_attrs();
 CHARTYPE *file_date();
 CHARTYPE *file_time();
 short set_dirtype();
+#endif
+
 #endif

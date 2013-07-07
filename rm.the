@@ -1,5 +1,5 @@
 /*
-$Id: rm.the,v 1.1 2001/01/04 09:41:57 mark Exp $
+$Id: rm.the,v 1.2 2008/02/29 00:48:42 mark Exp $
 */
 /***********************************************************************/
 /* Description: REXX macro to delete a file from a DIR.DIR file.       */
@@ -57,6 +57,6 @@ If version.3 = 'UNIX' | version.3 = 'X11' Then delcmd = 'osq rm -f'
 Else delcmd = 'osq del'
 'sos delline'
 filename = dirfileid.1||dirfileid.2
-delcmd filename
+delcmd '"'filename'"'
 'msg File' filename 'deleted'
 Return 0

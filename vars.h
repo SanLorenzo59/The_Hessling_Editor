@@ -30,7 +30,7 @@
  */
 
 /*
-$Id: vars.h,v 1.27 2005/06/19 01:53:14 mark Exp $
+$Id: vars.h,v 1.40 2013/06/22 01:18:19 mark Exp $
 */
 
 /* Please, include the.h first. */
@@ -42,8 +42,9 @@ extern the_header_mapping thm[];
 extern bool           rexx_output;
 
 /* commutil.c */
-extern CHARTYPE       _THE_FAR last_command_for_reexecute[MAX_COMMAND_LENGTH],
-                      _THE_FAR last_command_for_repeat[MAX_COMMAND_LENGTH],
+extern CHARTYPE       _THE_FAR *last_command_for_reexecute,
+                      _THE_FAR *last_command_for_repeat,
+                      _THE_FAR *last_command_for_repeat_in_macro,
                       *temp_cmd;
 extern DEFINE         *first_define,
                       *last_define,
@@ -59,7 +60,7 @@ extern AREAS          valid_areas[ATTR_MAX];
 /* default.c */
 extern bool           BEEPx,
                       CAPREXXOUTx,
-                      BIRTHDAYx,
+                      ERROROUTPUTx,
                       CLEARSCREENx,
                       CLOCKx,
                       HEXDISPLAYx,
@@ -75,7 +76,8 @@ extern bool           BEEPx,
                       UNTAAx,
                       PAGEWRAPx,
                       FILETABSx,
-                      CTLCHARx;
+                      CTLCHARx,
+                      save_for_repeat;
 extern CHARTYPE       CMDARROWSTABCMDx,
                       EOLx,
                       INTERFACEx,
@@ -85,7 +87,8 @@ extern CHARTYPE       CMDARROWSTABCMDx,
                       TABI_ONx,
                       TABI_Nx,
                       EQUIVCHARx,
-                      EQUIVCHARstr[2];
+                      EQUIVCHARstr[2],
+                      BACKUP_SUFFIXx[101];
 extern LINETYPE       CAPREXXMAXx;
 extern ROWTYPE        STATUSLINEx;
 extern int            DEFSORTx,
@@ -94,7 +97,10 @@ extern int            DEFSORTx,
                       TARGETSAVEx,
                       REGEXPx,
                       READONLYx,
-                      popup_escape_key;
+                      COMMANDCALLSx,
+                      FUNCTIONCALLSx,
+                      popup_escape_key,
+                      popup_escape_keys[MAXIMUM_POPUP_KEYS];
 extern PARSER_DETAILS *first_parser,
                       *last_parser;
 extern PARSER_MAPPING *first_parser_mapping,
@@ -102,6 +108,7 @@ extern PARSER_MAPPING *first_parser_mapping,
 extern CHARTYPE ctlchar_escape;
 extern COLOUR_ATTR ctlchar_attr[MAX_CTLCHARS];
 extern CHARTYPE ctlchar_char[MAX_CTLCHARS];
+extern bool ctlchar_protect[MAX_CTLCHARS];
 extern struct regexp_syntax regexp_syntaxes[];
 
 /* edit.c */
@@ -140,6 +147,7 @@ extern QUERY_ITEM _THE_FAR function_item[];
 /* the.c */
 extern SCREEN_DETAILS screen[MAX_SCREENS];
 extern short          screen_rows[MAX_SCREENS];
+extern short          screen_cols[MAX_SCREENS];
 extern WINDOW         *statarea,
                       *error_window,
                       *divider,
@@ -180,6 +188,7 @@ extern CHARTYPE       *brec;
 extern LENGTHTYPE     brec_len;
 extern CHARTYPE       *cmd_rec;
 extern LENGTHTYPE     cmd_rec_len;
+extern LENGTHTYPE     cmd_verify_col;
 extern CHARTYPE       *pre_rec;
 extern LENGTHTYPE     pre_rec_len;
 extern CHARTYPE       *profile_command_line,
@@ -193,17 +202,18 @@ extern bool           focus_changed,
 extern int            profile_file_executions;
 extern bool           execute_profile,
                       in_macro,
-                      in_repeat,
                       in_readv,
                       file_read,
                       curses_started,
                       the_readonly,
+                      interactive_in_macro,
                       be_quiet;
 extern CHARTYPE       *the_version,
                       *the_release,
                       *the_copyright,
-                      term_name[20],
-                      *tempfilename;
+                      term_name[20];
+extern CHARTYPE       *tempfilename;
+extern short          colour_offset_bits;
 #if defined(UNIX)
 extern CHARTYPE       user_home_dir[MAX_FILE_NAME+1];
 #endif
@@ -238,8 +248,8 @@ extern int            max_macro_dirs,
                       total_macro_dirs;
 extern CHARTYPE       *prf_arg,
                       *local_prf,
-                      *specified_prf,
-                      tabkey_insert,
+                      *specified_prf;
+extern CHARTYPE       tabkey_insert,
                       tabkey_overwrite;
 extern CHARTYPE       _THE_FAR spooler_name[MAX_FILE_NAME+1];
 extern struct stat    stat_buf;
@@ -260,12 +270,17 @@ extern LINETYPE       original_screen_line,
                       original_file_column,
                       startup_line;
 extern LENGTHTYPE     startup_column;
-#ifdef XCURSES
+#ifdef USE_XCURSES
 extern char           *XCursesProgramName;
 #endif
 extern CHARTYPE       *linebuf;
+#ifdef USE_UTF8
+extern cchar_t        *linebufch;
+#else
 extern chtype         *linebufch;
+#endif
 extern int            lastkeys[8],
+                      lastkeys_is_mouse[8],
                       current_key;
 #ifdef WIN32
 extern bool           StartedPrinter;

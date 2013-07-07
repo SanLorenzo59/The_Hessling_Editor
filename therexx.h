@@ -30,7 +30,7 @@
  */
 
 /*
-$Id: therexx.h,v 1.4 2001/12/18 08:23:27 mark Exp $
+$Id: therexx.h,v 1.9 2013/04/01 01:27:34 mark Exp $
 */
 
 #if defined(OS2)
@@ -52,7 +52,7 @@ $Id: therexx.h,v 1.4 2001/12/18 08:23:27 mark Exp $
 # if defined(USE_REXX6000)
 #  include <rexxsaa.h>
 # endif
-# if defined(USE_OREXX)
+# if defined(USE_OREXX) || defined(USE_OOREXX)
 #  include <rexx.h>
 # endif
 # if defined(USE_REXXTRANS)
@@ -93,7 +93,7 @@ typedef CHAR *PCH;
 # if defined(USE_REGINA)
 #  include <rexxsaa.h>
 # endif
-# if defined(USE_OREXX)
+# if defined(USE_OREXX) || defined(USE_OOREXX)
 #  include <rexx.h>
 # endif
 # if defined(USE_QUERCUS)
@@ -267,21 +267,21 @@ typedef CHAR *PCH;
 # define RFH_ARG3_TYPE        C_PSZ
 # define RFH_ARG4_TYPE        PRXSTRING
 # define RRFE_ARG0_TYPE       C_PSZ
-# define RRFE_ARG1_TYPE       PFN
+# define RRFE_ARG1_TYPE       RexxFunctionHandler*
 # define RDF_ARG0_TYPE        C_PSZ
 # define REH_RETURN_TYPE      LONG APIENTRY
 # define REH_ARG0_TYPE        LONG
 # define REH_ARG1_TYPE        LONG
 # define REH_ARG2_TYPE        PEXIT
 # define RREE_ARG0_TYPE       C_PSZ
-# define RREE_ARG1_TYPE       PFN
+# define RREE_ARG1_TYPE       RexxExitHandler *
 # define RREE_ARG2_TYPE       PUCHAR
 # define RSH_RETURN_TYPE      APIRET APIENTRY
 # define RSH_ARG0_TYPE        PRXSTRING
 # define RSH_ARG1_TYPE        PUSHORT
 # define RSH_ARG2_TYPE        PRXSTRING
 # define RRSE_ARG0_TYPE       C_PSZ
-# define RRSE_ARG1_TYPE       PFN
+# define RRSE_ARG1_TYPE       RexxSubcomHandler *
 # define RRSE_ARG2_TYPE       PUCHAR
 # define RDE_ARG0_TYPE        C_PSZ
 # define RDE_ARG1_TYPE        C_PSZ
@@ -336,7 +336,51 @@ typedef CHAR *PCH;
 # define RS_ARG7_TYPE         short *
 # define RS_ARG8_TYPE         PRXSTRING
 
-#elif defined(USE_OREXX)
+#elif defined(OOREXX_40) && defined(USE_OOREXX)
+typedef char CHAR;
+typedef short int SHORT;
+typedef char * PSZ;
+typedef unsigned long ULONG;
+typedef long LONG;
+# define RXSTRING_STRPTR_TYPE   char *
+# define RFH_RETURN_TYPE        size_t REXXENTRY
+# define RFH_ARG0_TYPE          CONSTANT_STRING
+# define RFH_ARG1_TYPE          size_t
+# define RFH_ARG2_TYPE          PCONSTRXSTRING
+# define RFH_ARG3_TYPE          CONSTANT_STRING
+# define RFH_ARG4_TYPE          PRXSTRING
+# define RRFE_ARG0_TYPE         CONSTANT_STRING
+# define RRFE_ARG1_TYPE         REXXPFN
+# define RDF_ARG0_TYPE          CONSTANT_STRING
+# define REH_RETURN_TYPE        RexxReturnCode REXXENTRY
+# define REH_ARG0_TYPE          int
+# define REH_ARG1_TYPE          int
+# define REH_ARG2_TYPE          PEXIT
+# define RREE_ARG0_TYPE         CONSTANT_STRING
+# define RREE_ARG1_TYPE         REXXPFN
+# define RREE_ARG2_TYPE         CONSTANT_STRING
+# define RSH_RETURN_TYPE        RexxReturnCode REXXENTRY
+# define RSH_ARG0_TYPE          PCONSTRXSTRING
+# define RSH_ARG1_TYPE          unsigned short *
+# define RSH_ARG2_TYPE          PRXSTRING
+# define RRSE_ARG0_TYPE         CONSTANT_STRING
+# define RRSE_ARG1_TYPE         REXXPFN
+# define RRSE_ARG2_TYPE         CONSTANT_STRING
+# define RDE_ARG0_TYPE          CONSTANT_STRING
+# define RDE_ARG1_TYPE          CONSTANT_STRING
+# define RDS_ARG0_TYPE          CONSTANT_STRING
+# define RDS_ARG1_TYPE          CONSTANT_STRING
+# define RS_ARG0_TYPE           size_t
+# define RS_ARG1_TYPE           PCONSTRXSTRING
+# define RS_ARG2_TYPE           CONSTANT_STRING
+# define RS_ARG3_TYPE           PRXSTRING
+# define RS_ARG4_TYPE           CONSTANT_STRING
+# define RS_ARG5_TYPE           int
+# define RS_ARG6_TYPE           PRXSYSEXIT
+# define RS_ARG7_TYPE           short *
+# define RS_ARG8_TYPE           PRXSTRING
+
+#elif defined(USE_OREXX) || defined(USE_OOREXX)
 # define RXSTRING_STRPTR_TYPE PCH
 # define RFH_RETURN_TYPE      ULONG APIENTRY
 # define RFH_ARG0_TYPE        PUCHAR

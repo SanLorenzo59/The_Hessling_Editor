@@ -4,10 +4,10 @@
  -----------------------
  Command-line invocation
  -----------------------
- 
+
   the [-h?nmrsbq] [-p profile] [-a prof_arg] [-l line_num] [-c col_num]
       [-w width] [-u disp_len] -k[fmt] [[dir] [file [...]]]
- 
+
   Where:
     -h or -?      Display usage information and version.
     -n            Do not execute a profile file.
@@ -21,7 +21,7 @@
     -c column_num specify column number to make current
     -p profile    The name of the profile file to use.  If not specified,
                   the file ".\PROFILE.THE" (under OS/2, DOS and Win95/NT)
-                  or "$HOME/.therc" (under UNIX), will be used, unless 
+                  or "$HOME/.therc" (under UNIX), will be used, unless
                   overridden by the environment variable "THE_PROFILE_FILE".
     -a prof_arg   Used to pass a string to the profile file as argument.
                   Only works with Rexx macros.
@@ -35,7 +35,7 @@
                   be displayed.
                   Issuing [SOS EDIT] on a file spec will edit that file.
                   [SOS EDIT] on a subdir will display that directory.
- 
+
     Option flags are case-sensitive.
 
 
@@ -584,7 +584,8 @@
        Default: Display
  [SET] SCReen n [Horizontal|Vertical]
  [SET] SCReen Size l1|* [l2|*]
-       specify number of screens displayed
+ [SET] SCReen Width c1|* [c2|*]
+       specify number of screens displayed and their sizes
        Default: 1
  [SET] SELect [+|-]n [target]
        sets the selection level for the specified lines
@@ -592,9 +593,10 @@
  [SET] SHADOW ON|OFF
        determines if shadow lines are displayed or not
        Default: ON
- [SET] SLK n|OFF [text]
+ [SET] SLK n|OFF|ON [text]
        set Soft Label Key definitions
-       Default: OFF
+       Default: OFF if no SLK support
+       Default: ON if SLK support available
  [SET] SPAN ON|OFF [Blank|Noblank [n|*]]
        specify if a string target can span multiple lines (unavailable)
        Default: OFF Blank 2
@@ -830,32 +832,58 @@
  Line Targets
  ------------
 
-  Absolute target:        An absolute line number.
-                          eg. :12 = line number 12
-  All target:             All lines in file the file.
-                          eg. ALL
-  Blank target:           The first line containing only blank characters.
-                          eg. BLANK
-  Block target:           All lines in the marked block.
-                          eg. BLOCK
-  Named line target:      A line with a name, set with [SET] POINT
-                          eg. .fred
-  Relative target:        A target relative to the current line.
-                          eg. 12 = 12 lines below the current line
-                              -4 = 4 lines above the current line
-                              *  = all lines below the current line
-                              -* = all lines above the current line
-  String target:          A sequence of characters between delimiters.
-                          eg. /string/  - the first line below the
-                                          current line containing "string"
-                              -/string/ - the first line above the
-                                          current line containing "string"
- 
-  Targets may be separated by the boolean operators '&' or '|'.
-  eg.  /string1/ | /string2/
-  Targets may also be prefixed with '~' to signify boolean NOT.
-  eg.  ~/string/
+  All line targets can be specified as an argument to the LOCATE command, or
+  without the optional LOCATE command.
+     +------------------------------
+     =====> locate new
+     +------------------------------
+  is equivalent to:
+     +------------------------------
+     =====> new
+     +------------------------------
 
+ +------------------+-----------------------------------------------------------|
+ | Target Type      | Description                                               |
+ +------------------+-----------------------------------------------------------|
+ |Absolute target   | An absolute line number.                                  |
+ |                  | eg. :12 = line number 12                                  |
+ |All target        | All lines in the file.                                    |
+ |                  | eg. ALL                                                   |
+ |Blank target      | The first line containing only blank characters.          |
+ |                  | eg. BLANK                                                 |
+ |Block target      | All lines in the marked block.                            |
+ |                  | eg. BLOCK                                                 |
+ |Named line target | A line with a name, set with [SET] POINT                  |
+ |                  | eg. .fred                                                 |
+ |Relative target   | A target relative to the focus line.                      |
+ |                  | eg. 12 = 12 lines below the focus line                    |
+ |                  |     -4 = 4 lines above the focus line                     |
+ |                  |     *  = all lines below the focus line                   |
+ |                  |     -* = all lines above the focus line                   |
+ |String target     | A sequence of characters between delimiters.              |
+ |                  | eg. /string/  - the first line below the                  |
+ |                  |                 focus line containing "string"            |
+ |                  |     -/string/ - the first line above the                  |
+ |                  |                 focus line containing "string"            |
+ |Line flag targets | Targets that reference line flags. See [SET] LINEFLAG     |
+ |                  | eg. NEW - the first line added to the file below          |
+ |                  |     the focus line                                        |
+ |                  |     CHAnged - the first changed in the file below         |
+ |                  |     the focus line                                        |
+ |                  |     ALTered - the first new line or changed line in       |
+ |                  |     the file below the focus line                         |
+ |                  |     TAGged - the first tagged line in the file below      |
+ |                  |     the focus line                                        |
+ +------------------+-----------------------------------------------------------|
+
+  Targets may be separated by the boolean operators '&' or '|'.
+     +------------------------------
+     =====> /string1/ | /string2/
+     +------------------------------
+  Targets may also be prefixed with '~' to signify boolean NOT.
+     +------------------------------
+     =====> ~/string1/
+     +------------------------------
 
  -----------------------
  Default Key Assignments

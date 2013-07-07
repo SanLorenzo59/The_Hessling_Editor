@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: commset2.c,v 1.28 2005/12/13 08:52:44 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -401,9 +400,9 @@ CHARTYPE *params;
          pre_rec[CURRENT_VIEW->prefix_width] = '\0';
          curr = lll_find( CURRENT_FILE->first_line, CURRENT_FILE->last_line, true_line, CURRENT_FILE->number_lines );
          if ( command == PEND_BLOCK )
-            add_prefix_command( curr, true_line, TRUE, TRUE );
+            add_prefix_command( current_screen, CURRENT_VIEW, curr, true_line, TRUE, TRUE );
          else
-            add_prefix_command( curr, true_line, FALSE, TRUE );
+            add_prefix_command( current_screen, CURRENT_VIEW, curr, true_line, FALSE, TRUE );
          break;
       /*
        * PENDING OFF...
@@ -416,7 +415,13 @@ CHARTYPE *params;
             break;
          }
          curr = lll_find( CURRENT_FILE->first_line, CURRENT_FILE->last_line, true_line, CURRENT_FILE->number_lines );
-         (void)delete_pending_prefix_command( curr->pre, CURRENT_FILE, curr );
+         /*
+          * Don't delete the pending prefix command as SET PENDING OFF may have been
+          * called by a prefix macro and that would stuff up the pending prefix command linked list.
+          * Just set the pedning prefix command to processed and it will be cleaned up later.
+          */
+         if ( curr->pre )
+            curr->pre->ppc_processed = TRUE;
          memset( pre_rec, ' ', MAX_PREFIX_WIDTH );
          pre_rec_len = 0;
          break;
@@ -493,7 +498,7 @@ CHARTYPE *params;
          TRACE_RETURN();
          return(RC_INVALID_OPERAND);
       }
-      if ( (rc = execute_set_point( word[0], get_true_line(TRUE), TRUE ) ) != RC_OK )
+      if ( (rc = execute_set_point( current_screen, CURRENT_VIEW, word[0], get_true_line(TRUE), TRUE ) ) != RC_OK )
       {
          TRACE_RETURN();
          return(rc);
@@ -510,7 +515,7 @@ CHARTYPE *params;
          TRACE_RETURN();
          return(RC_INVALID_OPERAND);
       }
-      if ((rc = execute_set_point(word[0],get_true_line(TRUE),FALSE)) != RC_OK)
+      if ( ( rc = execute_set_point( current_screen, CURRENT_VIEW, word[0], get_true_line(TRUE), FALSE ) ) != RC_OK )
       {
          TRACE_RETURN();
          return(rc);
@@ -572,7 +577,7 @@ DESCRIPTION
 
      The second form of the SET PREFIX command is functionally the same
      as the first form. The difference is that when the prefix area
-     is displayed with <SET NUMBER> ON, numbers are displyed with leading
+     is displayed with <SET NUMBER> ON, numbers are displayed with leading
      spaces rather than zeros; with <SET NUMBER> OFF, blanks are displayed
      instead of equal signs.
 
@@ -589,6 +594,9 @@ DESCRIPTION
      ending in .the or whatever the value of <SET MACROEXT> is at the time the
      prefix command is executed. The 'oldname' can also be the fully
      qualified filename of a Rexx macro.
+     To turn off a prefix synonym, call SET PREFIX newname oldname where
+     'newname' and 'oldname' are the same and 'newname' is an existing prefix
+     command or macro.
 
      The first and second forms of the SET PREFIX command allows the user
      to specify the width of the prefix area and optionally a gap between
@@ -600,7 +608,8 @@ DESCRIPTION
 COMPATIBILITY
      XEDIT: Compatible.
      KEDIT: Compatible.
-     Specification of prefix width is a THE-only option.
+     Specification of prefix width ang gap is a THE-only option. Kedit has
+     SET PREFIXWIDTH to set prefix width, but not gap.
 
 DEFAULT
      ON Left 6 0
@@ -1037,6 +1046,7 @@ CHARTYPE *params;
     */
    strip[0]=STRIP_BOTH;
    strip[1]=STRIP_BOTH;
+   strip[2]=STRIP_BOTH;
    num_params = param_split( params, word, PSC_PARAMS, WORD_DELIMS, TEMP_PARAM, strip, FALSE );
    if ( num_params < 1 )
    {
@@ -1065,7 +1075,7 @@ CHARTYPE *params;
          return( RC_INVALID_OPERAND );
       }
    }
-#if defined(OS2) || defined(WIN32)
+#if defined(CAN_RESIZE) || defined(OS2) || defined(WIN32)
    rc = THE_Resize( current_lines, current_cols );
    (void)THERefresh( (CHARTYPE *)"" );
    draw_cursor( TRUE );
@@ -1078,7 +1088,7 @@ COMMAND
      set readonly - allow/disallow changes to a file if it is readonly
 
 SYNTAX
-     [SET] READONLY ON|OFF|FORCE
+     [SET] READONLY ON|OFF|FORCE [File]
 
 DESCRIPTION
      The SET READONLY command allows the user to disallow changes to
@@ -1099,7 +1109,12 @@ DESCRIPTION
      While the -r command line switch disallows changes to be made to
      any files, SET READONLY ON, only disallows changes to be made to
      readonly files. SET READONLY FORCE disallows changes to be made to
-     the current file irrespective of whether it is readonly on disk.
+     the any files irrespective of whether they are readonly on disk.
+
+     With the [File] option, SET READONLY ON and SET READONLY FORCE
+     will result in the current file being readonly. SET READONLY OFF
+     will allow changes to be made to the current file, provided the
+     global READONLY status is OFF.
 
 COMPATIBILITY
      XEDIT: N/A
@@ -1119,8 +1134,10 @@ CHARTYPE *params;
 #endif
 /***********************************************************************/
 {
-#define REO_PARAMS  1
+#define REO_PARAMS  2
    short rc=RC_OK;
+   int readonly;
+   int file_level = 0;
    CHARTYPE *word[REO_PARAMS+1];
    CHARTYPE strip[REO_PARAMS];
    unsigned short num_params=0;
@@ -1128,6 +1145,7 @@ CHARTYPE *params;
    TRACE_FUNCTION("commset2.c:Readonly");
 
    strip[0]=STRIP_BOTH;
+   strip[1]=STRIP_BOTH;
    num_params = param_split(params,word,REO_PARAMS,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
    if (num_params < 1)
    {
@@ -1135,16 +1153,44 @@ CHARTYPE *params;
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
+   if (num_params > 2)
+   {
+      display_error( 2, (CHARTYPE *)"", FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
    if ( equal( (CHARTYPE *)"on", word[0], 2 ) )
-      READONLYx = READONLY_ON;
+      readonly = READONLY_ON;
    else if ( equal( (CHARTYPE *)"off", word[0], 3 ) )
-      READONLYx = READONLY_OFF;
+      readonly = READONLY_OFF;
    else if ( equal( (CHARTYPE *)"force", word[0], 5 ) )
-      READONLYx = READONLY_FORCE;
+      readonly = READONLY_FORCE;
    else
    {
       display_error(1,(CHARTYPE *)word[0],FALSE);
-      rc = RC_INVALID_OPERAND;
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
+   if ( num_params == 2 )
+   {
+      if ( equal( (CHARTYPE *)"file", word[1], 1 ) )
+      {
+         file_level = 1;
+      }
+      else
+      {
+         display_error( 1, (CHARTYPE *)word[1], FALSE );
+         TRACE_RETURN();
+         return(RC_INVALID_OPERAND);
+      }
+   }
+   if ( file_level )
+   {
+      CURRENT_FILE->readonly = readonly;
+   }
+   else
+   {
+      READONLYx = readonly;
    }
    TRACE_RETURN();
    return(rc);
@@ -1263,7 +1309,7 @@ COMMAND
      set reserved - display a reserved line
 
 SYNTAX
-     [SET] RESERved *|+|-n [colour] [text|OFF]
+     [SET] RESERved [AUTOSCroll] *|+|-n [colour] [text|OFF]
 
 DESCRIPTION
      The SET RESERVED command reserves a line for the display of arbitrary
@@ -1290,6 +1336,13 @@ DESCRIPTION
      All reserved lines may be turned of by specifying * as the number
      of lines.
 
+     By default, reserved lines are fixed; that is the left portion of
+     the reserved line that can be displayed stays displayed irrespective
+     of whether the file contents have been scrolled left or right.
+     With the 'AUTOSCroll' option, the text of the reserved line is
+     scrolled with the file contents using the same settings as
+     <SET AUTOSCROLL>.
+
      The colour option specifies the colours to use to display the
      reserved line. The format of this colour specifier is the same
      as for <SET COLOUR>. If no colour is specified, the colour of the
@@ -1314,6 +1367,7 @@ DESCRIPTION
 COMPATIBILITY
      XEDIT: Compatible.
      KEDIT: Compatible.
+            AUTOSCroll option is a THE extension.
 
 SEE ALSO
      <SET COLOUR>, <SET CTLCHAR>
@@ -1336,67 +1390,92 @@ CHARTYPE *params;
    short base=0,off=0;
    COLOUR_ATTR attr,save_attr;              /* initialisation done below */
    CHARTYPE *string=NULL;
+   CHARTYPE *saveparams=NULL;
    short rc=RC_OK;
    unsigned short x=0,y=0;
    LINETYPE new_focus_line=0L;
    bool any_colours=FALSE;
+   bool autoscroll = 0;
    RESERVED *curr=NULL;
 
-   TRACE_FUNCTION("commset2.c:Reserved");
+   TRACE_FUNCTION( "commset2.c:Reserved" );
    /*
     * Initialise attr and save_sttr...
     */
-   memset((char *)&attr,0,sizeof(COLOUR_ATTR));
-   memset((char *)&save_attr,0,sizeof(COLOUR_ATTR));
+   memset( (char *)&attr, 0, sizeof(COLOUR_ATTR) );
+   memset( (char *)&save_attr, 0, sizeof(COLOUR_ATTR) );
    strip[0]=STRIP_BOTH;
    strip[1]=STRIP_NONE;
-   num_params = param_split(params,word,RSR_PARAMS,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
-   if (num_params < 1)
+   num_params = param_split( params, word, RSR_PARAMS, WORD_DELIMS, TEMP_PARAM, strip, FALSE );
+   if ( num_params < 1 )
    {
-      display_error(3,(CHARTYPE *)"",FALSE);
+      display_error( 3, (CHARTYPE *)"", FALSE );
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
    /*
     * First check for the special case of * OFF...
     */
-   if (strcmp((DEFCHAR *)word[0],"*") == 0
-   &&  equal((CHARTYPE *)"off",word[1],3))
-      CURRENT_FILE->first_reserved = rll_free(CURRENT_FILE->first_reserved);
+   if ( strcmp( (DEFCHAR *)word[0], "*" ) == 0
+   &&   equal( (CHARTYPE *)"off", word[1], 3 ) )
+      CURRENT_FILE->first_reserved = rll_free( CURRENT_FILE->first_reserved );
    else
    {
       /*
+       * Look for AUTOSCroll
+       */
+      if ( equal( (CHARTYPE *)"autoscroll", word[0], 6 ) )
+      {
+         /*
+          * We found AUTOSCroll, so copy the second word and split this as though it were
+          * the original args
+          */
+         autoscroll = 1;
+         saveparams = my_strdup( word[1] );
+         num_params = param_split( saveparams, word, RSR_PARAMS, WORD_DELIMS, TEMP_PARAM, strip, FALSE );
+         if ( num_params < 1 )
+         {
+            if ( saveparams) (*the_free)(saveparams);
+            display_error( 3, (CHARTYPE *)"", FALSE );
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+         }
+      }
+      /*
        * Parse the position parameter...
        */
-      rc = execute_set_row_position(word[0],&base,&off);
-      if (rc != RC_OK)
+      rc = execute_set_row_position( word[0], &base, &off );
+      if ( rc != RC_OK )
       {
+         if ( saveparams) (*the_free)(saveparams);
          TRACE_RETURN();
          return(rc);
       }
-      if (equal((CHARTYPE *)"off",word[1],3))
-         rc = delete_reserved_line(base,off);
+      if ( equal( (CHARTYPE *)"off", word[1], 3 ) )
+         rc = delete_reserved_line( base, off );
       else
       {
          /*
           * Parse the colour arguments (if any)...
           */
-         if ((rc = parse_colours(word[1],&attr,&string,TRUE,&any_colours)) != RC_OK)
+         if ( ( rc = parse_colours( word[1], &attr, &string, TRUE, &any_colours ) ) != RC_OK )
          {
+            if ( saveparams) (*the_free)(saveparams);
             TRACE_RETURN();
             return(rc);
          }
-         if (!any_colours)
-            memcpy(&attr,CURRENT_FILE->attr+ATTR_RESERVED,sizeof(COLOUR_ATTR));
+         if ( !any_colours )
+            memcpy( &attr, CURRENT_FILE->attr+ATTR_RESERVED, sizeof(COLOUR_ATTR) );
          /*
           * If the reserved row is the same row as CURLINE, return ERROR.
           */
-         if (calculate_actual_row(CURRENT_VIEW->current_base,
-                                  CURRENT_VIEW->current_off,
-                                  CURRENT_SCREEN.rows[WINDOW_FILEAREA],TRUE) ==
-             calculate_actual_row( base, off, CURRENT_SCREEN.rows[WINDOW_FILEAREA], FALSE ) )
+         if ( calculate_actual_row( CURRENT_VIEW->current_base,
+                                    CURRENT_VIEW->current_off,
+                                    CURRENT_SCREEN.rows[WINDOW_FILEAREA], TRUE ) ==
+              calculate_actual_row( base, off, CURRENT_SCREEN.rows[WINDOW_FILEAREA], FALSE ) )
          {
-            display_error(64,(CHARTYPE *)"- same line as CURLINE",FALSE);
+            if ( saveparams) (*the_free)(saveparams);
+            display_error( 64, (CHARTYPE *)"- same line as CURLINE", FALSE );
             TRACE_RETURN();
             return(RC_INVALID_ENVIRON);
          }
@@ -1404,33 +1483,124 @@ CHARTYPE *params;
           * If no colours were specified, use the default colour as set by any
           * SET COLOUR RESERVED... command.
           */
-         if (memcmp(&attr,&save_attr,sizeof(COLOUR_ATTR)) == 0)
-            curr = add_reserved_line(word[0],string,base,off,CURRENT_FILE->attr+ATTR_RESERVED);
+         if ( memcmp( &attr, &save_attr, sizeof(COLOUR_ATTR) ) == 0 )
+            curr = add_reserved_line( word[0], string, base, off, CURRENT_FILE->attr+ATTR_RESERVED, autoscroll );
          else
-            curr = add_reserved_line(word[0],string,base,off,&attr);
-         if (curr == NULL)
+            curr = add_reserved_line( word[0], string, base, off, &attr, autoscroll );
+         if ( curr == NULL )
             rc = RC_OUT_OF_MEMORY;
       }
    }
-   build_screen(current_screen);
-   if (CURRENT_VIEW->current_window != WINDOW_COMMAND)
+   build_screen( current_screen );
+   if ( CURRENT_VIEW->current_window != WINDOW_COMMAND )
    {
-      if (curses_started)
-         getyx(CURRENT_WINDOW,y,x);
-      new_focus_line = get_focus_line_in_view(current_screen,CURRENT_VIEW->focus_line,y);
-      if (new_focus_line != CURRENT_VIEW->focus_line)
+      if ( curses_started )
+         getyx( CURRENT_WINDOW, y, x );
+      new_focus_line = get_focus_line_in_view( current_screen, CURRENT_VIEW->focus_line, y );
+      if ( new_focus_line != CURRENT_VIEW->focus_line )
       {
-         post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
+         post_process_line( CURRENT_VIEW,CURRENT_VIEW->focus_line, (LINE *)NULL, TRUE );
          CURRENT_VIEW->focus_line = new_focus_line;
-         y = get_row_for_focus_line(current_screen,CURRENT_VIEW->focus_line,CURRENT_VIEW->current_row);
-         if (curses_started)
-            wmove(CURRENT_WINDOW,y,x);
-         pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
+         y = get_row_for_focus_line( current_screen, CURRENT_VIEW->focus_line, CURRENT_VIEW->current_row );
+         if ( curses_started )
+            wmove( CURRENT_WINDOW, y, x );
+         pre_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL );
       }
    }
-   display_screen(current_screen);
+   display_screen( current_screen );
+   if ( saveparams) (*the_free)(saveparams);
    TRACE_RETURN();
    return(rc);
+}
+/*man-start*********************************************************************
+COMMAND
+     set rexxhalt - halt Rexx macro after specified number of events
+
+SYNTAX
+     [SET] REXXHALT Command|Function n|OFF
+
+DESCRIPTION
+     The SET REXXHALT command specifies how many calls to subcommands or
+     functions can be made in a macro before a Rexx HALT condition is raised.
+
+     A Rexx HALT condition can be triggered by the user at the prompt displayed
+     when the <message line> is full.
+
+COMPATIBILITY
+     XEDIT: N/A
+     KEDIT: N/A
+
+DEFAULT
+     OFF
+
+STATUS
+     Complete.
+**man-end**********************************************************************/
+#ifdef HAVE_PROTO
+short Rexxhalt(CHARTYPE *params)
+#else
+short Rexxhalt(params)
+CHARTYPE *params;
+#endif
+/***********************************************************************/
+{
+#define REXH_PARAMS  2
+   CHARTYPE *word[REXH_PARAMS+1];
+   CHARTYPE strip[REXH_PARAMS];
+   unsigned short num_params=0;
+   int option,limit;
+
+   TRACE_FUNCTION( "commset2.c:Rexxhalt" );
+   strip[0]=STRIP_BOTH;
+   strip[1]=STRIP_BOTH;
+   num_params = param_split( params, word, REXH_PARAMS, WORD_DELIMS, TEMP_PARAM, strip, FALSE );
+   if ( num_params < 2 )
+   {
+      display_error( 3, (CHARTYPE *)"", FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
+   if ( num_params > 2 )
+   {
+      display_error( 2, (CHARTYPE *)"", FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
+   if ( equal( (CHARTYPE *)"command", word[0], 1 ) )
+      option = 1;
+   else if (equal( (CHARTYPE *)"function", word[0], 1 ) )
+      option = 2;
+   else
+   {
+      display_error( 1, (CHARTYPE *)word[0], FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
+   if ( equal( (CHARTYPE *)"off", word[1], 3 ) )
+   {
+      limit = 0;
+   }
+   else if ( valid_positive_integer( word[1] ) )
+   {
+      limit = atoi( (DEFCHAR *)word[1] );
+   }
+   else
+   {
+      display_error( 1, (CHARTYPE *)word[1], FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
+   switch ( option )
+   {
+      case 1:
+         COMMANDCALLSx = limit;
+         break;
+      case 2:
+         FUNCTIONCALLSx = limit;
+         break;
+   }
+   TRACE_RETURN();
+   return(RC_OK);
 }
 /*man-start*********************************************************************
 COMMAND
@@ -1696,6 +1866,7 @@ COMMAND
 SYNTAX
      [SET] SCReen n [Horizontal|Vertical]
      [SET] SCReen Size l1|* [l2|*]
+     [SET] SCReen Width c1|* [c2|*]
 
 DESCRIPTION
      The SET SCREEN command specifies the number of views of file(s) to
@@ -1716,10 +1887,22 @@ DESCRIPTION
      of the full display window after the size of the other screen
      has been subtracted.
 
+     The third form of SET SCREEN allows the user to specify the
+     number of columns that each screen occupies.  The sum of 'c1' and
+     'c2' must equal to lscreen.6.
+
+     The value of 'c1' specifies the size of the leftmost screen; 'c2'
+     specifies the size of the rightmost screen.
+
+     Either 'c1' or 'c2' can be set to *, but not both.  The * signifies
+     that the screen size for the specified screen will be the remainder
+     of the full display window after the size of the other screen
+     has been subtracted.
+
      The THE display can only be split into 1 or 2 screens.
 
 COMPATIBILITY
-     XEDIT: Does not support Width or Define options.
+     XEDIT: Does not support Define options.
      KEDIT: Does not support Split option.
      A maximum of 2 screens are supported.
 
@@ -1742,6 +1925,7 @@ CHARTYPE *params;
 {
 #define SCR_PARAMS  3
 #define SCR_MIN_LINES 3
+#define SCR_MIN_COLS 10
    CHARTYPE *word[SCR_PARAMS+1];
    CHARTYPE strip[SCR_PARAMS];
    register short i=0;
@@ -1751,9 +1935,11 @@ CHARTYPE *params;
    int horiz=(-1);
    VIEW_DETAILS *save_current_view=NULL;
    short save_screen_rows[MAX_SCREENS];
+   short save_screen_cols[MAX_SCREENS];
    CHARTYPE save_current_screen=0;
    short rc=RC_OK;
    int size1=0,size2=0,offset=0;
+   int width1=0,width2=0;
    bool diff_sizes=FALSE;
 
    TRACE_FUNCTION("commset2.c:THEScreen");
@@ -1770,6 +1956,7 @@ CHARTYPE *params;
    for (i=0;i<MAX_SCREENS;i++)
    {
       save_screen_rows[i] = screen_rows[i];
+      save_screen_cols[i] = screen_cols[i];
    }
    if (equal((CHARTYPE *)"size",word[0],1))
    {
@@ -1857,6 +2044,91 @@ CHARTYPE *params;
          TRACE_RETURN();
          return(RC_INVALID_OPERAND);
       }
+      horiz = TRUE;
+   }
+   else if (equal((CHARTYPE *)"width",word[0],1))
+   {
+      if (equal((CHARTYPE *)"*",word[1],1))
+         width1 = -1;
+      else
+      {
+         if (!valid_positive_integer(word[1]))
+         {
+            display_error(1,word[1],FALSE);
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+         }
+         width1 = atoi((DEFCHAR *)word[1]);
+      }
+      num_views = 1;
+      if (num_params == 3)
+      {
+         if (equal((CHARTYPE *)"*",word[2],1))
+            width2 = -1;
+         else
+         {
+            if (!valid_positive_integer(word[2]))
+            {
+               display_error(1,word[2],FALSE);
+               TRACE_RETURN();
+               return(RC_INVALID_OPERAND);
+            }
+            width2 = atoi((DEFCHAR *)word[2]);
+         }
+         num_views = 2;
+      }
+      if (width1 == -1
+      &&  width2 == -1)
+      {
+         display_error(1,word[2],FALSE);
+         TRACE_RETURN();
+         return(RC_INVALID_OPERAND);
+      }
+      if (width1 == -1)
+      {
+         width1 = terminal_cols - width2;
+         if (width1 < SCR_MIN_COLS)
+         {
+            display_error(6,word[2],FALSE);
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+         }
+      }
+      if (width2 == -1)
+      {
+         width2 = terminal_cols - width1;
+         if (width2 < SCR_MIN_COLS)
+         {
+            display_error(6,word[1],FALSE);
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+         }
+      }
+      if (width1 < SCR_MIN_COLS)
+      {
+         display_error(5,word[1],FALSE);
+         TRACE_RETURN();
+         return(RC_INVALID_OPERAND);
+      }
+      if (width2 < SCR_MIN_COLS)
+      {
+         display_error(5,word[2],FALSE);
+         TRACE_RETURN();
+         return(RC_INVALID_OPERAND);
+      }
+      if (width1 + width2 > terminal_cols )
+      {
+         display_error(6,word[2],FALSE);
+         TRACE_RETURN();
+         return(RC_INVALID_OPERAND);
+      }
+      if (width1 + width2 < terminal_cols )
+      {
+         display_error(5,word[2],FALSE);
+         TRACE_RETURN();
+         return(RC_INVALID_OPERAND);
+      }
+      horiz = FALSE;
    }
    else
    {
@@ -1891,6 +2163,8 @@ CHARTYPE *params;
    }
    screen_rows[0] = size1;
    screen_rows[1] = size2;
+   screen_cols[0] = width1;
+   screen_cols[1] = width2;
    /*
     * Set the global variable display_screens to indicate the number of
     * screens currently displayed and the orientation of those screens
@@ -1906,7 +2180,8 @@ CHARTYPE *params;
     */
    for (i=0;i<MAX_SCREENS;i++)
    {
-      if (screen_rows[i] != save_screen_rows[i])
+      if ( screen_rows[i] != save_screen_rows[i]
+      ||   screen_cols[i] != save_screen_cols[i] )
          diff_sizes = TRUE;
    }
    if (display_screens == save_display_screens
@@ -2178,20 +2453,20 @@ COMMAND
      set slk - set Soft Label Key definitions
 
 SYNTAX
-     [SET] SLK n|OFF [text]
+     [SET] SLK n|ON|OFF [text]
 
 DESCRIPTION
      The SET SLK command allows the user to specify a short text
      description to be displayed on the bottom of the screen, using
-     the terminal's built-in Soft Label Keys, or the last line of
+     the terminal's built-in Soft Label Keys, on the last line of
      the screen.
 
      The 'n' argument of the command represents the label
      number from left to right, with the first label numbered 1.
 
-     'OFF' turns off display of the Soft Label Keys. This is the same as
-     executing [SET] SLK n with no optional text for each label
-     displayed.
+     'OFF' turns off display of the Soft Label Keys.
+
+     'ON' restores the display of the Soft Label Keys.
 
      The main use for this command is to describe the function assigned
      to a function key, in place of a <reserved line>.
@@ -2200,21 +2475,16 @@ DESCRIPTION
      left mouse button on the Soft Label Key, is equivalent to pressing
      the associated function key.
 
-     The number of Soft Label Keys displayed is dependent on which
-     curses library THE is using.  PDCurses can display 10 keys with
-     the length of the 'text' argument 7 characters on a screen that
-     is 80 columns wide.  The number of characters that can be
-     displayed increases with the width of the screen.
-     Other curses implementations, limit the number of Soft Label Keys
-     to 8, with a text width of 8 characters.  Some curses
-     implementations do not support Soft Label Keys.
+     See COMMAND LINE SWITCHES in the THE manual for details on the number
+     and format of Soft Label Keys.
 
 COMPATIBILITY
      XEDIT: N/A
      KEDIT: N/A
 
 DEFAULT
-     OFF
+     ON  - if support for Soft Label Keys is available
+     OFF - if support for Soft Label Keys in unavailable
 
 SEE ALSO
      <SET COLOUR>
@@ -2243,17 +2513,24 @@ CHARTYPE *params;
    {
       strip[0]=STRIP_BOTH;
       strip[1]=STRIP_NONE;
-      num_params = param_split(params,word,SLK_PARAMS,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
-      if (num_params < 1)
+      num_params = param_split( params, word, SLK_PARAMS, WORD_DELIMS, TEMP_PARAM, strip, FALSE );
+      if ( num_params < 1 )
       {
-         display_error(3,(CHARTYPE *)"",FALSE);
+         display_error( 3, (CHARTYPE *)"", FALSE );
          TRACE_RETURN();
          return(RC_INVALID_OPERAND);
       }
-      if (num_params == 1
-      &&  equal((CHARTYPE *)"off",word[0],3))
+      if ( num_params == 1
+      &&   equal( (CHARTYPE *)"off", word[0], 3 ) )
       {
          slk_clear();
+         TRACE_RETURN();
+         return(RC_OK);
+      }
+      if ( num_params == 1
+      &&   equal( (CHARTYPE *)"on", word[0], 2 ) )
+      {
+         slk_restore();
          TRACE_RETURN();
          return(RC_OK);
       }
@@ -2270,12 +2547,13 @@ CHARTYPE *params;
          TRACE_RETURN();
          return(RC_INVALID_OPERAND);
       }
+      slk_restore();
       slk_set(key,(DEFCHAR*)word[1],1);
       slk_noutrefresh();
    }
    else
    {
-      display_error(82,(CHARTYPE*)"- use -k command line switch",FALSE);
+      display_error( 82, (CHARTYPE*)"- use -k command line switch to enable", FALSE );
       rc = RC_INVALID_OPERAND;
    }
 #else
@@ -2358,7 +2636,6 @@ CHARTYPE *params;
    TRACE_RETURN();
    return(rc);
 }
-
 /*man-start*********************************************************************
 COMMAND
      set statopt - set display options on statusline
@@ -2473,8 +2750,7 @@ CHARTYPE *params;
             TRACE_RETURN();
             return( RC_INVALID_OPERAND );
          }
-         delete_LINE( first_option, last_option, curr, DIRECTION_FORWARD, TRUE );
-/*         lll_del(&first_option,&last_option,curr,DIRECTION_FORWARD);*/
+         delete_LINE( &first_option, &last_option, curr, DIRECTION_FORWARD, TRUE );
       }
    }
    else
@@ -2542,7 +2818,10 @@ CHARTYPE *params;
             TRACE_RETURN();
             return( RC_OUT_OF_MEMORY );
          }
-#if 0
+         /*
+          * Use the name member to store the option name so that lll_locate()
+          * can find it.
+          */
          curr->name = (CHARTYPE *)(*the_malloc)((strlen((DEFCHAR *)word[1])+1)*sizeof(CHARTYPE));
          if (curr->name == NULL)
          {
@@ -2551,7 +2830,7 @@ CHARTYPE *params;
             return(RC_OUT_OF_MEMORY);
          }
          strcpy( (DEFCHAR *)curr->name, (DEFCHAR *)make_upper( word[1] ) );
-#endif
+
          curr->length = itemno;
          curr->select = (SELECTTYPE)col-STATAREA_OFFSET-1;
          curr->save_select = (SELECTTYPE)len;
@@ -2801,7 +3080,7 @@ DESCRIPTION
      a synonym cannot be specified in the 'definition'.
 
 COMPATIBILITY
-     XEDIT: Compatible. Does not support format that can reorder paramaters.
+     XEDIT: Compatible. Does not support format that can reorder parameters.
      KEDIT: Compatible.
 
 DEFAULT
@@ -2877,13 +3156,13 @@ CHARTYPE *params;
       }
       linend = word[1][0];
       newname = my_strdup( word[2] );
-      rem = word[3];
+      rem = my_strdup( word[3] );
    }
    else
    {
       linend = 0;
       newname = my_strdup( word[0] );
-      rem = word[1];
+      rem = my_strdup( word[1] );
    }
    /*
     * We have parsed the line to determine the optional LINEND
@@ -2897,6 +3176,7 @@ CHARTYPE *params;
    {
       display_error(3,(CHARTYPE *)"",FALSE);
       (*the_free)(newname);
+      (*the_free)( rem );
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
@@ -2910,6 +3190,7 @@ CHARTYPE *params;
       {
          display_error(3,(CHARTYPE *)"",FALSE);
          (*the_free)(newname);
+         (*the_free)( rem );
          TRACE_RETURN();
          return(RC_INVALID_OPERAND);
       }
@@ -2918,6 +3199,7 @@ CHARTYPE *params;
       {
          display_error(6,(CHARTYPE *)"",FALSE);
          (*the_free)(newname);
+         (*the_free)( rem );
          TRACE_RETURN();
          return(RC_INVALID_OPERAND);
       }
@@ -2935,6 +3217,7 @@ CHARTYPE *params;
    {
       display_error( 1, newname, FALSE );
       (*the_free)( newname );
+      (*the_free)( rem );
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
@@ -2949,7 +3232,8 @@ CHARTYPE *params;
    }
    else
       rc = add_define(&first_synonym,&last_synonym,min_abbrev,def,FALSE,newname,linend);
-   (*the_free)(newname);
+   (*the_free)( newname );
+   (*the_free)( rem );
    TRACE_RETURN();
    return(rc);
 }
@@ -3033,7 +3317,7 @@ CHARTYPE *params;
          else if (equal((CHARTYPE *)"tab",word[0],1))
             tabo = 'T';
          else if ( equal( (CHARTYPE*)EQUIVCHARstr, word[0], 1 ) )
-            tabo = tabo;
+            ;
          else
          {
             /*
@@ -3050,7 +3334,7 @@ CHARTYPE *params;
          else if (equal((CHARTYPE *)"tab",word[1],1))
             tabi = 'T';
          else if ( equal( (CHARTYPE*)EQUIVCHARstr, word[1], 1 ) )
-            tabi = tabi;
+            ;
          else
          {
             /*
@@ -3871,16 +4155,21 @@ COMMAND
      set trailing - specify how to treat trailing blanks on lines
 
 SYNTAX
-     [SET] TRAILING ON|OFF|SINGLE|EMPTY
+     [SET] TRAILING ON|OFF|REMOVE|SINGLE|EMPTY
 
 DESCRIPTION
      The SET TRAILING set command determines how trailing blanks on
      lines are handled when written to disk.
      TRAILING ON means that THE will not treat trailing blanks any
-     differently from any other characters in the file.
+     differently from any other characters in the file. Trailing blanks
+     are left on the line while reading in and editing, and retained
+     when the file is written to disk.
      With TRAILING OFF, THE will remove trailing blanks when a file is
      read, remove them during an edit session, and not write any trailing
      blanks to the file.
+     With TRAILING REMOVE, THE will leave trailing blanks on the end of a
+     line when the file is read in and during editing, but will remove
+     trailing blanks when a file is written to disk.
      TRAILING SINGLE is the same as TRAILING OFF, except that a single
      blank character is appended to the end of every line when the file
      is written.
@@ -3892,12 +4181,12 @@ DESCRIPTION
      and you had TRAILING ON in your profile, then there would be no
      way to retain the original trailing blanks.
 
-     If THE is started with -u switch, the any change to TRAILING is ignored;
+     If THE is started with -u switch, then any change to TRAILING is ignored;
      the file will be handled as though TRAILING ON is in effect.
 
 COMPATIBILITY
-     XEDIT: Compatible.
-     KEDIT: N/A
+     XEDIT: N/A
+     KEDIT: Compatible. REMOVE is an THE extension.
 
 DEFAULT
      ON
@@ -3928,6 +4217,8 @@ CHARTYPE *params;
       CURRENT_FILE->trailing = TRAILING_SINGLE;
    else if ( equal( (CHARTYPE *)"empty", params, 5 ) )
       CURRENT_FILE->trailing = TRAILING_EMPTY;
+   else if ( equal( (CHARTYPE *)"remove", params, 6 ) )
+      CURRENT_FILE->trailing = TRAILING_REMOVE;
    else
    {
       display_error( 1, params, FALSE );
@@ -4187,6 +4478,7 @@ CHARTYPE *params;
    CHARTYPE strip[VER_PARAMS];
    CHARTYPE buffer[100];
    unsigned short num_params=0;
+   bool end_max = FALSE;
    LENGTHTYPE col1=0L,col2=0L;
    short rc;
 
@@ -4202,16 +4494,16 @@ CHARTYPE *params;
    strip[0]=STRIP_BOTH;
    strip[1]=STRIP_BOTH;
    strip[2]=STRIP_BOTH;
-   num_params = param_split(params,word,VER_PARAMS,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
-   if (num_params == 0)
+   num_params = param_split( params, word, VER_PARAMS, WORD_DELIMS, TEMP_PARAM, strip, FALSE );
+   if ( num_params == 0 )
    {
-      display_error(3,(CHARTYPE *)"",FALSE);
+      display_error( 3, (CHARTYPE *)"", FALSE );
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
-   else if (num_params > 2)
+   else if ( num_params > 2 )
    {
-      display_error(2,(CHARTYPE *)"",FALSE);
+      display_error( 2, (CHARTYPE *)"", FALSE );
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
@@ -4234,13 +4526,22 @@ CHARTYPE *params;
          TRACE_RETURN();
          return(RC_INVALID_OPERAND);
       }
-      col1 = atol((DEFCHAR *)word[0]);
+      col1 = atol( (DEFCHAR *)word[0] );
+      if ( col1 == 0 )
+      {
+         display_error( 5, word[0], FALSE );
+         TRACE_RETURN();
+         return(RC_INVALID_OPERAND);
+      }
    }
    /*
     * Second parameter (if present) must be positive integer or EQUIVCHAR
     */
-   if (num_params == 1)
+   if ( num_params == 1 )
+   {
       col2 = max_line_length;
+      end_max = TRUE;
+   }
    else
    {
       if ( equal( EQUIVCHARstr, word[1], 1 ) )
@@ -4249,8 +4550,11 @@ CHARTYPE *params;
       }
       else
       {
-         if (strcmp((DEFCHAR *)word[1],"*") == 0)
+         if ( strcmp( (DEFCHAR *)word[1], "*" ) == 0 )
+         {
             col2 = max_line_length;
+            end_max = TRUE;
+         }
          else
          {
             if ( ( rc = valid_positive_integer_against_maximum( word[1], MAX_WIDTH_NUM ) ) != 0 )
@@ -4264,29 +4568,38 @@ CHARTYPE *params;
                return(RC_INVALID_OPERAND);
             }
             else
-               col2 = atol((DEFCHAR *)word[1]);
+            {
+               col2 = atol( (DEFCHAR *)word[1] );
+               if ( col2 == 0 )
+               {
+                  display_error( 5, word[0], FALSE );
+                  TRACE_RETURN();
+                  return(RC_INVALID_OPERAND);
+               }
+            }
          }
       }
    }
 
-   if (col2 > max_line_length)
+   if ( col2 > max_line_length )
       col2 = max_line_length;
-   if (col1 > col2)
+   if ( col1 > col2 )
    {
-      display_error(6,word[0],FALSE);
+      display_error( 6, word[0], FALSE );
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
    CURRENT_VIEW->verify_start = (LENGTHTYPE)col1;
    CURRENT_VIEW->verify_col = (LENGTHTYPE)col1;
    CURRENT_VIEW->verify_end = (LENGTHTYPE)col2;
+   CURRENT_VIEW->verify_end_max = end_max;
 
 #ifdef MSWIN
-   Win31HScroll(CURRENT_VIEW->verify_col);
+   Win31HScroll( CURRENT_VIEW->verify_col );
 #endif
 
-   build_screen(current_screen);
-   display_screen(current_screen);
+   build_screen( current_screen );
+   display_screen( current_screen );
 
    TRACE_RETURN();
    return(RC_OK);
@@ -4380,6 +4693,34 @@ CHARTYPE *params;
       sprintf( (DEFCHAR *)buffer, "- Unable to set WIDTH to %ld; using current WIDTH", width );
       display_error( 30, buffer, FALSE );
    }
+   /*
+    * If VERIFY end or ZONE end was specified as '*' reset to max_line_length
+    */
+   if ( CURRENT_VIEW->verify_end_max
+   ||   CURRENT_VIEW->zone_end_max )
+   {
+      CURRENT_VIEW->verify_end = max_line_length;
+      CURRENT_VIEW->zone_end = max_line_length;
+      if ( CURRENT_VIEW->scale_on
+      ||   CURRENT_VIEW->boundmark != BOUNDMARK_OFF )
+      {
+         build_screen( current_screen );
+         display_screen( current_screen );
+      }
+   }
+   if ( display_screens > 1
+   &&   ( OTHER_VIEW->verify_end_max
+     ||   OTHER_VIEW->zone_end_max ) )
+   {
+      OTHER_VIEW->verify_end = max_line_length;
+      OTHER_VIEW->zone_end = max_line_length;
+      if ( OTHER_VIEW->scale_on
+      ||   OTHER_VIEW->boundmark != BOUNDMARK_OFF )
+      {
+         build_screen( other_screen );
+         display_screen( other_screen );
+      }
+   }
    show_statarea();
    TRACE_RETURN();
    return(RC_OK);
@@ -4397,7 +4738,7 @@ DESCRIPTION
      <SOS TABWORDF> and <MARK> WORD to specify the boundaries of the word.
 
      The default setting for SET WORD is 'NONBlank'. THE treats all
-     sequences of characters seperated by a blank (ASCII 32) as words.
+     sequences of characters separated by a blank (ASCII 32) as words.
 
      With 'ALPHAnum' THE treats a group of consecutive alphanumeric
      characters as a word.  THE also includes the underscore character
@@ -4636,6 +4977,7 @@ CHARTYPE *params;
    CHARTYPE *word[ZON_PARAMS+1];
    CHARTYPE strip[ZON_PARAMS];
    unsigned short num_params=0;
+   bool end_max = FALSE;
    LENGTHTYPE col1=0L,col2=0L;
 
    TRACE_FUNCTION("commset2.c:Zone");
@@ -4686,6 +5028,7 @@ CHARTYPE *params;
    if ( num_params == 1 )
    {
       col2 = max_line_length;
+      end_max = TRUE;
    }
    else
    {
@@ -4696,7 +5039,10 @@ CHARTYPE *params;
       else
       {
          if (strcmp((DEFCHAR *)word[1],"*") == 0)
+         {
             col2 = max_line_length;
+            end_max = TRUE;
+         }
          else
          {
             if (!valid_positive_integer(word[1]))
@@ -4721,6 +5067,7 @@ CHARTYPE *params;
    }
    CURRENT_VIEW->zone_start = (LENGTHTYPE)col1;
    CURRENT_VIEW->zone_end   = (LENGTHTYPE)col2;
+   CURRENT_VIEW->zone_end_max = end_max;
    /*
     * Change the current column pointer if it is outside the new zone
     * settings...

@@ -30,7 +30,7 @@
 /* System V curses key names and codes returned by getch */
 
 /*
-$Id: getch.h,v 1.3 2004/08/03 07:25:21 mark Exp $
+$Id: getch.h,v 1.4 2008/10/02 12:12:46 mark Exp $
 */
 
 
@@ -329,7 +329,7 @@ $Id: getch.h,v 1.3 2004/08/03 07:25:21 mark Exp $
 
 #define KEY_DELETE  127
 
-#if !defined(DOS) && !defined(OS2) && !defined(XCURSES) && !defined(WIN32)
+#if !defined(DOS) && !defined(OS2) && !defined(USE_XCURSES) && !defined(WIN32)
 
 /* vt220 special keys */
 
@@ -352,7 +352,7 @@ $Id: getch.h,v 1.3 2004/08/03 07:25:21 mark Exp $
 
 #endif
 
-#if defined(DOS) || defined(OS2) || defined(XCURSES) || defined(WIN32)
+#if defined(DOS) || defined(OS2) || defined(USE_XCURSES) || defined(WIN32)
 /* normal characters */
 #define KEY_a      0x61
 #define KEY_b      0x62

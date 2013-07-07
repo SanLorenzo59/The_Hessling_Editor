@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: linked.c,v 1.7 2005/06/19 01:14:40 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -61,6 +60,9 @@ unsigned short size; )
 
    if ( (next=(THELIST *)(*the_malloc)(size)) != (THELIST *)NULL )
    {
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
       memset( next, 0, size );
       if ( curr == NULL )
       {
@@ -235,6 +237,10 @@ unsigned short size;
 
    if ((next=(LINE *)(*the_malloc)(size)) != (LINE *)NULL)
    {
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
+      memset( next, 0, size );
       if (curr == NULL)
       {
          if (first == NULL)
@@ -266,12 +272,6 @@ unsigned short size;
          next->prev = curr;
       }
    }
-   /*
-    * Ensure all pointers in the structure are set to NULL
-    */
-   next->line = NULL;
-   next->name = NULL;
-   next->pre = NULL;
    TRACE_RETURN();
    return(next);
 }
@@ -454,6 +454,10 @@ unsigned short size;
 
    if ((next=(VIEW_DETAILS *)(*the_malloc)(size)) != (VIEW_DETAILS *)NULL)
    {
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
+      memset( next, 0, size );
       if (curr == (VIEW_DETAILS *)NULL)
       {
          first = next;
@@ -468,10 +472,6 @@ unsigned short size;
       }
       next->prev = curr;
    }
-   /*
-    * Ensure all pointers in the structure are set to NULL
-    */
-   next->file_for_view = (FILE_DETAILS *)NULL;
    TRACE_RETURN();
    return(next);
 }
@@ -572,6 +572,10 @@ unsigned short size;
    TRACE_FUNCTION("linked.c:    dll_add");
    if ((next=(DEFINE *)(*the_malloc)(size)) != (DEFINE *)NULL)
    {
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
+      memset( next, 0, size );
       if (curr == NULL)
       {
          first = next;
@@ -586,12 +590,6 @@ unsigned short size;
       }
       next->prev = curr;
    }
-   /*
-    * Ensure all pointers in the structure are set to NULL
-    */
-   next->def_params = NULL;
-   next->pcode = NULL;
-   next->pcode_len = 0;
    TRACE_RETURN();
    return(next);
 }
@@ -692,45 +690,81 @@ DEFINE *first;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-THE_PPC *pll_add(THE_PPC *first,THE_PPC *curr,unsigned short size)
+THE_PPC *pll_add(THE_PPC **first,unsigned short size,LINETYPE line_number)
 #else
-THE_PPC *pll_add(first,curr,size)
-THE_PPC *first;
-THE_PPC *curr;
+THE_PPC *pll_add(first,size,line-numbr)
+THE_PPC **first;
 unsigned short size;
+LINETYPE line_number;
 #endif
 /***********************************************************************/
-/* Adds a THE_PPC to the current linked list after the current member.     */
+/* Adds a THE_PPC to the current linked list in line_number order.     */
 /* PARAMETERS:                                                         */
-/* first      - pointer to first THE_PPC in linked list                    */
-/* curr       - pointer to current THE_PPC in linked list                  */
-/* size       - size of a THE_PPC item                                     */
-/* RETURN:    - pointer to next THE_PPC item                               */
+/* first      - pointer to first THE_PPC in linked list                */
+/* size       - size of a THE_PPC item                                 */
+/* line_number- line number for this THE_PPC                           */
+/* RETURN:    - pointer to new THE_PPC item                            */
 /***********************************************************************/
 {
-   THE_PPC *next=NULL;
+   THE_PPC *next=NULL,*curr,*prev=NULL;
 
    TRACE_FUNCTION("linked.c:    pll_add");
 
-   if ((next=(THE_PPC *)(*the_malloc)(size)) != (THE_PPC *)NULL)
+   if ( (next=(THE_PPC *)(*the_malloc)(size)) != (THE_PPC *)NULL )
    {
-      if (curr == NULL)
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
+      memset( next, 0, size );
+      /*
+       * No other PPC exist
+       */
+      if (*first == NULL)
       {
-         first = next;
-         next->next = NULL;
+         next->next = next->prev = NULL;
+         *first = next;
       }
       else
       {
-         if (curr->next != NULL)
-            curr->next->prev = next;
-         next->next = curr->next;
-         curr->next = next;
+         curr = *first;
+         while( curr )
+         {
+            if ( curr->ppc_line_number < line_number
+            &&   prev == NULL )
+            {
+               prev = curr;
+            }
+            else if ( curr->ppc_line_number < line_number
+                 &&   curr->ppc_line_number > prev->ppc_line_number )
+            {
+               prev = curr;
+            }
+            curr = curr->next;
+         }
+         if ( prev == NULL )
+         {
+            /*
+             * Insert before first member
+             */
+            next->prev = NULL;
+            next->next = *first;
+            curr = *first;
+            curr->prev = next;
+            *first = next;
+         }
+         else
+         {
+            /*
+             * Insert after prev
+             */
+            if ( prev->next )
+               prev->next->prev = next;
+            next->next = prev->next;
+            next->prev = prev;
+            prev->next = next;
+         }
       }
-      next->prev = curr;
    }
-   /*
-    * Ensure all pointers in the structure are set to NULL
-    */
    TRACE_RETURN();
    return(next);
 }
@@ -880,7 +914,10 @@ unsigned short size;
 
    if ((next=(RESERVED *)(*the_malloc)(size)) != (RESERVED *)NULL)
    {
-      memset(next,0,sizeof(RESERVED));
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
+      memset( next, 0, size );
       if (curr == NULL)
       {
          first = next;
@@ -1046,7 +1083,10 @@ unsigned short size;
 
    if ((next=(PARSER_DETAILS *)(*the_malloc)(size)) != (PARSER_DETAILS *)NULL)
    {
-      memset(next,0,sizeof(PARSER_DETAILS));
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
+      memset( next, 0, size );
       if (curr == NULL)
       {
          first = next;
@@ -1219,7 +1259,10 @@ unsigned short size;
 
    if ((next=(PARSE_KEYWORDS *)(*the_malloc)(size)) != (PARSE_KEYWORDS *)NULL)
    {
-      memset(next,0,sizeof(PARSE_KEYWORDS));
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
+      memset( next, 0, size );
       if (curr == NULL)
       {
          first = next;
@@ -1359,7 +1402,10 @@ unsigned short size;
 
    if ((next=(PARSE_FUNCTIONS *)(*the_malloc)(size)) != (PARSE_FUNCTIONS *)NULL)
    {
-      memset(next,0,sizeof(PARSE_FUNCTIONS));
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
+      memset( next, 0, size );
       if (curr == NULL)
       {
          first = next;
@@ -1499,7 +1545,10 @@ unsigned short size;
 
    if ((next=(PARSE_HEADERS *)(*the_malloc)(size)) != (PARSE_HEADERS *)NULL)
    {
-      memset(next,0,sizeof(PARSE_HEADERS));
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
+      memset( next, 0, size );
       if (curr == NULL)
       {
          first = next;
@@ -1569,7 +1618,10 @@ unsigned short size;
 
    if ((next=(PARSER_MAPPING *)(*the_malloc)(size)) != (PARSER_MAPPING *)NULL)
    {
-      memset(next,0,sizeof(PARSER_MAPPING));
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
+      memset( next, 0, size );
       if (curr == NULL)
       {
          first = next;
@@ -1774,7 +1826,10 @@ unsigned short size;
 
    if ((next=(PARSE_COMMENTS *)(*the_malloc)(size)) != (PARSE_COMMENTS *)NULL)
    {
-      memset(next,0,sizeof(PARSE_COMMENTS));
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
+      memset( next, 0, size );
       if (curr == NULL)
       {
          first = next;
@@ -1912,7 +1967,10 @@ unsigned short size;
 
    if ((next=(PARSE_POSTCOMPARE *)(*the_malloc)(size)) != (PARSE_POSTCOMPARE *)NULL)
    {
-      memset(next,0,sizeof(PARSE_POSTCOMPARE));
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
+      memset( next, 0, size );
       if (curr == NULL)
       {
          first = next;
@@ -2033,4 +2091,149 @@ PARSE_POSTCOMPARE *first;
    }
    TRACE_RETURN();
    return((PARSE_POSTCOMPARE *)NULL);
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
+PARSE_EXTENSION *parse_extensionll_add(PARSE_EXTENSION *first,PARSE_EXTENSION *curr,unsigned short size)
+#else
+PARSE_EXTENSION *parse_extensionll_add(first,curr,size)
+PARSE_EXTENSION *first;
+PARSE_EXTENSION *curr;
+unsigned short size;
+#endif
+/***********************************************************************/
+/* Adds a PARSE_EXTENSION to the current linked list after the current member.    */
+/* PARAMETERS:                                                         */
+/* first      - pointer to first PARSE_EXTENSION in linked list      */
+/* curr       - pointer to current PARSE_EXTENSION in linked list    */
+/* size       - size of a PARSE_EXTENSION item                       */
+/* RETURN:    - pointer to next PARSE_EXTENSION item                 */
+/***********************************************************************/
+{
+   PARSE_EXTENSION *next=NULL;
+
+   TRACE_FUNCTION("linked.c:    parse_extensionll_add");
+
+   if ((next=(PARSE_EXTENSION *)(*the_malloc)(size)) != (PARSE_EXTENSION *)NULL)
+   {
+      /*
+       * Ensure all pointers in the structure are set to NULL
+       */
+      memset( next, 0, size );
+      if (curr == NULL)
+      {
+         first = next;
+         next->next = NULL;
+      }
+      else
+      {
+         if (curr->next != NULL)
+            curr->next->prev = next;
+         next->next = curr->next;
+         curr->next = next;
+      }
+      next->prev = curr;
+   }
+   TRACE_RETURN();
+   return(next);
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
+PARSE_EXTENSION *parse_extensionll_del(PARSE_EXTENSION **first,PARSE_EXTENSION **last,PARSE_EXTENSION *curr,short direction)
+#else
+PARSE_EXTENSION *parse_extensionll_del(first,last,curr,direction)
+PARSE_EXTENSION **first;
+PARSE_EXTENSION **last;
+PARSE_EXTENSION *curr;
+short direction;
+#endif
+/***********************************************************************/
+{
+   PARSE_EXTENSION *new_curr=NULL;
+
+   TRACE_FUNCTION("linked.c:    parse_extensionll_del");
+   if ( curr->extension )
+      (*the_free)(curr->extension );
+   /*
+    * Delete the only record
+    */
+   if (curr->prev == NULL && curr->next == NULL)
+   {
+      (*the_free)(curr);
+      *first = NULL;
+      if (last != NULL)
+         *last = NULL;
+      TRACE_RETURN();
+      return(NULL);
+   }
+   /*
+    * Delete the first record
+    */
+   if (curr->prev == NULL)
+   {
+      curr->next->prev = NULL;
+      *first = new_curr = curr->next;
+      (*the_free)(curr);
+      curr = new_curr;
+      TRACE_RETURN();
+      return(curr);
+   }
+   /*
+    * Delete the last  record
+    */
+   if (curr->next == NULL)
+   {
+      curr->prev->next = NULL;
+      new_curr = curr->prev;
+      if (last != NULL)
+         *last = curr->prev;
+      (*the_free)(curr);
+      curr = new_curr;
+      TRACE_RETURN();
+      return(curr);
+   }
+   /*
+    * All others
+    */
+   curr->prev->next = curr->next;
+   curr->next->prev = curr->prev;
+   if (direction == DIRECTION_FORWARD)
+      new_curr = curr->next;
+   else
+      new_curr = curr->prev;
+
+   (*the_free)(curr);
+   curr = new_curr;
+   TRACE_RETURN();
+   return(curr);
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
+PARSE_EXTENSION *parse_extensionll_free(PARSE_EXTENSION *first)
+#else
+PARSE_EXTENSION *parse_extensionll_free(first)
+PARSE_EXTENSION *first;
+#endif
+/***********************************************************************/
+/* Free up all allocated memory until the last item in the linked-list */
+/* PARAMETERS:                                                         */
+/* first      - pointer to first PARSE_EXTENSION                     */
+/* RETURN:    - NULL                                                   */
+/***********************************************************************/
+{
+   PARSE_EXTENSION *curr=NULL;
+   PARSE_EXTENSION *new_curr=NULL;
+
+   TRACE_FUNCTION("linked.c:    parse_extensionll_free");
+   curr = first;
+   while (curr != NULL)
+   {
+      if ( curr->extension  )
+         (*the_free)(curr->extension );
+      new_curr = curr->next;
+      (*the_free)(curr);
+      curr = new_curr;
+   }
+   TRACE_RETURN();
+   return((PARSE_EXTENSION *)NULL);
 }

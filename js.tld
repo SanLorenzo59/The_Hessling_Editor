@@ -1,5 +1,5 @@
 *
-* This file contains the THE Language Definition for Javascript
+* This file contains the THE Language Definition for Javascript, combined with basic HTML
 *
 :case
   respect
@@ -14,10 +14,14 @@
   double backslash
 :comment
   paired /* */ nonest
+  paired <!-- --> nonest
   line // any
-:label  
+:markup
+  tag < >
+  reference & ;
+:label
   delimiter : firstnonblank
-:match  
+:match
   ( )
   { }
   [ ]
@@ -64,6 +68,7 @@
   implements
   import
   in
+  innerHTML
   int
   interface
   Infinity alt 4

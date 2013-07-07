@@ -25,10 +25,11 @@
 :match
   ( )
   { }
-  !ifdef,!ifndef !endif
+  !ifdef,!ifndef,!if !endif
 :keyword
   !ifdef
   !ifndef
+  !if
   !endif
   !undef
   !else
@@ -40,6 +41,7 @@
   !include
   !insertmacro
   !packhdr
+  !addplugindir
 *
 * Functions and section headings
 *
@@ -240,6 +242,7 @@
   setbrandingimage
   setoutpath
   setrebootflag
+  setshellvarcontext
   sleep
   strcmp
   strcpy

@@ -30,7 +30,7 @@
  */
 
 /*
-$Id: thedefs.h,v 1.11 2005/06/19 01:28:08 mark Exp $
+$Id: thedefs.h,v 1.19 2013/06/22 01:01:50 mark Exp $
 */
 
 /*---------------------------------------------------------------------*/
@@ -42,10 +42,14 @@ $Id: thedefs.h,v 1.11 2005/06/19 01:28:08 mark Exp $
 # define BUILD3001 1
 
 # if defined(__OS2__) || defined(__EMX__)
+#  if !defined(OS2) && !defined(MSDOS)
+#    define OS2 3
+#  endif
 #  define HAVE_BEEP 1
 #  define HAVE_BOX 1
 #  define HAVE_CBREAK 1
 #  define HAVE_CURS_SET 1
+#  define HAVE_DERWIN 1
 #  define HAVE_DOUPDATE 1
 #  define HAVE_KEYPAD 1
 #  define HAVE_NEWPAD 1
@@ -88,10 +92,14 @@ $Id: thedefs.h,v 1.11 2005/06/19 01:28:08 mark Exp $
 # endif
 
 # if defined(__MSDOS__) || defined(MSDOS)
+#  ifndef DOS
+#    define DOS 6
+#  endif
 #  define HAVE_BEEP 1
 #  define HAVE_BOX 1
 #  define HAVE_CBREAK 1
 #  define HAVE_CURS_SET 1
+#  define HAVE_DERWIN 1
 #  define HAVE_DOUPDATE 1
 #  define HAVE_KEYPAD 1
 #  define HAVE_NEWPAD 1
@@ -135,6 +143,7 @@ $Id: thedefs.h,v 1.11 2005/06/19 01:28:08 mark Exp $
 #  define HAVE_BOX 1
 #  define HAVE_CBREAK 1
 #  define HAVE_CURS_SET 1
+#  define HAVE_DERWIN 1
 #  define HAVE_DOUPDATE 1
 #  define HAVE_KEYPAD 1
 #  define HAVE_NEWPAD 1
@@ -172,6 +181,8 @@ $Id: thedefs.h,v 1.11 2005/06/19 01:28:08 mark Exp $
 #  define HAVE_STRING_H 1
 #  define HAVE_SYS_STAT_H 1
 #  define HAVE_SYS_TYPES_H 1
+#  define HAVE_LOCALE_H 1
+#  define HAVE_SETLOCALE 1
 # endif
 
 # if defined(AMIGA) && defined(GCC)
@@ -266,12 +277,13 @@ $Id: thedefs.h,v 1.11 2005/06/19 01:28:08 mark Exp $
 /* The following values can be changed to suit your needs.             */
 /*---------------------------------------------------------------------*/
 #define MAX_FILE_NAME              255  /* maximum length of fully qualified file */
-#define MAX_COMMAND_LENGTH         150  /* maximum length of a command */
-#define MAX_LENGTH_OF_LINE         512  /* default maximum length of a line */
+#define MAX_LENGTH_OF_LINE        1000  /* default maximum length of a line */
 #define MAX_COMMANDS                10  /* default maximum number of commands allowed on command line */
 #define MAX_RECV                    20  /* number of lines that can be recovered */
 #define MAX_SAVED_COMMANDS          20  /* number of commands that can be retrieved */
 #define MAX_NUMTABS                 32  /* number of tab stops that can be defined */
+#define MAXIMUM_POPUP_KEYS          20 /* maximum number of keys in popup menu */
+#define MAXIMUM_DIALOG_LINES        100 /* maximum number of lines in a dailog */
 
 /*---------------------------------------------------------------------*/
 /* The following values should not be changed unless you know what you */

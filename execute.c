@@ -5,7 +5,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -31,10 +31,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: execute.c,v 1.43 2005/09/01 10:29:59 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -133,7 +132,7 @@ LENGTHTYPE start_col;
       wmove(CURRENT_WINDOW_FILEAREA,y,x);
       wrefresh(CURRENT_WINDOW_FILEAREA);
 
-      key = my_getch(stdscr);
+      key = my_getch( CURRENT_WINDOW_FILEAREA );
       clear_msgline(-1);
       switch(key)
       {
@@ -236,7 +235,7 @@ bool selective;
    /*
     * Save the parameters for later...
     */
-   if ((save_params = (CHARTYPE *)my_strdup(params)) == NULL)
+   if ( ( save_params = (CHARTYPE *)my_strdup( params ) ) == NULL )
    {
       TRACE_RETURN();
       return(RC_OUT_OF_MEMORY);
@@ -248,17 +247,17 @@ bool selective;
     * to change the value on one line and lastly is which occurrence to
     * change first.
     */
-   initialise_target(&target);
-   rc = split_change_params(params,&old_str,&new_str,&target,&long_n,&long_m);
-   if (rc != RC_OK)
+   initialise_target( &target );
+   rc = split_change_params( params, &old_str, &new_str, &target, &long_n, &long_m );
+   if ( rc != RC_OK )
    {
-      free_target(&target);
+      free_target( &target );
       TRACE_RETURN();
       return(rc);
    }
    num_lines = target.num_lines;
    true_line = target.true_line;
-   if (target.rt == NULL)
+   if ( target.rt == NULL )
       lines_based_on_scope = TRUE;
    else
    {
@@ -266,52 +265,91 @@ bool selective;
       save_target_type = target.rt[0].target_type;
    }
    /*
+    * For ISPF we ignore lines_based_on_scope.
+    */
+   if ( compatible_feel == COMPAT_ISPF
+   &&   target.rt == NULL )
+   {
+      lines_based_on_scope = FALSE;
+   }
+   /*
     * Check for any hex strings in both old_str and new_str.
     */
-   if (CURRENT_VIEW->hex)
+   if ( CURRENT_VIEW->hex )
    {
-      if ((len_old_str = convert_hex_strings(old_str)) == (-1))
+      len_old_str = convert_hex_strings( old_str );
+      switch( len_old_str )
       {
-         free_target(&target);
-         display_error(32,old_str,FALSE);
-         (*the_free)(save_params);
-         TRACE_RETURN();
-         return(RC_INVALID_OPERAND);
+         case -1: /* invalid hex value */
+            free_target( &target );
+            display_error( 32, old_str, FALSE );
+            (*the_free)( save_params );
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+            break;
+         case -2: /* memory exhausted */
+            free_target( &target );
+            display_error( 30, (CHARTYPE *)"", FALSE );
+            (*the_free)( save_params );
+            TRACE_RETURN();
+            return(RC_OUT_OF_MEMORY);
+            break;
+         default:
+            break;
       }
-      if ((len_new_str = convert_hex_strings(new_str)) == (-1))
+      len_new_str = convert_hex_strings( new_str );
+      switch( len_new_str )
       {
-         free_target(&target);
-         display_error(32,new_str,FALSE);
-         (*the_free)(save_params);
-         TRACE_RETURN();
-         return(RC_INVALID_OPERAND);
+         case -1: /* invalid hex value */
+            free_target( &target );
+            display_error( 32, new_str, FALSE );
+            (*the_free)( save_params );
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+            break;
+         case -2: /* memory exhausted */
+            free_target( &target );
+            display_error( 30, (CHARTYPE *)"", FALSE );
+            (*the_free)( save_params );
+            TRACE_RETURN();
+            return(RC_OUT_OF_MEMORY);
+            break;
+         default:
+            break;
       }
    }
    else
    {
-      len_old_str = strlen((DEFCHAR *)old_str);
-      len_new_str = strlen((DEFCHAR *)new_str);
+      len_old_str = strlen( (DEFCHAR *)old_str );
+      len_new_str = strlen( (DEFCHAR *)new_str );
    }
    /*
     * Save the last change command...
     */
    if ( selective )
-      strcpy( (DEFCHAR *)lastop[LASTOP_SCHANGE].value, (DEFCHAR *)save_params );
+      rc = save_lastop( LASTOP_SCHANGE, save_params );
    else
-      strcpy( (DEFCHAR *)lastop[LASTOP_CHANGE].value, (DEFCHAR *)save_params );
+      rc = save_lastop( LASTOP_CHANGE, save_params );
    (*the_free)(save_params);
+   if ( rc != RC_OK )
+   {
+      free_target( &target );
+      display_error( 30, (CHARTYPE *)"", FALSE );
+      TRACE_RETURN();
+      return rc;
+   }
    /*
     * If the number of lines is zero, don't make any  changes. Exit with
     * no rows changed.
     */
-   if (num_lines == 0L)
+   if ( num_lines == 0L )
    {
-      free_target(&target);
-      display_error(36,(CHARTYPE *)"",FALSE);
+      free_target( &target );
+      display_error( 36, (CHARTYPE *)"", FALSE );
       TRACE_RETURN();
       return(RC_NO_LINES_CHANGED);
    }
-   if (num_lines < 0)
+   if ( num_lines < 0 )
    {
       direction = DIRECTION_BACKWARD;
       abs_num_lines = -num_lines;
@@ -322,99 +360,105 @@ bool selective;
       abs_num_lines = num_lines;
    }
 
-   if (true_line != CURRENT_VIEW->focus_line)
+   if ( true_line != CURRENT_VIEW->focus_line )
    {
-      post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
-/*  pre_process_line(CURRENT_VIEW,true_line,(LINE *)NULL);*/
+      post_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL, TRUE );
    }
-   number_lines = 0L;
-   number_changes = 0L;
-   number_of_changes = 0L;
-   number_of_occ = 0L;
-   start_col = 0;
    last_true_line = true_line;
-   curr = lll_find(CURRENT_FILE->first_line,CURRENT_FILE->last_line,true_line,CURRENT_FILE->number_lines);
-   for (i=0L,num_actual_lines=0L;;i++)
+   curr = lll_find( CURRENT_FILE->first_line, CURRENT_FILE->last_line, true_line, CURRENT_FILE->number_lines );
+   for ( i = 0L, num_actual_lines = 0L; ; i++ )
    {
-      if (lines_based_on_scope)
+      if ( lines_based_on_scope )
       {
-         if (num_actual_lines == abs_num_lines)
+         if ( num_actual_lines == abs_num_lines )
             break;
       }
       else
       {
-         if (abs_num_lines == i)
-            break;
+         /*
+          * For ISPF implement a change with no target as find first target, change it
+          * and finish.
+          */
+         if ( compatible_feel == COMPAT_ISPF
+         &&   target.rt == NULL)
+         {
+            if ( number_of_changes > 0 )
+               break;
+         }
+         else
+         {
+            if ( abs_num_lines == i )
+               break;
+         }
       }
-      rc = processable_line(CURRENT_VIEW,true_line,curr);
-      switch(rc)
+      rc = processable_line( CURRENT_VIEW, true_line, curr );
+      switch( rc )
       {
          case LINE_SHADOW:
             break;
-/*       case LINE_TOF_EOF: MH12 */
          case LINE_TOF:
          case LINE_EOF:
             num_actual_lines++;
             break;
          default:
-            pre_process_line(CURRENT_VIEW,true_line,curr);
+            pre_process_line( CURRENT_VIEW, true_line, curr );
             loc = 0;
             number_of_changes = number_of_occ = 0L;
-            while(loc != (-1))
+            while( loc != (-1) )
             {
-               if (save_target_type == TARGET_BLOCK_CURRENT)
+               if ( save_target_type == TARGET_BLOCK_CURRENT )
                {
-                  if (MARK_VIEW->mark_type == M_STREAM || MARK_VIEW->mark_type == M_CUA)
+                  if ( MARK_VIEW->mark_type == M_STREAM || MARK_VIEW->mark_type == M_CUA )
                   {
                      real_end = rec_len+len_old_str;
                      real_start = start_col;
-                     if (true_line == MARK_VIEW->mark_start_line)
-                        real_start = max(start_col,MARK_VIEW->mark_start_col-1);
-                     if (true_line == MARK_VIEW->mark_end_line)
-                        real_end = min(rec_len+len_old_str,MARK_VIEW->mark_end_col-1);
+                     if ( true_line == MARK_VIEW->mark_start_line )
+                        real_start = max( start_col, MARK_VIEW->mark_start_col - 1 );
+                     if ( true_line == MARK_VIEW->mark_end_line )
+                        real_end = min( rec_len + len_old_str, MARK_VIEW->mark_end_col - 1 );
                   }
                   else
                   {
-                     real_end = min(rec_len+len_old_str,MARK_VIEW->mark_end_col-1);
-                     real_start = max(start_col,MARK_VIEW->mark_start_col-1);
+                     real_end = min( rec_len + len_old_str, MARK_VIEW->mark_end_col - 1 );
+                     real_start = max( start_col, MARK_VIEW->mark_start_col - 1 );
                   }
                }
                else
                {
-                  real_end = min(rec_len+len_old_str,CURRENT_VIEW->zone_end-1);
-                  real_start = max(start_col,CURRENT_VIEW->zone_start-1);
+                  real_end = min( rec_len + len_old_str, CURRENT_VIEW->zone_end - 1 );
+                  real_start = max( start_col, CURRENT_VIEW->zone_start - 1 );
                }
 
-               if (rec_len < real_start && blank_field(old_str))
+               if ( rec_len < real_start && blank_field( old_str ) )
                {
                   loc = 0;
-                  rec_len = real_start+1;
+                  rec_len = real_start + 1;
                }
                else
                {
-                  loc = memfind(rec+real_start,
-                                old_str,
-                                real_end-real_start+1,
-                                len_old_str,
-                                (bool)((CURRENT_VIEW->case_change == CASE_IGNORE) ? TRUE : FALSE),
-                                CURRENT_VIEW->arbchar_status,
-                                CURRENT_VIEW->arbchar_single,
-                                CURRENT_VIEW->arbchar_multiple,
-                                &str_length);
+                  loc = memfind( rec + real_start,
+                                 old_str,
+                                 real_end - real_start + 1,
+                                 len_old_str,
+                                 (bool)((CURRENT_VIEW->case_change == CASE_IGNORE) ? TRUE : FALSE),
+                                 CURRENT_VIEW->arbchar_status,
+                                 CURRENT_VIEW->arbchar_single,
+                                 CURRENT_VIEW->arbchar_multiple,
+                                 &str_length );
                }
-               if (loc != (-1))
+               if ( loc != (-1) )
                {
-                  start_col = loc+real_start;
-                  if (number_of_changes <= long_n-1 && number_of_occ >= long_m-1)
+                  start_col = loc + real_start;
+                  if ( number_of_changes <= long_n - 1 && number_of_occ >= long_m - 1 )
                   {
                     /* the following block is done for change or confirm of sch */
-                     if (!selective)
+                     if ( !selective )
                      {
-                        memdeln(rec,start_col,rec_len,len_old_str);
-                        rec_len = (LENGTHTYPE)max((LINETYPE)start_col,(LINETYPE)rec_len - (LINETYPE)len_old_str);
-                        meminsmem(rec,new_str,len_new_str,start_col,max_line_length,rec_len);
+                        memdeln( rec, start_col, rec_len, len_old_str );
+                        rec_len = (LENGTHTYPE)max( (LINETYPE)start_col, (LINETYPE)rec_len - (LINETYPE)len_old_str );
+                        meminsmem( rec, new_str, len_new_str, start_col, max_line_length, rec_len );
                         rec_len += len_new_str;
-                        if (rec_len > max_line_length)
+                        if ( rec_len > max_line_length )
                         {
                            rec_len = max_line_length;
                            loc = (-1);
@@ -426,17 +470,17 @@ bool selective;
                      else
                      {
                        /* selective */
-                        selective_rc = selective_change(&target,old_str,len_old_str,new_str,len_new_str,
-                                                        true_line,last_true_line,start_col);
+                        selective_rc = selective_change( &target, old_str, len_old_str, new_str, len_new_str,
+                                                         true_line, last_true_line, start_col );
                         last_true_line = true_line;
-                        switch(selective_rc)
+                        switch( selective_rc )
                         {
                            case QUITOK:
                            case RC_OK:
                               start_col += len_new_str;
                               number_changes++;
                               number_of_changes++;
-                              if (rec_len > max_line_length)
+                              if ( rec_len > max_line_length )
                               {
                                  rec_len = max_line_length;
                                  loc = (-1);
@@ -448,7 +492,7 @@ bool selective;
                            case QUIT:
                               break;
                         }
-                        if (selective_rc == QUIT || selective_rc == QUITOK)
+                        if ( selective_rc == QUIT || selective_rc == QUITOK )
                            break;
                      }
                      number_of_occ++;
@@ -458,39 +502,39 @@ bool selective;
                      start_col += len_old_str;
                      number_of_occ++;
                   }
-                  if (number_of_changes > long_n-1)
+                  if ( number_of_changes > long_n - 1 )
         /*          ||  number_of_occ > long_n-1)*/
                      loc = (-1);
                }
             } /* end while */
-            if (number_of_changes != 0L)       /* changes made */
+            if ( number_of_changes != 0L )       /* changes made */
             {
-               post_process_line(CURRENT_VIEW,true_line,curr,FALSE);
+               post_process_line( CURRENT_VIEW, true_line, curr, FALSE );
                number_lines++;
             }
             num_actual_lines++;
             break;
       }
-      if (selective_rc == QUIT || selective_rc == QUITOK)
+      if ( selective_rc == QUIT || selective_rc == QUITOK )
          break;
       start_col = 0;
-      if (direction == DIRECTION_FORWARD)
+      if ( direction == DIRECTION_FORWARD )
          curr = curr->next;
       else
          curr = curr->prev;
       true_line += (LINETYPE)(direction);
       num_file_lines += (LINETYPE)(direction);
-      if (curr == NULL)
+      if ( curr == NULL )
          break;
    }
-   free_target(&target);
+   free_target( &target );
    /*
     * If no changes were made, display error message and return.
     */
-   if (number_changes == 0L)
+   if ( number_changes == 0L )
    {
-      display_error(36,(CHARTYPE *)"",FALSE);
-      pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
+      display_error( 36, (CHARTYPE *)"", FALSE );
+      pre_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL );
       TRACE_RETURN();
       return(RC_NO_LINES_CHANGED);
    }
@@ -498,25 +542,25 @@ bool selective;
     * Increment the alteration count here, once irrespective of the number
     * of lines changed.
     */
-   increment_alt(CURRENT_FILE);
+   increment_alt( CURRENT_FILE );
    /*
     * If STAY is OFF, change the current and focus lines by the number
     * of lines calculated from the target.
     */
-   if (selective)
+   if ( selective )
    {
-      if (!CURRENT_VIEW->stay)                            /* stay is off */
+      if ( !CURRENT_VIEW->stay )                            /* stay is off */
       {
          CURRENT_VIEW->focus_line = CURRENT_VIEW->current_line = true_line;
       }
-      pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
-      build_screen(current_screen);
-      display_screen(current_screen);
+      pre_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL );
+      build_screen( current_screen );
+      display_screen( current_screen );
    }
    else
    {
       pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
-      resolve_current_and_focus_lines(CURRENT_VIEW,last_true_line,num_file_lines,direction,TRUE,FALSE);
+      resolve_current_and_focus_lines( current_screen, CURRENT_VIEW, last_true_line, num_file_lines, direction, TRUE, FALSE );
    }
 
    sprintf((DEFCHAR *)message,"%ld occurrence(s) changed on %ld line(s)",number_changes,number_lines);
@@ -530,12 +574,14 @@ bool selective;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short insert_new_line(CHARTYPE *line, LENGTHTYPE len,LINETYPE num_lines,
+short insert_new_line(CHARTYPE curr_screen, VIEW_DETAILS *curr_view, CHARTYPE *line, LENGTHTYPE len,LINETYPE num_lines,
                       LINETYPE true_line,bool start_left_col,bool make_current,
                       bool inc_alt,CHARTYPE select,bool move_cursor,
                       bool sos_command)
 #else
-short insert_new_line(line,len,num_lines,true_line,start_left_col,make_current,inc_alt,select,move_cursor,sos_command)
+short insert_new_line(curr_screen,curr_view,line,len,num_lines,true_line,start_left_col,make_current,inc_alt,select,move_cursor,sos_command)
+CHARTYPE curr_screen;
+VIEW_DETAILS *curr_view;
 CHARTYPE *line;
 LENGTHTYPE len;
 LINETYPE num_lines;
@@ -559,29 +605,30 @@ bool sos_command;
    LINETYPE new_focus_line=0L,new_current_line=0L;
 
    TRACE_FUNCTION("execute.c: insert_new_line");
-   if (!CURRENT_VIEW->scope_all)
-      true_line = find_last_not_in_scope(CURRENT_VIEW,NULL,true_line,DIRECTION_FORWARD);
+
+   if ( !curr_view->scope_all )
+      true_line = find_last_not_in_scope( curr_view, NULL, true_line, DIRECTION_FORWARD );
    /*
     * If we are on the 'Bottom of File' line reduce the true_line by 1
     * so that the new line is added before the bottom line.
     */
-   if (true_line == CURRENT_FILE->number_lines+1L)
+   if ( true_line == (curr_view->file_for_view->number_lines + 1L) )
       true_line--;
    /*
     * Find the current LINE pointer for the true_line.
     * This is the line after which the line(s) are to be added.
     */
-   curr = lll_find(CURRENT_FILE->first_line,CURRENT_FILE->last_line,true_line,CURRENT_FILE->number_lines);
+   curr = lll_find( curr_view->file_for_view->first_line, curr_view->file_for_view->last_line, true_line, curr_view->file_for_view->number_lines );
    /*
     * Insert into the linked list the number of lines specified. All lines
     * will contain a blank line and a length of zero.
     */
    save_curr = curr;
-   for (i=0;i<num_lines;i++)
+   for ( i = 0; i < num_lines; i++ )
    {
-      if ((curr = add_LINE(CURRENT_FILE->first_line,curr,line,len,select,TRUE)) == NULL)
+      if ( ( curr = add_LINE( curr_view->file_for_view->first_line, curr, line, len, select, TRUE ) ) == NULL )
       {
-         display_error(30,(CHARTYPE *)"",FALSE);
+         display_error( 30, (CHARTYPE *)"", FALSE );
          TRACE_RETURN();
          return(RC_OUT_OF_MEMORY);
       }
@@ -590,100 +637,97 @@ bool sos_command;
     * Fix the positioning of the marked block (if there is one and it is
     * in the current view) and any pending prefix commands.
     */
-   adjust_marked_lines(TRUE,true_line,num_lines);
-   adjust_pending_prefix(CURRENT_VIEW,TRUE,true_line,num_lines);
+   adjust_marked_lines( TRUE, true_line, num_lines );
+   adjust_pending_prefix( curr_view, TRUE, true_line, num_lines );
    /*
     * Increment the number of lines counter for the current file and the
     * number of alterations, only if requested to do so.
     */
-   if (inc_alt)
-      increment_alt(CURRENT_FILE);
+   if ( inc_alt )
+      increment_alt( curr_view->file_for_view );
 
-   CURRENT_FILE->number_lines += num_lines;
+   curr_view->file_for_view->number_lines += num_lines;
    /*
     * Sort out focus and current line.
     */
-   if (move_cursor)
+   if ( move_cursor )
    {
-      switch(CURRENT_VIEW->current_window)
+      switch( curr_view->current_window )
       {
          case WINDOW_COMMAND:
-            CURRENT_VIEW->focus_line = true_line + 1L;
-            if (make_current)
-               CURRENT_VIEW->current_line = true_line + 1L;
-            pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
+            curr_view->focus_line = true_line + 1L;
+            if ( make_current )
+               curr_view->current_line = true_line + 1L;
+            pre_process_line( curr_view, curr_view->focus_line, (LINE *)NULL );
             break;
          case WINDOW_FILEAREA:
          case WINDOW_PREFIX:
-            build_screen(current_screen);
-            getyx(CURRENT_WINDOW,y,x);
-            calculate_scroll_values(&number_focus_rows,&new_focus_line,
-                                    &new_current_line,
-                                    &on_bottom_of_screen,&on_bottom_of_file,
-                                    &leave_cursor,DIRECTION_FORWARD);
+            build_screen( curr_screen);
+            getyx( SCREEN_WINDOW(curr_screen), y, x );
+            calculate_scroll_values( curr_screen, curr_view, &number_focus_rows, &new_focus_line, &new_current_line, &on_bottom_of_screen,&on_bottom_of_file, &leave_cursor, DIRECTION_FORWARD );
             new_col = x;
-            if (CURRENT_VIEW->current_window == WINDOW_FILEAREA)
+            if ( curr_view->current_window == WINDOW_FILEAREA )
             {
-               if (!start_left_col)
+               if ( !start_left_col )
                {
-                  if (CURRENT_VIEW->newline_aligned)
+                  if ( curr_view->newline_aligned )
                   {
-                     new_col = memne(save_curr->line,' ',save_curr->length);
-                     if (new_col == (-1))
+                     new_col = memne( save_curr->line, ' ', save_curr->length );
+                     if ( new_col == (-1) )
                         new_col = 0;
                      /*
                       * Special case when right margin is > than screen width...
                       */
-                     if (CURRENT_VIEW->verify_start != CURRENT_VIEW->verify_col)
+                     if ( curr_view->verify_start != curr_view->verify_col )
                      {
                         /*
                          * If the new column position will be on the same page...
                          */
-                        if (CURRENT_VIEW->verify_col < new_col
-                        &&  CURRENT_VIEW->verify_col + CURRENT_SCREEN.screen_cols > new_col)
-                           new_col = (new_col - CURRENT_VIEW->verify_col) + 1;
+                        if ( curr_view->verify_col < new_col
+                        &&   curr_view->verify_col + screen[curr_screen].screen_cols > new_col )
+                           new_col = (new_col - curr_view->verify_col) + 1;
                         else
                         {
-                           x = CURRENT_SCREEN.cols[WINDOW_FILEAREA] / 2;
-                           CURRENT_VIEW->verify_col = max(1,new_col - (short)x + 2);
-                           new_col = (CURRENT_VIEW->verify_col == 1) ? new_col : x - 1;
+                           x = screen[curr_screen].cols[WINDOW_FILEAREA] / 2;
+                           curr_view->verify_col = max( 1, new_col - (short)x + 2 );
+                           new_col = (curr_view->verify_col == 1) ? new_col : x - 1;
                         }
                      }
                   }
                   else
                   {
                      new_col = 0;
-                     CURRENT_VIEW->verify_col = 1;
+                     curr_view->verify_col = 1;
                   }
                }
             }
             /*
              * Move the cursor to where it should be and display the page.
              */
-            if (on_bottom_of_screen)
+            if ( on_bottom_of_screen )
             {
-               CURRENT_VIEW->current_line = new_current_line;
-               CURRENT_VIEW->focus_line = new_focus_line;
-               wmove(CURRENT_WINDOW,y-((leave_cursor) ? 0 : 1),new_col);
+               curr_view->current_line = new_current_line;
+               curr_view->focus_line = new_focus_line;
+               wmove( SCREEN_WINDOW(curr_screen), y-((leave_cursor) ? 0 : 1), new_col );
             }
             else
             {
-            /*
-             * We are in the middle of the window, so just move the cursor down
-             * 1 line.
-             */
-               wmove(CURRENT_WINDOW,y+number_focus_rows,new_col);
-               CURRENT_VIEW->focus_line = new_focus_line;
-               if (compatible_feel == COMPAT_XEDIT
-               && !sos_command)
-                  CURRENT_VIEW->current_line = new_current_line;
+               /*
+                * We are in the middle of the window, so just move the cursor down
+                * 1 line.
+                */
+               wmove( SCREEN_WINDOW(curr_screen), y+number_focus_rows, new_col );
+               curr_view->focus_line = new_focus_line;
+               if ( compatible_feel == COMPAT_XEDIT
+               &&   !sos_command)
+                  curr_view->current_line = new_current_line;
             }
             break;
       }
    }
-   pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
-   build_screen(current_screen);
-   display_screen(current_screen);
+   pre_process_line( curr_view, curr_view->focus_line, (LINE *)NULL );
+   build_screen( curr_screen );
+   display_screen( curr_screen );
 
    TRACE_RETURN();
    return(RC_OK);
@@ -705,7 +749,7 @@ bool pause;
 # define SHELL "SHELL"
 #endif
    short rc=0;
-#ifdef XCURSES
+#if defined(USE_XCURSES) || defined(USE_WINGUICURSES)
    bool save_curses_started=curses_started;
 #endif
 
@@ -716,10 +760,11 @@ bool pause;
    pause = 0;
 #endif
 
-#ifdef XCURSES
+#if defined(USE_XCURSES) || defined(USE_WINGUICURSES)
    curses_started=FALSE;
 #endif
 
+   STARTUPCONSOLE();
    if (!quiet && curses_started)
    {
       attrset(A_NORMAL);
@@ -736,12 +781,16 @@ bool pause;
    }
    if (strcmp((DEFCHAR *)cmd,"") == 0)
    {
-#ifdef XCURSES
+#ifdef USE_XCURSES
       strcpy((DEFCHAR *)temp_cmd,(DEFCHAR *)xterm_program);
       strcat((DEFCHAR *)temp_cmd," &");
 #else
-      strcpy((DEFCHAR *)temp_cmd,getenv(SHELL));
+      sprintf( (DEFCHAR *)temp_cmd, "\"%s\"", getenv( SHELL ) );
 #endif
+      /*
+       * If no command to execute then do not ask for "any key"
+       */
+      pause = 0;
    }
    else
       strcpy((DEFCHAR *)temp_cmd,(DEFCHAR *)cmd);
@@ -762,20 +811,26 @@ bool pause;
       strcat((DEFCHAR *)temp_cmd," > nul:");
 #endif
    }
+#ifdef USE_PROG_MODE_NO_MORE
+   def_prog_mode();
+#endif
    rc = system((DEFCHAR *)temp_cmd);
-#ifndef XCURSES
+#ifndef USE_XCURSES
    if (pause)
    {
       printf("\n\n%s",HIT_ANY_KEY);
       fflush(stdout);
    }
 #endif
+#ifdef USE_PROG_MODE_NO_MORE
+   reset_prog_mode();
+#endif
 
    if (!quiet && curses_started)
    {
-      resume_curses();
       if (pause)
          (void)my_getch(stdscr);
+      resume_curses();
 #if defined(HAVE_BROKEN_SYSVR4_CURSES)
       {
          short x=0,y=0;
@@ -798,7 +853,7 @@ bool pause;
    if (curses_started)
       draw_cursor(TRUE);
 
-#ifdef XCURSES
+#if defined(USE_XCURSES) || defined(USE_WINGUICURSES)
    curses_started = save_curses_started;
 #endif
    TRACE_RETURN();
@@ -806,44 +861,47 @@ bool pause;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short execute_makecurr(LINETYPE line)
+short execute_makecurr( CHARTYPE curr_screen, VIEW_DETAILS *curr_view, LINETYPE line)
 #else
-short execute_makecurr(line)
+short execute_makecurr( CHARTYPE curr_screen, VIEW_DETAILS *curr_view, line )
+CHARTYPE curr_screen;
+VIEW_DETAILS *curr_view;
 LINETYPE line;
 #endif
 /***********************************************************************/
 {
    unsigned short y=0,x=0;
 
-   TRACE_FUNCTION("execute.c: execute_makecurr");
-   post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
+   TRACE_FUNCTION( "execute.c: execute_makecurr" );
+   post_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL, TRUE );
 
-   CURRENT_VIEW->current_line = line;
-   if (CURRENT_VIEW->current_window == WINDOW_PREFIX)
-      getyx(CURRENT_WINDOW,y,x);
+   curr_view->current_line = line;
+   if ( curr_view->current_window == WINDOW_PREFIX )
+      getyx( SCREEN_WINDOW(curr_screen), y, x );
    else
-      getyx(CURRENT_WINDOW_FILEAREA,y,x);
-   build_screen(current_screen);
-   display_screen(current_screen);
-   y = get_row_for_focus_line(current_screen,CURRENT_VIEW->focus_line,
-                            CURRENT_VIEW->current_row);
-   if (CURRENT_VIEW->current_window == WINDOW_PREFIX)
-      wmove(CURRENT_WINDOW,y,x);
+      getyx( SCREEN_WINDOW_FILEAREA(curr_screen), y, x );
+   build_screen( curr_screen );
+   display_screen( curr_screen );
+   y = get_row_for_focus_line( curr_screen, curr_view->focus_line, curr_view->current_row );
+   if ( curr_view->current_window == WINDOW_PREFIX )
+      wmove( SCREEN_WINDOW(curr_screen), y, x );
    else
-      wmove(CURRENT_WINDOW_FILEAREA,y,x);
+      wmove( SCREEN_WINDOW_FILEAREA(curr_screen), y, x );
    TRACE_RETURN();
    return(RC_OK);
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short execute_shift_command(bool shift_left,LENGTHTYPE num_cols,LINETYPE true_line,LINETYPE num_lines,bool lines_based_on_scope,short target_type,bool sos,bool zone_shift)
+short execute_shift_command( CHARTYPE curr_screen, VIEW_DETAILS *curr_view, bool shift_left, LENGTHTYPE num_cols, LINETYPE true_line, LINETYPE num_lines, bool lines_based_on_scope, long target_type, bool sos, bool zone_shift )
 #else
-short execute_shift_command(shift_left,num_cols,true_line,num_lines,lines_based_on_scope,target_type,sos,zone_shift)
+short execute_shift_command(curr_screen,curr_view,shift_left,num_cols,true_line,num_lines,lines_based_on_scope,target_type,sos,zone_shift)
+CHARTYPE curr_screen;
+VIEW_DETAILS *curr_view;
 bool shift_left;
 LENGTHTYPE num_cols;
 LINETYPE true_line,num_lines;
 bool lines_based_on_scope;
-short target_type;
+long target_type;
 bool sos,zone_shift;
 #endif
 /***********************************************************************/
@@ -861,26 +919,30 @@ bool sos,zone_shift;
    bool adjust_alt=FALSE;
 
    TRACE_FUNCTION("execute.c: execute_shift_command");
-   post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
-   if (CURRENT_VIEW->current_window == WINDOW_COMMAND)
-      getyx(CURRENT_WINDOW_FILEAREA,y,x);
+   /*
+    * Always post_process_line() the line in the CURRENT_VIEW
+    */
+   post_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL, TRUE );
+
+   if ( curr_view->current_window == WINDOW_COMMAND )
+      getyx( SCREEN_WINDOW_FILEAREA(curr_screen), y, x );
    else
-      getyx(CURRENT_WINDOW,y,x);
-   curr = lll_find(CURRENT_FILE->first_line,CURRENT_FILE->last_line,true_line,CURRENT_FILE->number_lines);
-   for (i=0L,num_actual_lines=0L;;i++)
+      getyx( SCREEN_WINDOW(curr_screen), y, x );
+   curr = lll_find( curr_view->file_for_view->first_line, curr_view->file_for_view->last_line, true_line, curr_view->file_for_view->number_lines );
+   for ( i = 0L, num_actual_lines = 0L; ; i++ )
    {
-      if (lines_based_on_scope)
+      if ( lines_based_on_scope )
       {
-         if (num_actual_lines == abs_num_lines)
+         if ( num_actual_lines == abs_num_lines )
             break;
       }
       else
       {
-         if (abs_num_lines == num_file_lines)
+         if ( abs_num_lines == num_file_lines )
             break;
       }
-      rc = processable_line(CURRENT_VIEW,true_line+(LINETYPE)(i*direction),curr);
-      switch(rc)
+      rc = processable_line( curr_view, true_line+(LINETYPE)(i*direction), curr );
+      switch( rc )
       {
          case LINE_SHADOW:
             break;
@@ -889,15 +951,15 @@ bool sos,zone_shift;
             num_actual_lines++;
             break;
          default:
-            memset(trec,' ',max_line_length);
-            memcpy(trec,curr->line,curr->length);
+            memset( trec, ' ', max_line_length );
+            memcpy( trec, curr->line ,curr->length );
             trec_len = curr->length;
-            if (target_type == TARGET_BLOCK_CURRENT)
+            if ( target_type == TARGET_BLOCK_CURRENT )
             {
-               if (MARK_VIEW->mark_type == M_LINE)
+               if ( MARK_VIEW->mark_type == M_LINE )
                {
-                  left_col = CURRENT_VIEW->zone_start-1;
-                  right_col = CURRENT_VIEW->zone_end-1;
+                  left_col = curr_view->zone_start-1;
+                  right_col = curr_view->zone_end-1;
                }
                else
                {
@@ -907,13 +969,13 @@ bool sos,zone_shift;
             }
             else
             {
-               left_col = CURRENT_VIEW->zone_start-1;
-               right_col = CURRENT_VIEW->zone_end-1;
+               left_col = curr_view->zone_start-1;
+               right_col = curr_view->zone_end-1;
             }
-            if (shift_left)
+            if ( shift_left )
             {
-               actual_cols = min(num_cols,max(0,trec_len-left_col));
-               memdeln(trec,left_col,trec_len,actual_cols);
+               actual_cols = min( num_cols, max( 0, trec_len-left_col ) );
+               memdeln( trec, left_col, trec_len, actual_cols );
                trec_len -= actual_cols;
                if ( zone_shift )
                {
@@ -921,8 +983,8 @@ bool sos,zone_shift;
                    * Fill up the right most positions of the zone
                    * with blanks.
                    */
-                  for (j=0;j<actual_cols;j++)
-                     meminschr(trec,' ',right_col,max_line_length,trec_len++);
+                  for ( j = 0; j < actual_cols; j++ )
+                     meminschr( trec, ' ', right_col, max_line_length, trec_len++ );
                }
             }
             else
@@ -932,38 +994,38 @@ bool sos,zone_shift;
                   /*
                    * Remove the right most positions of the zone.
                    */
-                  actual_cols = min(num_cols,max(0,1+trec_len-right_col));
-                  memdeln(trec,1+right_col-actual_cols,trec_len,actual_cols);
+                  actual_cols = min( num_cols, max( 0, 1+trec_len-right_col ) );
+                  memdeln( trec, 1+right_col-actual_cols, trec_len, actual_cols );
                   trec_len -= actual_cols;
                }
-               for (j=0;j<num_cols;j++)
-                  meminschr(trec,' ',left_col,max_line_length,trec_len++);
-               if (trec_len > max_line_length)
+               for ( j = 0; j < num_cols; j++ )
+                  meminschr( trec, ' ', left_col, max_line_length, trec_len++ );
+               if ( trec_len > max_line_length )
                {
                   trec_len = max_line_length;
-                  display_error(0,(CHARTYPE*)"Truncated",FALSE);
+                  display_error( 0, (CHARTYPE*)"Truncated", FALSE );
                }
                actual_cols = num_cols;
             }
             /*
              * Set a flag to cause alteration counts to be incremented.
              */
-            if (actual_cols != 0)
+            if ( actual_cols != 0 )
             {
                adjust_alt = TRUE;
                /*
                 * Add the old line contents to the line recovery list.
                 */
-               add_to_recovery_list(curr->line,curr->length);
+               add_to_recovery_list( curr->line, curr->length );
                /*
                 * Realloc the dynamic memory for the line if the line is now longer.
                 */
-               if (trec_len > curr->length)
+               if ( trec_len > curr->length )
                {
                   curr->line = (CHARTYPE *)(*the_realloc)((void *)curr->line,(trec_len+1)*sizeof(CHARTYPE));
-                  if (curr->line == NULL)
+                  if ( curr->line == NULL )
                   {
-                     display_error(30,(CHARTYPE *)"",FALSE);
+                     display_error( 30, (CHARTYPE *)"", FALSE );
                      TRACE_RETURN();
                      return(RC_OUT_OF_MEMORY);
                   }
@@ -971,7 +1033,7 @@ bool sos,zone_shift;
                /*
                 * Copy the contents of trec into the line.
                 */
-               memcpy(curr->line,trec,trec_len);
+               memcpy( curr->line, trec, trec_len );
                curr->length = trec_len;
                *(curr->line+trec_len) = '\0';
                curr->flags.changed_flag = TRUE;
@@ -982,25 +1044,25 @@ bool sos,zone_shift;
       /*
        * Proceed to the next record, even if the current record not in scope.
        */
-      if (direction == DIRECTION_BACKWARD)
+      if ( direction == DIRECTION_BACKWARD )
          curr = curr->prev;
       else
          curr = curr->next;
       num_file_lines += (LINETYPE)direction;
-      if (curr == NULL)
+      if ( curr == NULL )
          break;
    }
    /*
     * Increment the alteration counters once if any line has changed...
     */
-   if (adjust_alt)
-      increment_alt(CURRENT_FILE);
+   if ( adjust_alt )
+      increment_alt( curr_view->file_for_view );
    /*
     * Display the new screen...
     */
-   pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
-   resolve_current_and_focus_lines(CURRENT_VIEW,true_line,num_file_lines,direction,TRUE,sos);
-   if (CURRENT_TOF || CURRENT_BOF)
+   pre_process_line( curr_view, curr_view->focus_line, (LINE *)NULL );
+   resolve_current_and_focus_lines( curr_screen, curr_view, true_line, num_file_lines, direction, TRUE, sos );
+   if ( CURRENT_TOF || CURRENT_BOF )
       rc = RC_TOF_EOF_REACHED;
    else
       rc = RC_OK;
@@ -1009,13 +1071,13 @@ bool sos,zone_shift;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short execute_set_lineflag( unsigned int new_flag, unsigned int changed_flag, unsigned int tag_flag, LINETYPE true_line, LINETYPE num_lines, bool lines_based_on_scope, short target_type )
+short execute_set_lineflag( unsigned int new_flag, unsigned int changed_flag, unsigned int tag_flag, LINETYPE true_line, LINETYPE num_lines, bool lines_based_on_scope, long target_type )
 #else
 short execute_set_lineflag( new_flag, changed_flag, tag_flag, true_line, num_lines, lines_based_on_scope, target_type )
 unsigned int new_flag, changed_flag, tag_flag;
 LINETYPE true_line, num_lines;
 bool lines_based_on_scope;
-short target_type;
+long target_type;
 #endif
 /***********************************************************************/
 {
@@ -1086,7 +1148,7 @@ short target_type;
     * Display the new screen...
     */
    pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
-   resolve_current_and_focus_lines(CURRENT_VIEW,true_line,num_file_lines,direction,TRUE,FALSE);
+   resolve_current_and_focus_lines( current_screen, CURRENT_VIEW, true_line, num_file_lines, direction, TRUE, FALSE );
    if (CURRENT_TOF || CURRENT_BOF)
       rc = RC_TOF_EOF_REACHED;
    else
@@ -1223,7 +1285,7 @@ LENGTHTYPE start_col,end_col;
    if (adjust_alt)
       increment_alt(CURRENT_FILE);
    pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
-   resolve_current_and_focus_lines(CURRENT_VIEW,true_line,num_file_lines,direction,TRUE,FALSE);
+   resolve_current_and_focus_lines( current_screen, CURRENT_VIEW, true_line, num_file_lines, direction, TRUE, FALSE );
    TRACE_RETURN();
    return rc;
 }
@@ -1243,7 +1305,7 @@ CHARTYPE which_case;
    LENGTHTYPE start_col=0,end_col=0;
    short rc=RC_OK;
    TARGET target;
-   short target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
+   long target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
    bool lines_based_on_scope=TRUE;
 
    TRACE_FUNCTION("execute.c: execute_change_case");
@@ -1531,7 +1593,7 @@ command,source,start_line,end_line,dest_line);
                default:
                   if (command != COMMAND_MOVE_DELETE_SAME)
                      add_to_recovery_list( curr_dst->line, curr_dst->length );
-                  curr_dst = delete_LINE( dst_file->first_line, dst_file->last_line, curr_dst, direction, TRUE );
+                  curr_dst = delete_LINE( &dst_file->first_line, &dst_file->last_line, curr_dst, direction, TRUE );
                   num_actual_lines++;
             }
             if (curr_dst == NULL)
@@ -1589,7 +1651,7 @@ command,source,start_line,end_line,dest_line);
             if (dst_view == CURRENT_SCREEN.screen_view)
             {
                unsigned short last_focus_row=0;
-               find_last_focus_line(&last_focus_row);
+               find_last_focus_line(current_screen, &last_focus_row );
                if (dest_line >= CURRENT_SCREEN.sl[last_focus_row].line_number)
                {
                   dst_view->current_line = dst_view->focus_line;
@@ -1612,7 +1674,7 @@ command,source,start_line,end_line,dest_line);
             &&  dst_view == CURRENT_SCREEN.screen_view)
             {
                unsigned short last_focus_row=0;
-               find_last_focus_line(&last_focus_row);
+               find_last_focus_line( current_screen, &last_focus_row );
                if (y == last_focus_row)
                {
                   dst_view->current_line = dst_view->focus_line;
@@ -1780,9 +1842,11 @@ command,source,start_line,end_line,dest_line);
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short execute_set_point( CHARTYPE *name, LINETYPE true_line, bool point_on )
+short execute_set_point( CHARTYPE curr_screen, VIEW_DETAILS *curr_view, CHARTYPE *name, LINETYPE true_line, bool point_on )
 #else
-short execute_set_point( name, true_line, point_on )
+short execute_set_point( curr_screen, curr_view, name, true_line, point_on )
+CHARTYPE curr_screen;
+VIEW_DETAILS *curr_view;
 CHARTYPE *name;
 LINETYPE true_line;
 bool point_on;
@@ -1824,7 +1888,7 @@ bool point_on;
       /*
        * Find the focus line...
        */
-      curr = lll_find( CURRENT_FILE->first_line, CURRENT_FILE->last_line, true_line, CURRENT_FILE->number_lines );
+      curr = lll_find( curr_view->file_for_view->first_line, curr_view->file_for_view->last_line, true_line, curr_view->file_for_view->number_lines );
       /*
        * Allocate space for the name and add it to the start of the linked list
        */
@@ -1838,7 +1902,7 @@ bool point_on;
       curr->first_name = ll_add( curr->first_name, NULL, sizeof( THELIST ) );
       curr->first_name->data = (void *)this_name;
    }
-   else
+   if ( !point_on && curr == NULL )
    {
       /*
        * Error if the name didn't exist; we are trying to delete it.
@@ -1994,9 +2058,9 @@ LENGTHTYPE col;
    if (cursor_wrap)
    {
       post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
-      build_screen(current_screen);
-      THEcursor_down(TRUE);
-      rc = Sos_firstchar((CHARTYPE *)"");
+      build_screen( current_screen );
+      THEcursor_down( current_screen, CURRENT_VIEW, TRUE );
+      rc = Sos_firstchar( (CHARTYPE *)"" );
       for (i=0;i<cursor_offset+1;i++)
       {
          rc = THEcursor_right(TRUE,FALSE);
@@ -2076,10 +2140,6 @@ bool cursorarg;
    if (action == SPLTJOIN_SPLTJOIN)
       action = (col >= rec_len) ? SPLTJOIN_JOIN : SPLTJOIN_SPLIT;
    /*
-    * Copy any changes in the focus line to the linked list.
-    */
-   post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
-   /*
     * Find the current LINE pointer for the true line.
     */
    curr = lll_find(CURRENT_FILE->first_line,CURRENT_FILE->last_line,true_line,CURRENT_FILE->number_lines);
@@ -2088,6 +2148,10 @@ bool cursorarg;
    switch(action)
    {
       case SPLTJOIN_SPLIT:
+         /*
+          * Copy any changes in the focus line to the linked list.
+          */
+         post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
          memset(rec,' ',max_line_length);
          if (col < curr->length)
          {
@@ -2157,17 +2221,27 @@ bool cursorarg;
          }
          else
             num_cols = 0;
+         /*
+          * If the join would result in exceeding line length (or future TRUNC column)
+          */
+         if (col+curr->next->length-num_cols > max_line_length)
+         {
+            display_error( 154, (CHARTYPE*)"",FALSE );
+            TRACE_RETURN();
+            return(RC_NO_LINES_CHANGED);
+         }
+         /*
+          * Copy any changes in the focus line to the linked list.
+          */
+         post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
+
          if (CURRENT_VIEW->current_window == WINDOW_COMMAND)
             pre_process_line(CURRENT_VIEW,CURRENT_VIEW->current_line,(LINE *)NULL);
          meminsmem(rec,curr->next->line+num_cols,curr->next->length-num_cols,
                       col,max_line_length,col);
-         if (col+curr->next->length-num_cols > max_line_length)
-         {
-            display_error(0,(CHARTYPE*)"Truncated",FALSE);
-         }
-         rec_len = min(max_line_length,col+curr->next->length-num_cols);
+         rec_len = col+curr->next->length-num_cols;
          post_process_line(CURRENT_VIEW,true_line,(LINE *)NULL,TRUE);
-         curr = delete_LINE( CURRENT_FILE->first_line, CURRENT_FILE->last_line, curr->next, DIRECTION_BACKWARD, TRUE );
+         curr = delete_LINE( &CURRENT_FILE->first_line, &CURRENT_FILE->last_line, curr->next, DIRECTION_BACKWARD, TRUE );
          if ( CURRENT_VIEW->current_window == WINDOW_COMMAND )
             pre_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL );
          /*
@@ -2202,7 +2276,7 @@ bool cursorarg;
          if (!line_in_view(current_screen,CURRENT_VIEW->focus_line)
          &&  compatible_feel == COMPAT_XEDIT)
          {
-            THEcursor_cmdline(1);
+            THEcursor_cmdline(current_screen, CURRENT_VIEW, 1 );
          }
          else
          {
@@ -2240,7 +2314,7 @@ bool putdel;
    LENGTHTYPE start_col=0,end_col=max_line_length;
    bool lines_based_on_scope = TRUE;
    TARGET target;
-   short target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL|TARGET_SPARE;
+   long target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL|TARGET_SPARE;
    short direction=DIRECTION_FORWARD;
    bool clip=FALSE;
 
@@ -2371,7 +2445,7 @@ bool putdel;
        * of lines calculated from the target. This is only applicable for
        * PUT and NOT for PUTDEL.
        */
-      resolve_current_and_focus_lines( CURRENT_VIEW, true_line, num_file_lines, direction, FALSE, FALSE );
+      resolve_current_and_focus_lines( current_screen, CURRENT_VIEW, true_line, num_file_lines, direction, FALSE, FALSE );
    }
    free_target( &target );
    TRACE_RETURN();
@@ -2718,30 +2792,21 @@ LINE *curr;
 #endif
 /***********************************************************************/
 {
- TRACE_FUNCTION("execute.c: processable_line");
+   TRACE_FUNCTION("execute.c: processable_line");
 
-#if 0
-   /* MH12 */
-   if (VIEW_TOF(view,true_line)
-   ||  VIEW_BOF(view,true_line))
-   {
-      TRACE_RETURN();
-      return(LINE_TOF_EOF);
-   }
-#endif
-   if (VIEW_TOF(view,true_line))
+   if ( VIEW_TOF( view, true_line ) )
    {
       TRACE_RETURN();
       return(LINE_TOF);
    }
-   if (VIEW_BOF(view,true_line))
+   if ( VIEW_BOF( view, true_line ) )
    {
       TRACE_RETURN();
       return(LINE_EOF);
    }
 
-   if (view->scope_all
-   ||  IN_SCOPE(view,curr))
+   if ( view->scope_all
+   ||   IN_SCOPE( view, curr ) )
    {
       TRACE_RETURN();
       return(LINE_LINE);
@@ -2764,7 +2829,7 @@ bool expand,inc_alt,use_tabs,add_to_recovery;
    short direction=0,rc=RC_OK;
    LINE *curr=NULL;
    TARGET target;
-   short target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
+   long target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
    bool lines_based_on_scope=FALSE;
    bool adjust_alt=FALSE;
 
@@ -2891,7 +2956,7 @@ bool expand,inc_alt,use_tabs,add_to_recovery;
     * of lines calculated from the target.
     */
    pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
-   resolve_current_and_focus_lines(CURRENT_VIEW,true_line,num_file_lines,direction,TRUE,FALSE);
+   resolve_current_and_focus_lines( current_screen, CURRENT_VIEW, true_line, num_file_lines, direction, TRUE, FALSE );
    if (CURRENT_TOF || CURRENT_BOF)
       rc = RC_TOF_EOF_REACHED;
    else
@@ -2915,7 +2980,7 @@ short off;
    short direction=0,rc=RC_OK;
    LINE *curr=NULL;
    TARGET target;
-   short target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
+   long target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
    bool lines_based_on_scope=FALSE;
 
    TRACE_FUNCTION("execute.c: execute_select");
@@ -3010,9 +3075,11 @@ short off;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short execute_move_cursor(LENGTHTYPE col)
+short execute_move_cursor( CHARTYPE curr_screen, VIEW_DETAILS *curr_view, LENGTHTYPE col )
 #else
-short execute_move_cursor(col)
+short execute_move_cursor( curr_screen, curr_view, col )
+CHARTYPE curr_screen;
+VIEW_DETAILS *curr_view;
 LENGTHTYPE col;
 #endif
 /***********************************************************************/
@@ -3022,36 +3089,49 @@ LENGTHTYPE col;
    LENGTHTYPE new_verify_col=0;
 
    TRACE_FUNCTION("execute.c: execute_move_cursor");
+
+   switch( curr_view->current_window )
+   {
+      case WINDOW_FILEAREA:
+         getyx( SCREEN_WINDOW(curr_screen), y, x );
+         calculate_new_column( curr_screen, curr_view, x, curr_view->verify_col, col, &new_screen_col, &new_verify_col );
+         if ( curr_view->verify_col != new_verify_col )
+         {
+            curr_view->verify_col = new_verify_col;
+            build_screen( curr_screen );
+            display_screen( curr_screen );
+         }
+         wmove( SCREEN_WINDOW(curr_screen), y, new_screen_col );
+         break;
+      case WINDOW_COMMAND:
+         getyx( SCREEN_WINDOW(curr_screen), y, x );
+         calculate_new_column( curr_screen, curr_view, x, cmd_verify_col, col, &new_screen_col, &new_verify_col );
+         if ( cmd_verify_col != new_verify_col )
+         {
+            cmd_verify_col = new_verify_col;
+            display_cmdline( curr_screen, curr_view );
+         }
+         wmove( SCREEN_WINDOW(curr_screen), y, new_screen_col );
+         break;
+      default: /* PREFIX */
+         /*
+          * Don't do anything for PREFIX window...
+          */
+         break;
+   }
    /*
-    * Don't do anything for PREFIX window...
+    * Don't have any code here, as PREFIX window is supposed to do nothing
     */
-   if (CURRENT_VIEW->current_window == WINDOW_PREFIX)
-   {
-      TRACE_RETURN();
-      return(RC_OK);
-   }
-
-   getyx(CURRENT_WINDOW,y,x);
-   calculate_new_column(x,CURRENT_VIEW->verify_col,col,&new_screen_col,&new_verify_col);
-   if (CURRENT_VIEW->verify_col != new_verify_col
-   &&  CURRENT_VIEW->current_window == WINDOW_FILEAREA)
-   {
-      CURRENT_VIEW->verify_col = new_verify_col;
-      build_screen(current_screen);
-      display_screen(current_screen);
-   }
-   wmove(CURRENT_WINDOW,y,new_screen_col);
-
    TRACE_RETURN();
    return(RC_OK);
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short execute_find_command(CHARTYPE *str,short target_type)
+short execute_find_command( CHARTYPE *str, long target_type )
 #else
 short execute_find_command(str,target_type)
 CHARTYPE *str;
-short target_type;
+long target_type;
 #endif
 /***********************************************************************/
 {
@@ -3070,7 +3150,8 @@ short target_type;
    TRACE_FUNCTION("execute.c: execute_find_command");
    if (strcmp((DEFCHAR *)str,"") == 0) /* no argument supplied */
    {
-      if ( strcmp( (DEFCHAR *)lastop[LASTOP_FIND].value, "" ) == 0 )
+      if ( lastop[LASTOP_FIND].value == NULL
+      ||   strcmp( (DEFCHAR *)lastop[LASTOP_FIND].value, "" ) == 0 )
       {
          display_error( 39, (CHARTYPE *)"", FALSE );
          TRACE_RETURN();
@@ -3114,7 +3195,12 @@ short target_type;
    /*
     * Save the last target...
     */
-   strcpy( (DEFCHAR *)lastop[LASTOP_FIND].value, (DEFCHAR *)str );
+   if ( save_lastop( LASTOP_FIND, str ) != RC_OK )
+   {
+      display_error( 30, (CHARTYPE *)"", FALSE );
+      TRACE_RETURN();
+      return rc;
+   }
    /*
     * Check for target not found...
     */
@@ -3192,40 +3278,60 @@ CHARTYPE *str;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-LENGTHTYPE calculate_rec_len(short action,LENGTHTYPE current_rec_len,LENGTHTYPE start_col,LINETYPE num_cols)
+LENGTHTYPE calculate_rec_len( short action, CHARTYPE *rec, LENGTHTYPE current_rec_len, LENGTHTYPE start_col, LINETYPE num_cols, short trailing )
 #else
-LENGTHTYPE calculate_rec_len(action,current_rec_len,start_col,num_cols)
+LENGTHTYPE calculate_rec_len( action, rec, current_rec_len, start_col, num_cols, trailing )
 short action;
+CHARTYPE *rec;
 LENGTHTYPE current_rec_len,start_col;
 LINETYPE num_cols;
+short trailing;
 #endif
+/***********************************************************************/
+/*
+ * start_col is 1 based; ie first column is column 1
+ */
 /***********************************************************************/
 {
    LENGTHTYPE new_rec_len=0;
+   LENGTHTYPE end_col=start_col+num_cols-1;
 
    TRACE_FUNCTION("execute.c: calcualte_rec_len");
-   switch(action)
+   if ( num_cols <= 0 )
    {
-      case ADJUST_DELETE:
-         if (num_cols > 0)
-         {
+      new_rec_len = current_rec_len;
+   }
+   else if ( trailing == TRAILING_OFF )
+   {
+     new_rec_len = memrevne( rec, ' ', max_line_length );
+     if ( new_rec_len == (-1) )
+        new_rec_len = 0;
+     else
+        new_rec_len = new_rec_len + 1;
+   }
+   else
+   {
+      switch(action)
+      {
+         case ADJUST_DELETE:
             if (start_col < current_rec_len)
             {
-               new_rec_len = (LENGTHTYPE)(LINETYPE)current_rec_len -
-                              (min((LINETYPE)current_rec_len - (LINETYPE)start_col,num_cols));
+               new_rec_len = (LENGTHTYPE)(LINETYPE)current_rec_len - (min((LINETYPE)current_rec_len - (LINETYPE)start_col,num_cols));
             }
-         }
-         else
-         {
-            new_rec_len = current_rec_len;
-         }
-         break;
-      case ADJUST_INSERT:
-         new_rec_len = current_rec_len;
-         break;
-      case ADJUST_OVERWRITE:
-         new_rec_len = current_rec_len;
-         break;
+            break;
+         case ADJUST_INSERT:
+            if ( start_col > current_rec_len )
+               new_rec_len = min( end_col, max_line_length );
+            else
+               new_rec_len = min( current_rec_len + num_cols, max_line_length );
+            break;
+         case ADJUST_OVERWRITE:
+            if ( end_col > current_rec_len )
+               new_rec_len = min( end_col,max_line_length );
+            else
+               new_rec_len = min( current_rec_len, max_line_length );
+            break;
+      }
    }
    TRACE_RETURN();
    return(new_rec_len);
@@ -3249,12 +3355,13 @@ bool rexx_var;
    CHARTYPE *value=NULL;
    LINE *first=NULL;
 
-   TRACE_FUNCTION("execute.c: set_editv");
-   first = (editv_file)?CURRENT_FILE->editv:editv;
-   if (rexx_var)
+   TRACE_FUNCTION( "execute.c: set_editv" );
+   first = (editv_file) ? CURRENT_FILE->editv : editv;
+   var = make_upper( var );
+   if ( rexx_var )
    {
-      rc = get_rexx_variable(var,&value,&len_val);
-      if (rc != RC_OK)
+      rc = get_rexx_variable( var, &value, &len_val );
+      if ( rc != RC_OK )
       {
          TRACE_RETURN();
          return(rc);
@@ -3262,47 +3369,46 @@ bool rexx_var;
    }
    else
    {
-      if (val == NULL)
+      if ( val == NULL )
          value = (CHARTYPE*)"";
       else
          value = val;
-      len_val = strlen((DEFCHAR*)value);
+      len_val = strlen( (DEFCHAR*)value );
    }
-   var = make_upper(var);
-   len_var = strlen((DEFCHAR*)var);
-   curr = lll_locate(first,var);
-   if (curr) /* found an existing variable */
+   len_var = strlen( (DEFCHAR*)var );
+   curr = lll_locate( first, var );
+   if ( curr ) /* found an existing variable */
    {
-      if (len_val > curr->length)
+      if ( len_val > curr->length )
       {
-         curr->line = (CHARTYPE *)(*the_realloc)(curr->line,(len_val+1)*sizeof(CHARTYPE));
-         if (curr->line == NULL)
+         curr->line = (CHARTYPE *)(*the_realloc)( curr->line, (len_val + 1) * sizeof(CHARTYPE) );
+         if ( curr->line == NULL )
          {
-            if (rexx_var && value)
-               (*the_free)(value);
-            display_error(30,(CHARTYPE *)"",FALSE);
+            if ( rexx_var && value )
+               (*the_free)( value );
+            display_error( 30, (CHARTYPE *)"", FALSE );
             TRACE_RETURN();
             return(RC_OUT_OF_MEMORY);
          }
       }
-      if (len_val == 0)  /* need to delete the entry */
+      if ( len_val == 0 )  /* need to delete the entry */
       {
-         if (editv_file)
-            lll_del(&(CURRENT_FILE->editv),NULL,curr,DIRECTION_FORWARD);
+         if ( editv_file )
+            lll_del( &(CURRENT_FILE->editv), NULL, curr, DIRECTION_FORWARD );
          else
-            lll_del(&editv,NULL,curr,DIRECTION_FORWARD);
+            lll_del( &editv, NULL, curr, DIRECTION_FORWARD );
       }
       else
-         strcpy((DEFCHAR*)curr->line,(DEFCHAR*)value);
+         strcpy( (DEFCHAR*)curr->line, (DEFCHAR*)value );
    }
    else
    {
-      curr = lll_add(first,NULL,sizeof(LINE));
-      if (curr == NULL)
+      curr = lll_add( first, NULL, sizeof(LINE) );
+      if ( curr == NULL )
       {
-         if (rexx_var && value)
-            (*the_free)(value);
-         display_error(30,(CHARTYPE *)"",FALSE);
+         if ( rexx_var && value )
+            (*the_free)( value );
+         display_error( 30, (CHARTYPE *)"", FALSE );
          TRACE_RETURN();
        return(RC_OUT_OF_MEMORY);
       }
@@ -3310,34 +3416,34 @@ bool rexx_var;
        * As the current variable is always inserted as the start of the LL
        * we must set the first pointer to the current variable each time.
        */
-      if (editv_file)
+      if ( editv_file )
          CURRENT_FILE->editv = curr;
       else
          editv = curr;
-      curr->line = (CHARTYPE *)(*the_malloc)((len_val+1)*sizeof(CHARTYPE));
-      if (curr->line == NULL)
+      curr->line = (CHARTYPE *)(*the_malloc)( (len_val + 1 )* sizeof(CHARTYPE) );
+      if ( curr->line == NULL )
       {
-         if (rexx_var && value)
-            (*the_free)(value);
-         display_error(30,(CHARTYPE *)"",FALSE);
+         if ( rexx_var && value )
+            (*the_free)( value );
+         display_error( 30, (CHARTYPE *)"", FALSE );
          TRACE_RETURN();
          return(RC_OUT_OF_MEMORY);
       }
-      strcpy((DEFCHAR*)curr->line,(DEFCHAR*)value);
+      strcpy( (DEFCHAR*)curr->line, (DEFCHAR*)value );
       curr->length = len_val;
-      curr->name = (CHARTYPE *)(*the_malloc)((len_var+1)*sizeof(CHARTYPE));
-      if (curr->name == NULL)
+      curr->name = (CHARTYPE *)(*the_malloc)( (len_var + 1) * sizeof(CHARTYPE) );
+      if ( curr->name == NULL )
       {
-         if (rexx_var && value)
-            (*the_free)(value);
+         if ( rexx_var && value )
+            (*the_free)( value );
          display_error(30,(CHARTYPE *)"",FALSE);
          TRACE_RETURN();
          return(RC_OUT_OF_MEMORY);
       }
-      strcpy((DEFCHAR*)curr->name,(DEFCHAR*)var);
+      strcpy( (DEFCHAR*)curr->name, (DEFCHAR*)var );
    }
-   if (rexx_var && value)
-      (*the_free)(value);
+   if ( rexx_var && value )
+      (*the_free)( value );
    TRACE_RETURN();
    return(rc);
 }
@@ -3359,49 +3465,48 @@ CHARTYPE *params;
    CHARTYPE *p=NULL,*str=NULL;
    unsigned short num_params=0;
    LINE *curr=NULL,*first=NULL;
-   int key=0,lineno=0,i,len_str,len_name,rem,len;
+   int key=0,lineno=0,i,len_str,len_name,rem,x;
    short rc=RC_OK;
 
-   TRACE_FUNCTION("execute.c: execute_editv");
-   first = (editv_file)?CURRENT_FILE->editv:editv;
-   switch(editv_type)
+   TRACE_FUNCTION( "execute.c: execute_editv" );
+   first = (editv_file) ? CURRENT_FILE->editv : editv;
+   switch( editv_type )
    {
       case EDITV_SETL:
          strip[0] = STRIP_BOTH;
          strip[1] = STRIP_NONE;
-         num_params = param_split(params,word,EDITV_PARAMS,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
-         if (num_params == 0)
+         num_params = param_split( params, word, EDITV_PARAMS, WORD_DELIMS, TEMP_PARAM, strip, FALSE );
+         if ( num_params == 0 )
          {
-            display_error(3,(CHARTYPE *)"",FALSE);
+            display_error( 3, (CHARTYPE *)"", FALSE );
             TRACE_RETURN();
             return(RC_INVALID_OPERAND);
          }
-         rc = set_editv(word[0],word[1],editv_file,FALSE);
+         rc = set_editv( word[0], word[1], editv_file, FALSE );
          break;
       case EDITV_SET:
-         p = (CHARTYPE *)strtok((DEFCHAR *)params," ");
-         while(p != NULL)
+         p = (CHARTYPE *)strtok( (DEFCHAR *)params, " " );
+         while( p != NULL )
          {
-/*            p = make_upper(p);*/
-            str = (CHARTYPE *)strtok(NULL," ");
-            rc = set_editv(p,str,editv_file,FALSE);
-            if (str == NULL)
+            str = (CHARTYPE *)strtok( NULL, " " );
+            rc = set_editv( p, str, editv_file, FALSE );
+            if ( str == NULL )
                break;
-            p = (CHARTYPE *)strtok(NULL," ");
+            p = (CHARTYPE *)strtok( NULL, " " );
          }
          break;
       case EDITV_PUT:
-         p = (CHARTYPE *)strtok((DEFCHAR *)params," ");
-         while(p != NULL)
+         p = (CHARTYPE *)strtok( (DEFCHAR *)params, " " );
+         while( p != NULL )
          {
-/*            p = make_upper(p);*/
-            rc = set_editv(p,NULL,editv_file,TRUE);
-            p = (CHARTYPE *)strtok(NULL," ");
+/*            p = make_upper( p ); not needed as set_editv() uppercases this anyway */
+            rc = set_editv( p, NULL, editv_file, TRUE );
+            p = (CHARTYPE *)strtok( NULL, " " );
          }
          break;
       case EDITV_GET:
-         p = (CHARTYPE *)strtok((DEFCHAR *)params," ");
-         while(p != NULL)
+         p = (CHARTYPE *)strtok( (DEFCHAR *)params, " " );
+         while( p != NULL )
          {
             p = make_upper( p );
             curr = lll_locate( first, p );
@@ -3439,12 +3544,21 @@ CHARTYPE *params;
                len_str =  strlen( (DEFCHAR *)str );
                rem = terminal_cols - len_name - 1;
                /*
-                * Display at most as much as fits on the screen
+                * Display the value, wrapping if necessary
                 */
                move( lineno, 1 + len_name );
-               len = min( rem, len_str );
-               for ( i = 0; i < len; i++ )
+               for ( x = 0,i = 0; i < len_str; i++ )
                {
+                  if ( x == rem )
+                  {
+                     x = 1;
+                     lineno++;
+                     move( lineno, 1 + len_name );
+                  }
+                  else
+                  {
+                     x++;
+                  }
                   addch( *(str+i) );
                }
                lineno++;
@@ -3456,7 +3570,7 @@ CHARTYPE *params;
             p = (CHARTYPE *)strtok( (DEFCHAR *)params, " " );
             while( p != NULL )
             {
-               p = make_upper(p);
+               p = make_upper( p );
                curr = lll_locate( first, p );
                if ( curr
                &&   curr->line )
@@ -3476,12 +3590,21 @@ CHARTYPE *params;
                len_str =  strlen( (DEFCHAR *)str );
                rem = terminal_cols - len_name - 1;
                /*
-                * Display at most as much as fits on the screen
+                * Display the value, wrapping if necessary
                 */
                move( lineno, 1 + len_name );
-               len = min( rem, len_str );
-               for ( i = 0; i < len; i++ )
+               for ( x = 0,i = 0; i < len_str; i++ )
                {
+                  if ( x == rem )
+                  {
+                     x = 1;
+                     lineno++;
+                     move( lineno, 1 + len_name );
+                  }
+                  else
+                  {
+                     x++;
+                  }
                   addch( *(str+i) );
                }
                lineno++;
@@ -3493,7 +3616,7 @@ CHARTYPE *params;
          while( 1 )
          {
             key = my_getch( stdscr );
-#if defined(XCURSES)
+#if defined(USE_XCURSES)
             if ( key == KEY_SF || key == KEY_SR )
                continue;
 #endif
@@ -3518,13 +3641,12 @@ CHARTYPE *params;
 
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short prepare_dialog( CHARTYPE *params, bool alert, CHARTYPE *stemname, bool ignore_rexx )
+short prepare_dialog( CHARTYPE *params, bool alert, CHARTYPE *stemname )
 #else
-short prepare_dialog( params, alert, stemname, ignore_rexx )
+short prepare_dialog( params, alert, stemname )
 CHARTYPE *params;
 bool alert;
 CHARTYPE *stemname;
-bool ignore_rexx;
 #endif
 /***********************************************************************/
 {
@@ -3555,16 +3677,13 @@ bool ignore_rexx;
 
    TRACE_FUNCTION("execute.c: prepare_dialog");
   /*
-   * Sometimes must run from a Rexx macro...
+   * Can only run from a Rexx macro...
    */
-   if ( !ignore_rexx )
+   if ( !in_macro || !rexx_support )
    {
-      if ( !in_macro || !rexx_support )
-      {
-         display_error(53,(CHARTYPE *)"",FALSE);
-         TRACE_RETURN();
-         return(RC_INVALID_ENVIRON);
-      }
+      display_error(53,(CHARTYPE *)"",FALSE);
+      TRACE_RETURN();
+      return(RC_INVALID_ENVIRON);
    }
    /*
     * Defining these constants this way is done because non-ansi compilers
@@ -3941,7 +4060,7 @@ bool ignore_rexx;
    }
    if (rc == RC_OK)
    {
-      rc = execute_dialog(prompt,title,initial,editfield,button,(short)(default_button-1),stemname,icon,alert,ignore_rexx);
+      rc = execute_dialog(prompt,title,initial,editfield,button,(short)(default_button-1),stemname,icon,alert);
    }
    if (prompt)
       (*the_free)(prompt);
@@ -3955,9 +4074,9 @@ bool ignore_rexx;
 
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short execute_dialog(CHARTYPE *prompt, CHARTYPE *title, CHARTYPE *initial, bool editfield,short button, short default_button,CHARTYPE *stemname, short icon, bool alert, bool ignore_rexx)
+short execute_dialog(CHARTYPE *prompt, CHARTYPE *title, CHARTYPE *initial, bool editfield,short button, short default_button,CHARTYPE *stemname, short icon, bool alert)
 #else
-short execute_dialog(prompt, title, initial, editfield,button, default_button,stemname,icon,alert,ignore_rexx)
+short execute_dialog(prompt, title, initial, editfield,button, default_button,stemname,icon,alert)
 CHARTYPE *prompt;
 CHARTYPE *title;
 CHARTYPE *initial;
@@ -3967,7 +4086,6 @@ short default_button;
 CHARTYPE *stemname;
 short icon;
 bool alert;
-bool ignore_rexx;
 #endif
 /***********************************************************************/
 {
@@ -3975,8 +4093,8 @@ bool ignore_rexx;
    int button_length[4],key,num_buttons=0,i;
    short title_length=0,initial_length=0,max_width,cursor_pos=0;
    short prompt_length=0,prompt_max_length=0,prompt_lines=0;
-   DEFCHAR *prompt_line[12];
-   WINDOW *dw=NULL;
+   DEFCHAR *prompt_line[MAXIMUM_DIALOG_LINES+2];
+   WINDOW *dialog_win=NULL;
    WINDOW *save_command_window=NULL;
    CHARTYPE *save_cmd_rec=NULL;
    CHARTYPE *editfield_buf=NULL;
@@ -3992,6 +4110,9 @@ bool ignore_rexx;
    bool in_editfield;
    LINETYPE save_max_line_length=0;
    CHARTYPE save_current_window = CURRENT_VIEW->current_window;
+#ifndef HAVE_DERWIN
+   unsigned short begy,begx;
+#endif
 
    TRACE_FUNCTION("execute.c: execute_dialog");
    button_length[0] = 4;
@@ -4005,7 +4126,7 @@ bool ignore_rexx;
    {
       prompt_line[prompt_lines] = (DEFCHAR *)prompt;
       prompt_length = strlen((DEFCHAR *)prompt);
-      for ( i = 0; i < prompt_length && prompt_lines < 9; i++ )
+      for ( i = 0; i < prompt_length && prompt_lines < MAXIMUM_DIALOG_LINES; i++ )
       {
          if ( prompt[i] == 10)
          {
@@ -4094,8 +4215,8 @@ bool ignore_rexx;
    /*
     * Create the dialog window
     */
-   dw = newwin(dw_lines,dw_cols,dw_y,dw_x);
-   if (dw == NULL)
+   dialog_win = newwin(dw_lines,dw_cols,dw_y,dw_x);
+   if (dialog_win == NULL)
    {
       CURRENT_VIEW->current_window = save_current_window;
       THERefresh((CHARTYPE *)"");
@@ -4104,13 +4225,16 @@ bool ignore_rexx;
       TRACE_RETURN();
       return(RC_OUT_OF_MEMORY);
    }
+#ifdef HAVE_KEYPAD
+   keypad( dialog_win, TRUE );
+#endif
    if (editfield)
    {
       editfield_buf = (CHARTYPE *)(*the_malloc)(dw_cols + 1);
       if ( editfield_buf == NULL )
       {
          CURRENT_VIEW->current_window = save_current_window;
-         delwin( dw );
+         delwin( dialog_win );
          display_error(30,(CHARTYPE *)"",FALSE);
          TRACE_RETURN();
          return(RC_OUT_OF_MEMORY);
@@ -4127,7 +4251,7 @@ bool ignore_rexx;
       if ( save_cmd_rec == NULL )
       {
          CURRENT_VIEW->current_window = save_current_window;
-         delwin( dw );
+         delwin( dialog_win );
          (*the_free)(editfield_buf);
          display_error(30,(CHARTYPE *)"",FALSE);
          TRACE_RETURN();
@@ -4140,17 +4264,18 @@ bool ignore_rexx;
        */
       save_command_window = CURRENT_WINDOW_COMMAND;
 #ifdef HAVE_DERWIN
-      CURRENT_WINDOW_COMMAND = derwin( dw, 1, dw_cols-4, 3+prompt_lines, 2 );
+      CURRENT_WINDOW_COMMAND = derwin( dialog_win, 1, dw_cols-4, 3+prompt_lines, 2 );
 #else
       /* need to calculate from screen origin */
-      CURRENT_WINDOW_COMMAND = subwin( dw, 1, dw_cols-4, 3+prompt_lines, 2 );
+      getbegyx( dialog_win, begy, begx );
+      CURRENT_WINDOW_COMMAND = subwin( dialog_win, 1, dw_cols-4, begy+3+prompt_lines, begx+2 );
 #endif
       if ( CURRENT_WINDOW_COMMAND == (WINDOW *)NULL)
       {
          CURRENT_VIEW->current_window = save_current_window;
          delwin( CURRENT_WINDOW_COMMAND );
          CURRENT_WINDOW_COMMAND = save_command_window;
-         delwin( dw );
+         delwin( dialog_win );
          (*the_free)( save_cmd_rec );
          (*the_free)(editfield_buf);
          display_error(30,(CHARTYPE *)"",FALSE);
@@ -4160,33 +4285,33 @@ bool ignore_rexx;
       wattrset( CURRENT_WINDOW_COMMAND, set_colour( CURRENT_FILE->attr+ATTR_CMDLINE ) );
    }
 #ifdef HAVE_WBKGD
-   wbkgd( dw, set_colour( CURRENT_FILE->attr+( ( alert ) ? ATTR_ALERT : ATTR_DIALOG ) ) );
+   wbkgd( dialog_win, set_colour( CURRENT_FILE->attr+( ( alert ) ? ATTR_ALERT : ATTR_DIALOG ) ) );
 #else
-   wattrset( dw, set_colour( CURRENT_FILE->attr+( ( alert ) ? ATTR_ALERT : ATTR_DIALOG ) ) );
-   wmove(dw,0,0);
-   wclrtobot(dw);
+   wattrset( dialog_win, set_colour( CURRENT_FILE->attr+( ( alert ) ? ATTR_ALERT : ATTR_DIALOG ) ) );
+   wmove(dialog_win,0,0);
+   wclrtobot(dialog_win);
 #endif
 #if defined(HAVE_BOX)
-   wattrset(dw,set_colour(CURRENT_FILE->attr+ATTR_DIVIDER));
-   box(dw,0,0);
+   wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_DIVIDER));
+   box(dialog_win,0,0);
 #endif
-   wattrset( dw, set_colour( CURRENT_FILE->attr+( ( alert ) ? ATTR_ALERT : ATTR_DIALOG ) ) );
+   wattrset( dialog_win, set_colour( CURRENT_FILE->attr+( ( alert ) ? ATTR_ALERT : ATTR_DIALOG ) ) );
    /*
     * Add the prompt line(s) to the window
     */
    for ( i = 0; i < prompt_lines; i++)
    {
-      wmove(dw,2+i,2);
-      waddstr(dw,(DEFCHAR *)prompt_line[i]);
+      wmove(dialog_win,2+i,2);
+      waddstr(dialog_win,(DEFCHAR *)prompt_line[i]);
    }
    /*
     * Add the title to the window
     */
    if (title)
    {
-      wattrset(dw,set_colour(CURRENT_FILE->attr+ATTR_DIVIDER));
-      wmove(dw,0,1);
-      waddstr(dw,(DEFCHAR *)title);
+      wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_DIVIDER));
+      wmove(dialog_win,0,1);
+      waddstr(dialog_win,(DEFCHAR *)title);
    }
    /*
     * Prepare the editfield if we have one
@@ -4205,7 +4330,7 @@ bool ignore_rexx;
    }
    else
    {
-      wmove(dw,dw_lines-3,cursor_pos);
+      wmove(dialog_win,dw_lines-3,cursor_pos);
       in_editfield = FALSE;
       draw_cursor(FALSE);
    }
@@ -4218,13 +4343,13 @@ bool ignore_rexx;
       {
          if (default_button == i)
          {
-            wattrset(dw,set_colour(CURRENT_FILE->attr+ATTR_CBLOCK));
+            wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_CBLOCK));
             cursor_pos = button_col[i];
          }
          else
-            wattrset(dw,set_colour(CURRENT_FILE->attr+ATTR_BLOCK));
-         wmove(dw,dw_lines-3,button_col[i]);
-         waddstr(dw,button_text[i]);
+            wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_BLOCK));
+         wmove(dialog_win,dw_lines-3,button_col[i]);
+         waddstr(dialog_win,button_text[i]);
       }
       if (in_editfield)
       {
@@ -4233,7 +4358,7 @@ bool ignore_rexx;
           * an exit key is pressed. On exit make the first button active.
           */
          draw_cursor(TRUE);
-         rc = readv_cmdline( editfield_buf, dw, editfield_col );
+         rc = readv_cmdline( editfield_buf, dialog_win, editfield_col );
          memcpy( (DEFCHAR *)editfield_buf, (DEFCHAR *)cmd_rec, cmd_rec_len );
          editfield_buf[cmd_rec_len] = '\0';
          in_editfield = FALSE;
@@ -4263,14 +4388,14 @@ bool ignore_rexx;
           * Display the dialog window and pseudo command line
           * and get a key.
           */
-         wrefresh(dw);
+         wrefresh(dialog_win);
          if ( editfield )
          {
             wrefresh( CURRENT_WINDOW_COMMAND );
          }
-         key = my_getch(stdscr);
+         key = my_getch( CURRENT_WINDOW_COMMAND );
       }
-#if defined(XCURSES)
+#if defined(USE_XCURSES)
       /*
        * Ignore scrollbar "keys"
        */
@@ -4286,7 +4411,7 @@ bool ignore_rexx;
          if (b != 1
          ||  ba == BUTTON_PRESSED)
             continue;
-         wmouse_position(dw, &y, &x);
+         wmouse_position(dialog_win, &y, &x);
          if (y == -1
          &&  x == -1)
          {
@@ -4343,11 +4468,11 @@ bool ignore_rexx;
              * Got a valid line. Redisplay it in highlighted mode.
              */
             item_selected = i;
-            touchwin(dw);
-            wattrset(dw,set_colour(CURRENT_FILE->attr+ATTR_CBLOCK));
-            wmove(dw,dw_lines-3,button_col[i]);
-            waddstr(dw,button_text[i]);
-            wrefresh(dw);
+            touchwin(dialog_win);
+            wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_CBLOCK));
+            wmove(dialog_win,dw_lines-3,button_col[i]);
+            waddstr(dialog_win,button_text[i]);
+            wrefresh(dialog_win);
             break;
          }
          continue;
@@ -4379,32 +4504,29 @@ bool ignore_rexx;
          }
       }
    }
-   delwin(dw);
+   delwin(dialog_win);
    draw_cursor(TRUE);
-   if ( !ignore_rexx )
+   /*
+    * Set DIALOG.2 to the button pressed
+    */
+   strcpy( (DEFCHAR *)button_buf, (DEFCHAR *)button_text[item_selected] );
+   strtrunc(button_buf);
+   set_rexx_variable( stemname, button_buf, strlen((DEFCHAR *)button_buf), 2 );
+   /*
+    * Set DIALOG.1 to value of editfield2
+    */
+   if (editfield)
    {
-      /*
-       * Set DIALOG.2 to the button pressed
-       */
-      strcpy( (DEFCHAR *)button_buf, (DEFCHAR *)button_text[item_selected] );
-      strtrunc(button_buf);
-      set_rexx_variable( stemname, button_buf, strlen((DEFCHAR *)button_buf), 2 );
-      /*
-       * Set DIALOG.1 to value of editfield2
-       */
-      if (editfield)
-      {
-         set_rexx_variable( stemname, editfield_buf, strlen( (DEFCHAR *)editfield_buf ), 1 );
-      }
-      else
-      {
-         set_rexx_variable( stemname, (CHARTYPE *)"", 0, 1 );
-      }
-      /*
-       * Set DIALOG.0 to 2
-       */
-      set_rexx_variable( stemname, (CHARTYPE *)"2", 1, 0 );
+      set_rexx_variable( stemname, editfield_buf, strlen( (DEFCHAR *)editfield_buf ), 1 );
    }
+   else
+   {
+      set_rexx_variable( stemname, (CHARTYPE *)"", 0, 1 );
+   }
+   /*
+    * Set DIALOG.0 to 2
+    */
+   set_rexx_variable( stemname, (CHARTYPE *)"2", 1, 0 );
    /*
     * If we had an editfield, restore the CMDLINE window and contents (if there
     * was a CMDLINE window)
@@ -4437,9 +4559,9 @@ bool ignore_rexx;
 
 /***********************************************************************/
 #ifdef HAVE_PROTO
-int get_non_seperator_line( int current_line, int num_args, CHARTYPE **args, int direction )
+int get_non_separator_line( int current_line, int num_args, CHARTYPE **args, int direction )
 #else
-int get_non_seperator_line( current_line, num_args, args, direction )
+int get_non_separator_line( current_line, num_args, args, direction )
 int current_line, num_args;
 CHARTYPE **args;
 int direction;
@@ -4493,6 +4615,7 @@ CHARTYPE *params;
 #define STATE_POPUP_CONTENT          6
 #define STATE_POPUP_LOCATION_ABOVE   7
 #define STATE_POPUP_LOCATION_BELOW   8
+#define STATE_POPUP_KEYS             9
 
    int len_params=strlen((DEFCHAR *)params);
    CHARTYPE delimiter=' ';
@@ -4507,6 +4630,8 @@ CHARTYPE *params;
    int initial=0;
    DEFCHAR _THE_FAR key_name[30];
    char location='C';
+   char *keyname_start[MAXIMUM_POPUP_KEYS];
+   int keyname_index = 0;
 
    TRACE_FUNCTION("execute.c: prepare_popup");
   /*
@@ -4541,7 +4666,6 @@ CHARTYPE *params;
                state = STATE_POPUP_LOCATION_CENTRE;
                break;
             }
-
             if ( params[i] == 'M'
             ||   params[i] == 'm' )
             {
@@ -4570,6 +4694,12 @@ CHARTYPE *params;
             ||   params[i] == 'a' )
             {
                state = STATE_POPUP_LOCATION_ABOVE;
+               break;
+            }
+            if ( params[i] == 'K'
+            ||   params[i] == 'k' )
+            {
+               state = STATE_POPUP_KEYS;
                break;
             }
             if (params[i] == ' ')
@@ -4612,6 +4742,62 @@ CHARTYPE *params;
             }
 
             params += j;
+            strtrunc(params);
+            len_params = strlen((DEFCHAR *)params);
+            state = STATE_START;
+            i = 0;
+            break;
+         case STATE_POPUP_KEYS:
+            if ( len_params < 4
+            ||   memcmpi( params, (CHARTYPE *)"keys", 4 ) != 0 )
+            {
+               display_error( 1, params, FALSE );
+               rc = RC_INVALID_OPERAND;
+               break;
+            }
+            params += 4;
+            strtrunc(params);
+            len_params = strlen( (DEFCHAR *)params );
+            keyname_start[keyname_index++] = key_name;
+            for ( j = 0; j < len_params; j++ )
+            {
+               if ( *(params+j) == ' ' )
+                  break;
+               if ( *(params+j) == ',' )
+               {
+                  if ( keyname_index >= 20 )
+                  {
+                     display_error( 2, (CHARTYPE *)"Maximum of 20 KEYS allowed.", FALSE );
+                     rc = RC_INVALID_OPERAND;
+                     break;
+                  }
+                  keyname_start[keyname_index++] = key_name+j+1;
+                  key_name[j] = '\0';
+               }
+               else
+               {
+                  key_name[j] = *(params+j);
+               }
+            }
+            if ( rc == RC_INVALID_OPERAND )
+               break;
+            key_name[j] = '\0';
+            params += j;
+            /*
+             * we have the list of keynames, now split them up into individual keys
+             */
+            for ( j = 0; j < keyname_index; j++ )
+            {
+               popup_escape_keys[j] = find_key_name( (CHARTYPE *)keyname_start[j] );
+               if ( popup_escape_keys[j] == -1 )
+               {
+                  display_error( 13, (CHARTYPE *)keyname_start[j], FALSE );
+                  rc = RC_INVALID_OPERAND;
+                  break;
+               }
+            }
+            if ( rc == RC_INVALID_OPERAND )
+               break;
             strtrunc(params);
             len_params = strlen((DEFCHAR *)params);
             state = STATE_START;
@@ -4961,7 +5147,7 @@ CHARTYPE *params;
       {
          y = terminal_lines - height;
       }
-      rc = execute_popup( y, x, height, width, pad_height, pad_width, initial, num_items, args);
+      rc = execute_popup( y, x, height, width, pad_height, pad_width, initial, num_items, args, keyname_index );
       /*
        * Free up the memory used by args
        */
@@ -4974,17 +5160,24 @@ CHARTYPE *params;
 
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short execute_popup(int y, int x, int height, int width, int pad_height, int pad_width, int initial, int num_args, CHARTYPE **args)
+short execute_popup(int y, int x, int height, int width, int pad_height, int pad_width, int initial, int num_args, CHARTYPE **args, int keyname_index  )
 #else
-short execute_popup(y, x, height, width, pad_height, pad_width, initial, num_args, args)
+short execute_popup(y, x, height, width, pad_height, pad_width, initial, num_args, args, keyname_index)
 int y,x,height,width,pad_height,pad_width,initial,num_args;
 CHARTYPE **args;
+int keyname_index;
 #endif
 /***********************************************************************/
 {
+/*
+ * num_args number of lines in popup
+ * highlighted_line 0 based index into list of lines in popup
+ * y_offset line number in list of lines that is the top line of the popup (0 based)
+ * y_overlap difference between the number of lines in list and displayable lines. +ve if more lines in list than can be displayed
+ */
    short rc=RC_OK;
    int key,i,j,screenx=x,screeny=y;
-   WINDOW *dw=NULL;
+   WINDOW *dialog_win=NULL;
    WINDOW *pad;
    short item_selected=-1,highlighted_line;
    char _THE_FAR buf[20]; /* enough for a number */
@@ -4992,6 +5185,7 @@ CHARTYPE **args;
    int x_offset=0,y_offset=0;
    int x_overlap,y_overlap;
    int offset_lines=0,scroll_lines;
+   int escape_key_index = 0;
 
    TRACE_FUNCTION("execute.c: execute_popup");
 
@@ -5005,7 +5199,7 @@ CHARTYPE **args;
    {
       highlighted_line = initial;
       if ( args[highlighted_line][0] == '-' )
-         offset_lines = get_non_seperator_line( highlighted_line, num_args, args, 1 );
+         offset_lines = get_non_separator_line( highlighted_line, num_args, args, 1 );
       highlighted_line += offset_lines;
    }
    else
@@ -5013,7 +5207,7 @@ CHARTYPE **args;
       highlighted_line = initial-1;
       if (args[highlighted_line][0] == '-')
       {
-         display_error( 0, (CHARTYPE *)"Specified initial line is a seperator", FALSE );
+         display_error( 0, (CHARTYPE *)"Specified initial line is a separator", FALSE );
          TRACE_RETURN();
          return(RC_INVALID_OPERAND);
       }
@@ -5036,24 +5230,27 @@ CHARTYPE **args;
    /*
     * Create the popup menu window
     */
-   dw = newwin(height,width,y,x);
-   if (dw == NULL)
+   dialog_win = newwin(height,width,y,x);
+   if (dialog_win == NULL)
    {
       display_error( 30, (CHARTYPE *)"", FALSE );
       TRACE_RETURN();
       return(RC_OUT_OF_MEMORY);
    }
+#ifdef HAVE_KEYPAD
+   keypad( dialog_win, TRUE );
+#endif
 #ifdef HAVE_NEWPAD
    pad = newpad( pad_height, pad_width );
    if ( pad == NULL )
    {
-      delwin(dw);
+      delwin(dialog_win);
       display_error( 30, (CHARTYPE *)"", FALSE );
       TRACE_RETURN();
       return(RC_OUT_OF_MEMORY);
    }
 #else
-   delwin(dw);
+   delwin(dialog_win);
    display_error( 0, (CHARTYPE *)"No support for pads, can't display popup", FALSE );
    TRACE_RETURN();
    return(RC_OUT_OF_MEMORY);
@@ -5067,49 +5264,51 @@ CHARTYPE **args;
    wclrtobot(pad);
 #endif
    draw_cursor(FALSE);
-   while(1)
    {
 #if defined(HAVE_BOX)
-      wattrset(dw,set_colour(CURRENT_FILE->attr+ATTR_DIVIDER));
-      box(dw,0,0);
+      wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_DIVIDER));
+      box(dialog_win,0,0);
       if ( height != pad_height )
       {
-         wmove(dw,0,width-1);
-         waddch(dw,' ');
-         wmove(dw,1,width-1);
-#ifdef ACS_UARROW
-         waddch( dw, A_ALTCHARSET|ACS_UARROW );
-#else
-         waddch(dw,'^');
-#endif
-         wmove(dw,height-2,width-1);
-#ifdef ACS_DARROW
-         waddch( dw, A_ALTCHARSET|ACS_DARROW );
-#else
-         waddch(dw,'v');
-#endif
+         wmove(dialog_win,0,width-1);
+         waddch(dialog_win,' ');
+         wmove(dialog_win,1,width-1);
+# ifdef ACS_UARROW
+         waddch( dialog_win, A_ALTCHARSET|ACS_UARROW );
+# else
+         waddch(dialog_win,'^');
+# endif
+         wmove(dialog_win,height-2,width-1);
+# ifdef ACS_DARROW
+         waddch( dialog_win, A_ALTCHARSET|ACS_DARROW );
+# else
+         waddch(dialog_win,'v');
+# endif
       }
       if ( width != pad_width )
       {
-         wmove(dw,height-1,0);
-         waddch(dw,' ');
-         wmove(dw,height-1,1);
-#ifdef ACS_LARROW
-         waddch( dw, A_ALTCHARSET|ACS_LARROW );
-#else
-         waddch(dw,'<');
-#endif
-         wmove(dw,height-1,width-2);
-#ifdef ACS_RARROW
-         waddch( dw, A_ALTCHARSET|ACS_RARROW );
-#else
-         waddch(dw,'>');
-#endif
-         wmove(dw,height-1,width-1);
-         waddch(dw,' ');
+         wmove(dialog_win,height-1,0);
+         waddch(dialog_win,' ');
+         wmove(dialog_win,height-1,1);
+# ifdef ACS_LARROW
+         waddch( dialog_win, A_ALTCHARSET|ACS_LARROW );
+# else
+         waddch(dialog_win,'<');
+# endif
+         wmove(dialog_win,height-1,width-2);
+# ifdef ACS_RARROW
+         waddch( dialog_win, A_ALTCHARSET|ACS_RARROW );
+# else
+         waddch(dialog_win,'>');
+# endif
+         wmove(dialog_win,height-1,width-1);
+         waddch(dialog_win,' ');
       }
-      wnoutrefresh(dw);
+      wnoutrefresh(dialog_win);
 #endif
+   }
+   while(1)
+   {
       for (i=0;i<num_args;i++)
       {
          if ((args[i][0]) == '-')
@@ -5149,7 +5348,7 @@ CHARTYPE **args;
 #endif
 
       key = wgetch(stdscr);
-#if defined(XCURSES)
+#if defined(USE_XCURSES)
       /*
        * Ignore scrollbar "keys"
        */
@@ -5168,7 +5367,7 @@ CHARTYPE **args;
          if (b != 1
          ||  ba == BUTTON_PRESSED)
             continue;
-         wmouse_position(dw, &y, &x);
+         wmouse_position(dialog_win, &y, &x);
          if (y == -1
          &&  x == -1)
          {
@@ -5180,7 +5379,7 @@ CHARTYPE **args;
          /*
           * Check that the mouse is clicked on a valid item
           */
-         if (y > 0 && y < height && x > 0 && x < width)
+         if (y > 0 && y+1 < height && x > 0 && x+1 < width)
          {
             i = y-1;
          }
@@ -5226,6 +5425,7 @@ CHARTYPE **args;
 #if defined(KEY_DOWN)
             case KEY_DOWN:
 #endif
+               /* increment highlighted line and check we haven't gone past the end of the list */
                if ( ++highlighted_line >= num_args )
                {
                   highlighted_line = num_args - 1;
@@ -5233,24 +5433,75 @@ CHARTYPE **args;
                }
                offset_lines = 1;
                scroll_lines = 0;
+               /* if the new highlighted line is a separator, find the next non-separator */
                if (args[highlighted_line][0] == '-')
                {
-                  offset_lines = get_non_seperator_line( highlighted_line, num_args, args, 1 );
+                  offset_lines = get_non_separator_line( highlighted_line, num_args, args, 1 );
                   if ( offset_lines == 0 )
+                     /*
+                      * we couldn't find a non-separator line before the end of the list, so leave the current
+                      * line as the highlighted line
+                      */
                      highlighted_line--;
                   else
                   {
+                     /*
+                      * we found a non-separator line before the end of the list, so advance the
+                      * highlighted line by offset_lines and scroll the same number of lines
+                      */
                      highlighted_line += offset_lines;
                      scroll_lines = offset_lines;
                   }
                }
                if ( y_overlap )
                {
+                  /*
+                   * The number of lines in the list is > the window size...
+                   */
                   if ( highlighted_line + 2 >= y_offset + height
                   &&   y_offset < y_overlap )
+                     /*
+                      * The new highlighted line is now below the last displayed line.  Change the offset into
+                      * the list by the number of rows we scrolled in the above code.
+                      */
                      y_offset += 1+scroll_lines;
                }
                break;
+#if defined(KEY_NPAGE)
+            case KEY_NPAGE:
+               /* advance a page full if we have plenty of lines remaining */
+               highlighted_line += (height-2);
+               y_offset += (height-2);
+               if ( highlighted_line + (height-2) >= num_args )
+               {
+                  highlighted_line = num_args - 1;
+                  y_offset = num_args - (height-2);
+               }
+
+               offset_lines = 1;
+               scroll_lines = 0;
+               /* if the new highlighted line is a separator, find the next non-separator */
+               if (args[highlighted_line][0] == '-')
+               {
+                  offset_lines = get_non_separator_line( highlighted_line, num_args, args, 1 );
+                  if ( offset_lines == 0 )
+                     /*
+                      * we couldn't find a non-separator line before the end of the list, so leave the current
+                      * line as the highlighted line. This won't work need something other than --
+                      */
+                     highlighted_line--;
+                  else
+                  {
+                     /*
+                      * we found a non-separator line before the end of the list, so advance the
+                      * highlighted line by offset_lines and scroll the same number of lines
+                      */
+                     highlighted_line += offset_lines;
+                     scroll_lines = offset_lines;
+                  }
+               }
+               break;
+#endif
 #if defined(KEY_UP)
             case KEY_UP:
                if (--highlighted_line < 0 )
@@ -5262,7 +5513,7 @@ CHARTYPE **args;
                scroll_lines = 0;
                if (args[highlighted_line][0] == '-')
                {
-                  offset_lines = get_non_seperator_line( highlighted_line, num_args, args, -1 );
+                  offset_lines = get_non_separator_line( highlighted_line, num_args, args, -1 );
                   if ( offset_lines == 0 )
                      highlighted_line++;
                   else
@@ -5277,6 +5528,43 @@ CHARTYPE **args;
                   &&   y_offset )
                      y_offset -= 1+scroll_lines;
                }
+               break;
+#endif
+#if defined(KEY_PPAGE)
+            case KEY_PPAGE:
+               /* retreat a page full if we have plenty of lines remaining */
+               highlighted_line -= (height-2);
+               y_offset -= (height-2);
+               if ( highlighted_line < 0 )
+               {
+                  highlighted_line = 0;
+                  y_offset = 0;
+               }
+
+               offset_lines = 1;
+               scroll_lines = 0;
+               /* if the new highlighted line is a separator, find the next non-separator */
+               if (args[highlighted_line][0] == '-')
+               {
+                  offset_lines = get_non_separator_line( highlighted_line, num_args, args, 1 );
+                  if ( offset_lines == 0 )
+                     /*
+                      * we couldn't find a non-separator line before the end of the list, so leave the current
+                      * line as the highlighted line. This won't work need something other than --
+                      */
+                     highlighted_line--;
+                  else
+                  {
+                     /*
+                      * we found a non-separator line before the end of the list, so advance the
+                      * highlighted line by offset_lines and scroll the same number of lines
+                      */
+                     highlighted_line += offset_lines;
+                     scroll_lines = offset_lines;
+                  }
+               }
+               if ( y_offset < 0 )
+                  y_offset = 0;
                break;
 #endif
 #if defined(KEY_RIGHT)
@@ -5308,6 +5596,22 @@ CHARTYPE **args;
             default:
                if ( key == popup_escape_key )
                   time_to_quit = TRUE;
+               else
+               {
+                  /*
+                   * What about other keys?
+                   */
+                  for ( j = 0; j < keyname_index; j++ )
+                  {
+                     if ( key == popup_escape_keys[j] )
+                     {
+                        item_selected = highlighted_line;
+                        time_to_quit = TRUE;
+                        escape_key_index = j+1;
+                        break;
+                     }
+                  }
+               }
                break;
 
          }
@@ -5317,7 +5621,7 @@ CHARTYPE **args;
    }
 
    delwin(pad);
-   delwin(dw);
+   delwin(dialog_win);
    draw_cursor(TRUE);
    /*
     * Set the Rexx variables POPUP.0, POPUP.1 and POPUP.2 depending
@@ -5336,7 +5640,15 @@ CHARTYPE **args;
    }
    i = sprintf( buf, "%d", highlighted_line + 1 );
    set_rexx_variable( (CHARTYPE *)"POPUP", (CHARTYPE *)buf, i, 3 );
-   set_rexx_variable( (CHARTYPE *)"POPUP", (CHARTYPE *)"3", 1, 0 );
+   /*
+    * Set the index to the escape key
+    */
+   i = sprintf( buf, "%d", escape_key_index );
+   set_rexx_variable( (CHARTYPE *)"POPUP", (CHARTYPE *)buf, i, 4 );
+   /*
+    * Set the 0th value to the number of values in popup. array
+    */
+   set_rexx_variable( (CHARTYPE *)"POPUP", (CHARTYPE *)"4", 1, 0 );
 
    THERefresh( (CHARTYPE *)"" );
    restore_THE();
@@ -5463,14 +5775,20 @@ PRESERVED_FILE_DETAILS **preserved_file_details;
    (*preserved_view_details)->tab_off                     = CURRENT_VIEW->tab_off;
    (*preserved_view_details)->tabsinc                     = CURRENT_VIEW->tabsinc;
    (*preserved_view_details)->numtabs                     = CURRENT_VIEW->numtabs;
+   (*preserved_view_details)->tofeof                      = CURRENT_VIEW->tofeof;
    (*preserved_view_details)->verify_col                  = CURRENT_VIEW->verify_col;
    (*preserved_view_details)->verify_start                = CURRENT_VIEW->verify_start;
    (*preserved_view_details)->verify_end                  = CURRENT_VIEW->verify_end;
    (*preserved_view_details)->word                        = CURRENT_VIEW->word;
    (*preserved_view_details)->wordwrap                    = CURRENT_VIEW->wordwrap;
+   (*preserved_view_details)->wrap                        = CURRENT_VIEW->wrap;
    (*preserved_view_details)->zone_start                  = CURRENT_VIEW->zone_start;
    (*preserved_view_details)->zone_end                    = CURRENT_VIEW->zone_end;
-   memcpy( (*preserved_view_details)->tabs, CURRENT_VIEW->tabs, sizeof(CURRENT_VIEW->tabs) );
+   memcpy( (*preserved_view_details)->tabs,                 CURRENT_VIEW->tabs, sizeof(CURRENT_VIEW->tabs) );
+   (*preserved_view_details)->thighlight_on               = CURRENT_VIEW->thighlight_on;
+   (*preserved_view_details)->thighlight_active           = CURRENT_VIEW->thighlight_active;
+   (*preserved_view_details)->thighlight_target           = CURRENT_VIEW->thighlight_target;
+
    /*
     * Save the FILE details...
     */
@@ -5479,8 +5797,12 @@ PRESERVED_FILE_DETAILS **preserved_file_details;
    (*preserved_file_details)->eolout                    = CURRENT_FILE->eolout;
    (*preserved_file_details)->tabsout_on                = CURRENT_FILE->tabsout_on;
    (*preserved_file_details)->tabsout_num               = CURRENT_FILE->tabsout_num;
-   memcpy( (*preserved_file_details)->attr, CURRENT_FILE->attr, ATTR_MAX*sizeof(COLOUR_ATTR) );
-   memcpy( (*preserved_file_details)->ecolour, CURRENT_FILE->ecolour, ECOLOUR_MAX*sizeof(COLOUR_ATTR) );
+   (*preserved_file_details)->trailing                  = CURRENT_FILE->trailing;
+   memcpy( (*preserved_file_details)->attr,               CURRENT_FILE->attr, ATTR_MAX*sizeof(COLOUR_ATTR) );
+   memcpy( (*preserved_file_details)->ecolour,            CURRENT_FILE->ecolour, ECOLOUR_MAX*sizeof(COLOUR_ATTR) );
+   (*preserved_file_details)->colouring                 = CURRENT_FILE->colouring;
+   (*preserved_file_details)->autocolour                = CURRENT_FILE->autocolour;
+   (*preserved_file_details)->parser                    = CURRENT_FILE->parser;
 
    TRACE_RETURN();
    return(rc);
@@ -5499,26 +5821,29 @@ PRESERVED_FILE_DETAILS **preserved_file_details;
    short rc=RC_OK;
    bool rebuild_screen=FALSE;
 
-   TRACE_FUNCTION("execute.c: execute_restore");
+   TRACE_FUNCTION( "execute.c: execute_restore" );
    /*
     * If we don't have any preserved settings, return an error.
     */
    if ( *preserved_view_details == NULL )
    {
-      display_error(51,(CHARTYPE *)"",FALSE);
+      display_error( 51, (CHARTYPE *)"", FALSE );
       TRACE_RETURN();
-      return(RC_INVALID_OPERAND);
+      return( RC_INVALID_OPERAND );
    }
    /*
     * Before putting the settings back, we have to do some special things
     * with PREFIX, ARROW, CMDLINE, ID_LINE, ...
+    * Lets do this for everything!!
     */
-   if (CURRENT_VIEW->prefix != (*preserved_view_details)->prefix
-   ||  CURRENT_VIEW->prefix_width != (*preserved_view_details)->prefix_width
-   ||  CURRENT_VIEW->prefix_gap != (*preserved_view_details)->prefix_gap
-   ||  CURRENT_VIEW->arrow_on != (*preserved_view_details)->arrow_on
-   ||  CURRENT_VIEW->cmd_line != (*preserved_view_details)->cmd_line
-   ||  CURRENT_VIEW->id_line != (*preserved_view_details)->id_line)
+#if 0
+   if ( CURRENT_VIEW->prefix != (*preserved_view_details)->prefix
+   ||   CURRENT_VIEW->prefix_width != (*preserved_view_details)->prefix_width
+   ||   CURRENT_VIEW->prefix_gap != (*preserved_view_details)->prefix_gap
+   ||   CURRENT_VIEW->arrow_on != (*preserved_view_details)->arrow_on
+   ||   CURRENT_VIEW->cmd_line != (*preserved_view_details)->cmd_line
+   ||   CURRENT_VIEW->id_line != (*preserved_view_details)->id_line)
+#endif
       rebuild_screen = TRUE;
    /*
     * Restore the VIEW details...
@@ -5579,14 +5904,19 @@ PRESERVED_FILE_DETAILS **preserved_file_details;
    CURRENT_VIEW->tab_off                     = (*preserved_view_details)->tab_off;
    CURRENT_VIEW->tabsinc                     = (*preserved_view_details)->tabsinc;
    CURRENT_VIEW->numtabs                     = (*preserved_view_details)->numtabs;
+   CURRENT_VIEW->tofeof                      = (*preserved_view_details)->tofeof;
    CURRENT_VIEW->verify_col                  = (*preserved_view_details)->verify_col;
    CURRENT_VIEW->verify_start                = (*preserved_view_details)->verify_start;
    CURRENT_VIEW->verify_end                  = (*preserved_view_details)->verify_end;
    CURRENT_VIEW->word                        = (*preserved_view_details)->word;
    CURRENT_VIEW->wordwrap                    = (*preserved_view_details)->wordwrap;
+   CURRENT_VIEW->wrap                        = (*preserved_view_details)->wrap;
    CURRENT_VIEW->zone_start                  = (*preserved_view_details)->zone_start;
    CURRENT_VIEW->zone_end                    = (*preserved_view_details)->zone_end;
-   memcpy( CURRENT_VIEW->tabs, (*preserved_view_details)->tabs, sizeof((*preserved_view_details)->tabs) ); /* FGC */
+   memcpy( CURRENT_VIEW->tabs,                 (*preserved_view_details)->tabs, sizeof((*preserved_view_details)->tabs) ); /* FGC */
+   CURRENT_VIEW->thighlight_on               = (*preserved_view_details)->thighlight_on;
+   CURRENT_VIEW->thighlight_active           = (*preserved_view_details)->thighlight_active;
+   CURRENT_VIEW->thighlight_target           = (*preserved_view_details)->thighlight_target;
    /*
     * Restore the FILE details...
     */
@@ -5595,8 +5925,12 @@ PRESERVED_FILE_DETAILS **preserved_file_details;
    CURRENT_FILE->eolout                    = (*preserved_file_details)->eolout;
    CURRENT_FILE->tabsout_on                = (*preserved_file_details)->tabsout_on;
    CURRENT_FILE->tabsout_num               = (*preserved_file_details)->tabsout_num;
-   memcpy( CURRENT_FILE->attr, (*preserved_file_details)->attr, ATTR_MAX*sizeof(COLOUR_ATTR) );
-   memcpy( CURRENT_FILE->ecolour, (*preserved_file_details)->ecolour, ECOLOUR_MAX*sizeof(COLOUR_ATTR) );
+   CURRENT_FILE->trailing                  = (*preserved_file_details)->trailing;
+   memcpy( CURRENT_FILE->attr,               (*preserved_file_details)->attr, ATTR_MAX*sizeof(COLOUR_ATTR) );
+   memcpy( CURRENT_FILE->ecolour,            (*preserved_file_details)->ecolour, ECOLOUR_MAX*sizeof(COLOUR_ATTR) );
+   CURRENT_FILE->colouring                 = (*preserved_file_details)->colouring;
+   CURRENT_FILE->autocolour                = (*preserved_file_details)->autocolour;
+   CURRENT_FILE->parser                    = (*preserved_file_details)->parser;
    /*
     * Free any memory for preserved VIEW and FILE details
     */
@@ -5612,16 +5946,17 @@ PRESERVED_FILE_DETAILS **preserved_file_details;
     * Now that all the settings are back in place apply any screen
     * changes...
     */
-   if (rebuild_screen)
+   if ( rebuild_screen )
    {
       set_screen_defaults();
-      if (set_up_windows(current_screen) != RC_OK)
+      if ( set_up_windows( current_screen ) != RC_OK )
       {
          TRACE_RETURN();
          return(RC_OK);
       }
-      build_screen(current_screen);
-      display_screen(current_screen);
+      build_screen( current_screen );
+      display_screen( current_screen );
+      display_cmdline( current_screen, CURRENT_VIEW );
    }
 
    TRACE_RETURN();

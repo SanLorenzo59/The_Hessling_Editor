@@ -7,11 +7,11 @@ INTRODUCTION
 ========================================================================
 
 THE is a text editor that uses both command line commands and key bindings
-to operate. It is intended to be similar to the VM/CMS System Product 
+to operate. It is intended to be similar to the VM/CMS System Product
 Editor, XEDIT and to KEDIT from Mansfield Software.
 
-THE was originally written to be used by people already familiar with the 
-above editors. For this reason, this document provides limited information 
+THE was originally written to be used by people already familiar with the
+above editors. For this reason, this document provides limited information
 on using THE, and concentrates more on reference material, such as command
 syntax and configuration.
 
@@ -29,7 +29,7 @@ Permission is granted to copy, distribute and/or modify this document
 under the terms of the GNU Free Documentation License, Version 1.1
 or any later version published by the Free Software Foundation;
 with no Invariant Sections, with no Front-Cover Texts, and no Back-Cover Texts.
-A copy of the license is included in the section entitled 
+A copy of the license is included in the section entitled
 "GNU Free Documentation License".
 
 ========================================================================
@@ -43,12 +43,12 @@ The default screen displayed when THE starts consists of several areas:
 - a <command line> from which commands may be issued,
 - a <prefix area> which shows line numbers and from which prefix commands
   can be issued
-- an <idline> which displays the file name, row/col etc. for the current 
+- an <idline> which displays the file name, row/col etc. for the current
   file and
 - a <status line> which indicates global status info like number of files
   being editted, time etc.
 
-When THE starts, the cursor is positioned on the <command line>. To move 
+When THE starts, the cursor is positioned on the <command line>. To move
 between the <command line> and the <filearea>, the <CURSOR> HOME command is
 used. By default this command is bound to the HOME key (under DOS and OS/2),
 the DO key (on vt220s) and HOME (on xterms).
@@ -102,14 +102,14 @@ below in '[]'. The purpose of each of the switches is as follows:
   THE crashes.  Normally, THE traps any internal errors and exits gracefully.
   This switch is a testing feature rather than a user feature.
 - -b When you want to use THE as a non-interactive tool for manipulating
-  the contents of one or mode files, this switch will disable any display
+  the contents of one or more files, this switch will disable any display
   of file contents and disable keybord interaction. Normally used in
   conjunction with a specific profile; see -p option.
 - -q Run quietly in batch mode. This will suppress the introductory
   informative message displayed when errors are encountered running in batch.
 - -k[fmt]  Allows 'soft label keys'. This allows the display of one (or two)
   lines at the bottom of the screen with 'buttons' intended to be used to
-  represent function keys. These 'soft label keys' can be manipulated with 
+  represent function keys. These 'soft label keys' can be manipulated with
   the <SET SLK> command.  The 'fmt' optional extra argument is a single digit
   representing the format of the display of the 'buttons'.
   o 1 - displays 8 'buttons' in a 4-4 layout
@@ -121,9 +121,9 @@ below in '[]'. The purpose of each of the switches is as follows:
   On those ports of THE that are mouse-aware, the mouse can be pressed
   on a 'button', and the command assigned the the coresponding function
   key is executed.
-- -l line This switch specifies the line number to make current when THE 
+- -l line This switch specifies the line number to make current when THE
   starts.
-- -c col This switch specifies the column number to make current when THE 
+- -c col This switch specifies the column number to make current when THE
   starts.
 - -p profile Specifies the THE profile to run instead of the default
   profile. See next section for further details.
@@ -141,7 +141,7 @@ below in '[]'. The purpose of each of the switches is as follows:
   For more information on the XCurses switches available, consult the
   PDCurses documentation.
 - -1[dir] Tells THE to run in 'Single Instance Mode'. The first time THE is run with
-  the -1 switch, its starts as normal. Subsequent executions of THE with the same -1
+  the -1 switch, it starts as normal. Subsequent executions of THE with the same -1
   command-line switch will not start a new instance of THE, rather it will edit
   the file(s) specified on the command-line in the currently running instance
   of THE.  You can optionally supply a directory with the -1 switch to specify where
@@ -150,7 +150,7 @@ below in '[]'. The purpose of each of the switches is as follows:
   This feature is currently only available with the X11 port of the
   using XCurses 2.5 and greater.  If the first instance of THE with the -1
   switch crashes for any reason, subsequent attempts to run THE with the same -1
-  switch will hang.  To fix this remove the FIFO and then run THE with the -1 
+  switch will hang.  To fix this remove the FIFO and then run THE with the -1
   switch again.
 
 After all the above switches are stated on the command line, THE treats
@@ -163,13 +163,31 @@ PROFILE FILE
 Various session defaults may be changed on startup for an individual by
 using a <profile> file. This file contains various commands that set the
 current environment, including key bindings. This <profile> file can also be
-used to process commands in batch mode. 
+used to process commands in batch mode.
 
-THE will always execute a default profile. Appendix 1 defines the name of
-the default profile on different platforms.
+THE will always try to execute a default profile unless specifically told not to
+with the -n command line switch. THE will look for an explicitly specified profile
+file and if this is not specified, THE will look for a default profile file as
+described below.
 
-An example of a profile might be to change all occurrences of 'alligator' 
-to 'crocodile' in the file 'file.ext' in batch mode, a <profile> file; 
+A profile file can be explicitly specified and will be processed in the following
+order:
+- -p command line switch
+- THE_PROFILE_FILE environment variable
+If the profile file specified above does not exits, THE will exit with an error.
+
+If no explicit profile file is specified, THE will look for a default profile file
+as specified in Appendix 1 in the following order:
+- under Un*x type platforms; $HOME/.therc
+- under Un*x type platforms; file specified by --with-global-profile configure switch
+  when built from source (if specified)
+- THE_HOME_DIR environment variable
+- the current directory
+
+Appendix 1 defines the name of the default profile on different platforms.
+
+An example of a profile might be to change all occurrences of 'alligator'
+to 'crocodile' in the file 'file.ext' in batch mode, a <profile> file;
 'prf.prf' with the following commands would be used:
 
      +------------------------------

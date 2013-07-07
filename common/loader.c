@@ -18,7 +18,7 @@
  * Mark Hessling  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
  */
 
-static char RCSid[] = "$Id: loader.c,v 1.21 2005/07/03 07:58:51 mark Exp $";
+static char RCSid[] = "$Id: loader.c,v 1.22 2008/02/21 07:13:24 mark Exp $";
 
 #include "rxpack.h"
 
@@ -219,34 +219,34 @@ int main
    strcpy( MyGlob.RxTraceFileName, "stderr" );
    strcpy( MyGlob.ConstantPrefix, "!" );
    MyGlob.RxTraceFilePointer = stderr;
-   /* 
-    * Get any program options. 
+   /*
+    * Get any program options.
     */
    while ((c = getopt(argc, argv, "Dudivh?f:")) != EOF)
    {
-      switch (c) 
+      switch (c)
       {
-         case 'f': 
+         case 'f':
             strcpy( MyGlob.RxTraceFileName, optarg );
             break;
-         case 'v': 
+         case 'v':
             MyGlob.RxRunFlags |= MODE_VERBOSE;
             break;
-         case 'd': 
+         case 'd':
             MyGlob.RxRunFlags |= MODE_DEBUG;
             break;
-         case 'D': 
+         case 'D':
             MyGlob.RxRunFlags |= MODE_INTERNAL;
             break;
-         case 'i': 
-            interactive = TRUE; 
+         case 'i':
+            interactive = TRUE;
             break;
          case 'u':
             DeregisterRxFunctions( &MyGlob, GETPACKAGEFUNCTIONS(), 1 );
             return(0);
             break;
          case 'h':
-         default : 
+         default :
             STARTUPCONSOLE();
             PACKAGEUSAGE();
             CLOSEDOWNCONSOLE();
@@ -254,8 +254,8 @@ int main
       }
    }
 
-   /* 
-    * Check if any more arguments are presented    
+   /*
+    * Check if any more arguments are presented
     */
    if (optind >= argc)
    {
@@ -287,11 +287,11 @@ int main
    }
    else
    {
-      /* 
+      /*
        * Next argument is the name of the Rexx program...
        */
       ProgramName = argv[optind++];
-      /* 
+      /*
        * ... and must be readable.
        */
 
@@ -304,15 +304,15 @@ int main
       }
    }
 
-   /* 
+   /*
     * Get number of arguments to the Rexx program
     */
    ArgCount = argc - optind;
 
-   /* 
-    * Build an array of arguments if any. 
+   /*
+    * Build an array of arguments if any.
     */
-   if (ArgCount) 
+   if (ArgCount)
    {
       int len=0;
 
@@ -342,23 +342,23 @@ int main
       ArgList.strlength = 0;
    }
 
-   /* 
+   /*
     * Initialise the package interface, but don't set the trace file
     */
    RxPackageGlobalData = InitRxPackage( &MyGlob, GETPACKAGEINITIALISER(), &rc );
    if ( rc != 0 )
       return( rc );
-   /* 
+   /*
     * Register all external functions
     */
    if ( ( rc = RegisterRxFunctions( RxPackageGlobalData, GETPACKAGEFUNCTIONS(), RXPACKAGENAME ) ) != 0 )
       return( rc );
-   /* 
+   /*
     * Register a default subcommand handler to pass commands to the OS
     */
    if ( ( rc = RegisterRxSubcom( RxPackageGlobalData, GETPACKAGESUBCOMHANDLER() ) ) != 0 )
       return( rc );
-   /* 
+   /*
     * Register a RXINI handler to set the package constants
     */
    sprintf( initexitname, "%s%s", RXPACKAGENAME, "INIT" );
@@ -420,7 +420,7 @@ int main
    &&   !RxPackageGlobalData->terminated )
    {
       rc = FunctionEpilogue( RxPackageGlobalData, RXPACKAGENAME, (ULONG)rc );
-      /* 
+      /*
        * Terminate the package interface.
        */
       (void)TermRxPackage( &RxPackageGlobalData, GETPACKAGETERMINATOR(), GETPACKAGEFUNCTIONS(), RXPACKAGENAME, 0 );

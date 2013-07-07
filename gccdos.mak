@@ -6,17 +6,16 @@
 #########################################################################
 #
 
-SRC       = c:/the
-ASRC      = c:\the
-CURSBIN   = c:/pdc/djg
+SRC       = $(THE_SRCDIR)
+CURSBIN   = $(PDCURSES_BINDIR)
 CURSLIB   = $(CURSBIN)/pdcurses.a
-CURSINC   = -Ic:/curses
-REGINA_BIN = c:/regina/djg
+CURSINC   = -I$(PDCURSES_SRCDIR)
+REGINA_BIN = $(REGINA_BINDIR)
 REGINA_REXXLIBS = $(REGINA_BIN)/libregina.a
-REGINA_REXXINC = -Ic:/regina -DUSE_REGINA
+REGINA_REXXINC = -I$(REGINA_SRCDIR) -DUSE_REGINA
 DJGPP_HOME = c:/djgpp
 ADJGPP_HOME = c:\djgpp
-WATTCPLIB = -Lc:/wattcp/lib -lwatt
+WATTCPLIB = -L$(WATT_ROOT)\lib -lwatt
 
 include $(SRC)/the.ver
 
@@ -185,5 +184,5 @@ $(MAN):	$(XTRAOBJ) manext.o
 
 #########################################################################
 dist: the.exe
-	echo run $(ASRC)\makedist.cmd
+	echo run $(SRC)\makedist.cmd
 #########################################################################

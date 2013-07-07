@@ -1,4 +1,9 @@
  --- Known Bugs
+     o From command line:
+       the one.txt two.txt
+       ====> scr 2 v
+       ====> can
+       Crash!
      o ARBCHAR characters not handled in CHANGE command.
      o MOVE BLOCK when the marked block is in a different file to
        the current file results in deletion of 1 line fewer from
@@ -30,7 +35,7 @@
      o MARK STREAM is incomplete.  PUT and GET of a marked stream block
        still to do.
      o Bug with CHANGE command with target of BLOCK and marked block is
-       a BOX block. Suppose you have the lines below and the marked block 
+       a BOX block. Suppose you have the lines below and the marked block
        is between the | delimiters:
 
         before marked block |abbcdeb| after marked block
@@ -88,3 +93,4 @@
           allowed, so file would be readonly ?
        statically link libcurl.a --with-remote
        or dynamically ? issue with SSL either way!
+     - add SET FILLER and include this in PRESERVE

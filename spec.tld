@@ -41,6 +41,8 @@
   url: alt 5
   vendor: alt 5
   version: alt 5
+  {_lib}
+  {_libdir}
   {_tmppath}
   {buildroot}
   {group}

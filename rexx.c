@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: rexx.c,v 1.24 2005/08/22 11:53:03 mark Exp $";
 
 #if defined(__EMX__) && defined(USE_REGINA)
 # define INCL_VIO
@@ -45,6 +44,7 @@ static char RCSid[] = "$Id: rexx.c,v 1.24 2005/08/22 11:53:03 mark Exp $";
 # define INCL_RXSUBCOM       /* Subcommand handler values */
 # define INCL_RXSHV          /* Shared variable support */
 # define INCL_RXSYSEXIT      /* System exit routines */
+# define INCL_RXARI          /* Halt and Trace */
 
 #include <the.h>
 #include <proto.h>
@@ -73,20 +73,22 @@ LINETYPE rexxout_number_lines=0L;
 
 #if defined(USE_REXX6000)
 LONG THE_Commands( RSH_ARG0_TYPE, RSH_ARG1_TYPE, RSH_ARG2_TYPE );
-LONG THE_Exit_Handler( REH_ARG0_TYPE, REH_ARG1_TYPE, REH_ARG2_TYPE );
+LONG THE_Function_Exit_Handler( REH_ARG0_TYPE, REH_ARG1_TYPE, REH_ARG2_TYPE );
+LONG THE_SayTrace_Exit_Handler( REH_ARG0_TYPE, REH_ARG1_TYPE, REH_ARG2_TYPE );
 LONG ver_handler( REH_ARG0_TYPE, REH_ARG1_TYPE, REH_ARG2_TYPE );
 LONG rexx_interpreter_version_exit( REH_ARG0_TYPE, REH_ARG1_TYPE, REH_ARG2_TYPE );
 USHORT THE_Function_Handler( RFH_ARG0_TYPE, RFH_ARG1_TYPE, RFH_ARG2_TYPE, RFH_ARG3_TYPE, RFH_ARG4_TYPE );
 #else
 RexxSubcomHandler THE_Commands;
-RexxExitHandler THE_Exit_Handler;
+RexxExitHandler THE_Function_Exit_Handler;
+RexxExitHandler THE_SayTrace_Exit_Handler;
 RexxExitHandler rexx_interpreter_version_exit;
 RexxFunctionHandler THE_Function_Handler;
 #endif
 
 static RXSTRING *get_compound_rexx_variable Args((CHARTYPE *,RXSTRING *,short));
-static short valid_target_function Args((ULONG, RXSTRING []));
-static short run_os_function Args((ULONG, RXSTRING []));
+static short valid_target_function Args((RFH_ARG1_TYPE, RFH_ARG2_TYPE));
+static short run_os_function Args((RFH_ARG1_TYPE, RFH_ARG2_TYPE));
 static int run_os_command Args((CHARTYPE *,CHARTYPE *,CHARTYPE *,CHARTYPE *));
 static CHARTYPE *MakeAscii Args((RXSTRING *));
 static char *get_a_line Args((FILE *, char *, int *, int *));
@@ -97,7 +99,13 @@ static void THEFreeMemory Args(( void *ptr ));
 static LINETYPE captured_lines;
 static bool rexx_halted;
 static CHARTYPE version_buffer[MAX_FILE_NAME+1];
-
+/*
+ * The following 2 variables count the number of calls made
+ * within execution of a macro in case SET REXXHALT is set
+ */
+static int command_calls;
+static int function_calls;
+static int halt_signalled;
 
 /***********************************************************************
  * This function allocates memory for the Rexx interpreter
@@ -118,7 +126,7 @@ void *THEAllocateMemory
 
 #if defined(REXXALLOCATEMEMORY)
    ptr = (RXSTRING_STRPTR_TYPE)RexxAllocateMemory( size );
-#elif defined(WIN32) && (defined(USE_OREXX) || defined(USE_WINREXX) || defined(USE_QUERCUS))
+#elif defined(WIN32) && (defined(USE_OREXX) || defined(USE_OOREXX) || defined(USE_WINREXX) || defined(USE_QUERCUS))
    ptr = (RXSTRING_STRPTR_TYPE)GlobalAlloc( GMEM_FIXED, size );
 #elif defined(USE_OS2REXX)
    DosAllocMem( (void *)ptr, size, PAG_READ|PAG_WRITE|PAG_COMMIT );
@@ -145,7 +153,7 @@ void THEFreeMemory
    TRACE_FUNCTION("rexx.c:    THEFreeMemory");
 #if defined(REXXFREEMEMORY)
    RexxFreeMemory( ptr );
-#elif defined(WIN32) && (defined(USE_OREXX) || defined(USE_WINREXX) || defined(USE_QUERCUS))
+#elif defined(WIN32) && (defined(USE_OREXX) || defined(USE_OOREXX) || defined(USE_WINREXX) || defined(USE_QUERCUS))
    GlobalFree( ptr );
 #elif defined(USE_OS2REXX)
    DosFreeMem( ptr );
@@ -170,7 +178,7 @@ unsigned long MyRexxDeregisterFunction
 #endif
 /***********************************************************************/
 {
-   CHARTYPE newname[80];
+   CHARTYPE newname[256];
    ULONG rc;
 
    TRACE_FUNCTION("rexx.c:    MyRexxDeregisterFunction");
@@ -221,7 +229,7 @@ unsigned long MyRexxRegisterFunctionExe
    if ( strlen( (DEFCHAR *)Name) + 1 > (sizeof newname)/(sizeof (CHARTYPE) ) )
    {
       TRACE_RETURN();
-      return rc;
+      return RXFUNC_NOMEM;
    }
    strcpy( (DEFCHAR *)newname, (DEFCHAR *)Name );
    make_upper( newname );
@@ -271,10 +279,28 @@ RSH_RETURN_TYPE THE_Commands
    memcpy( temp_cmd, Command->strptr, Command->strlength );
    temp_cmd[Command->strlength] = '\0';
    rc = command_line( temp_cmd, COMMAND_ONLY_FALSE );
-   if (rc < 0)
+   if ( rc == RC_TERMINATE_MACRO )
+   {
+      *Flags = RXSUBCOM_OK;         /* user termination is not an error  */
+      RexxSetHalt( getpid(), 0 );          /* raise a halt condition */
+      halt_signalled = 1;
+   }
+   else if (rc < 0)
       *Flags = RXSUBCOM_ERROR;             /* raise an error condition   */
    else
       *Flags = RXSUBCOM_OK;                /* not found is not an error  */
+   /*
+    * Test if we have exceeded the number of command calls...
+    */
+   command_calls++;
+   if ( COMMANDCALLSx != 0
+   &&   command_calls >= COMMANDCALLSx )
+   {
+      *Flags = RXSUBCOM_OK;        /* macro termination is not an error  */
+      if ( halt_signalled == 0 )
+         RexxSetHalt( getpid(), 0 );          /* raise a halt condition */
+      rc = 0;
+   }
    /*
     * format return code string and set the correct length
     */
@@ -306,7 +332,7 @@ REH_RETURN_TYPE ver_exit
 #endif
 
 /***********************************************************************/
-REH_RETURN_TYPE THE_Exit_Handler
+REH_RETURN_TYPE THE_Function_Exit_Handler
 #if defined(HAVE_PROTO)
    (
    REH_ARG0_TYPE ExitNumber,    /* code defining the exit function    */
@@ -321,147 +347,25 @@ REH_RETURN_TYPE THE_Exit_Handler
 #endif
 /***********************************************************************/
 {
-   RXSIOTRC_PARM *trc_parm;
    RXFNCCAL_PARM *fnc_parm;
    LONG rc=0L;
    short errnum=0;
    short macrorc;
-   char rexxout_temp[60];
    CHARTYPE _THE_FAR macroname[MAX_FILE_NAME+1];
-   VIEW_DETAILS *found_view=NULL;
-   static bool first=TRUE;
    RXSYSEXIT exit_list[3];                /* system exit list           */
    RXSTRING retstr;
 
-   TRACE_FUNCTION("rexx.c:    THE_Exit_Handler");
+   TRACE_FUNCTION("rexx.c:    THE_Function_Exit_Handler");
    switch( ExitNumber )
    {
-      case RXSIO:
-         if ( Subfunction != RXSIOSAY
-         &&   Subfunction != RXSIOTRC )
+      case RXFNC:
+         /* only applicable if SET MACRO and SET IMPMACRO are both ON */
+         if ( !CURRENT_VIEW->macro
+         ||   !CURRENT_VIEW->imp_macro )
          {
             rc = RXEXIT_NOT_HANDLED;
             break;
          }
-         trc_parm = (RXSIOTRC_PARM *)ParmBlock;
-         /*
-          * If this is the first time this exit handler is called, set up the
-          * handling of the result; either open the capture file, or set the
-          * terminal out of curses mode so scrolling etc. work.
-          */
-         if (!rexx_output)
-         {
-            rexx_output = TRUE;
-            if (CAPREXXOUTx)
-            {
-               /*
-                * Initialise the temporary file...
-                */
-               if (first)
-               {
-                  first = FALSE;
-                  strcpy((DEFCHAR *)rexx_pathname,(DEFCHAR *)dir_pathname);
-                  strcat((DEFCHAR *)rexx_pathname,(DEFCHAR *)rexxoutname);
-                  if (splitpath(rexx_pathname) != RC_OK)
-                  {
-                     rc = RXEXIT_RAISE_ERROR;
-                  }
-                  strcpy((DEFCHAR *)rexx_pathname,(DEFCHAR *)sp_path);
-                  strcpy((DEFCHAR *)rexx_filename,(DEFCHAR *)sp_fname);
-               }
-               /*
-                * Free up the existing linked list (if any)
-                */
-#if !defined(MULTIPLE_PSEUDO_FILES)
-               rexxout_first_line = rexxout_last_line = lll_free(rexxout_first_line);
-               rexxout_number_lines = 0L;
-               if ((found_view = find_file(rexx_pathname,rexx_filename)) != (VIEW_DETAILS *)NULL)
-               {
-                  found_view->file_for_view->first_line = found_view->file_for_view->last_line = NULL;
-                  found_view->file_for_view->number_lines = 0L;
-               }
-#endif
-               /*
-                * first_line is set to "Top of File"
-                */
-               if ((rexxout_first_line = add_LINE(rexxout_first_line,NULL,TOP_OF_FILE,
-                  strlen((DEFCHAR *)TOP_OF_FILE),0,FALSE)) == NULL)
-               rc = RXEXIT_RAISE_ERROR;
-               /*
-                * last line is set to "Bottom of File"
-                */
-               if ((rexxout_last_line = add_LINE(rexxout_first_line,rexxout_first_line,BOTTOM_OF_FILE,
-                  strlen((DEFCHAR *)BOTTOM_OF_FILE),0,FALSE)) == NULL)
-               rc = RXEXIT_RAISE_ERROR;
-               rexxout_curr = rexxout_first_line;
-               if (found_view != (VIEW_DETAILS *)NULL)
-               {
-                  found_view->file_for_view->first_line = rexxout_first_line;
-                  found_view->file_for_view->last_line = rexxout_last_line;
-               }
-            }
-#ifndef XCURSES
-            else
-            {
-               if (!batch_only)
-               {
-                  wmove(statarea,0,COLS-1);
-                  wrefresh(statarea);
-                  suspend_curses();
-               }
-               printf("\n");                       /* scroll the screen 1 line */
-               fflush(stdout);
-            }
-#endif
-         }
-         /*
-          * If the REXX interpreter has been halted by line limit exceeded, just
-          * return to the interpreter indicating that THE is hadnling the output
-          * of messages. This is done to stop the "clutter" that comes back as
-          * the interpreter tries to tell us that it is stopping.
-          */
-         if (rexx_halted)
-         {
-            TRACE_RETURN();
-            return(RXEXIT_HANDLED);
-         }
-         /*
-          * If we are capturing the rexx output, print the string to the file.
-          */
-         if (CAPREXXOUTx)
-         {
-            rexxout_number_lines++;
-            if ((rexxout_curr = add_LINE(rexxout_first_line,rexxout_curr,
-                                 (CHARTYPE *)trc_parm->rxsio_string.strptr,
-                                 (trc_parm->rxsio_string.strlength==(-1))?0:trc_parm->rxsio_string.strlength,0,FALSE)) == NULL)
-               rc = RXEXIT_RAISE_ERROR;
-            else
-               rc = RXEXIT_HANDLED;
-         }
-         else
-            rc = RXEXIT_NOT_HANDLED;
-         /*
-          * If the number of lines processed exceeds the line limit, display our
-          * own message telling what has happened and exit with
-          * RXEXIT_RAISE_ERROR. This tells the interpreter that it is to stop.
-          */
-         if (++captured_lines > CAPREXXMAXx)
-         {
-            if (CAPREXXOUTx)
-            {
-               rexxout_number_lines++;
-               sprintf(rexxout_temp,"THE: REXX macro halted - line limit (%ld) exceeded",CAPREXXMAXx);
-               rexxout_curr = add_LINE(rexxout_first_line,rexxout_curr,
-                               (CHARTYPE *)rexxout_temp,
-                               strlen((DEFCHAR *)rexxout_temp),0,FALSE);
-            }
-            else
-               printf("THE: REXX macro halted - line limit (%ld) exceeded\n",CAPREXXMAXx);
-            rc = RXEXIT_RAISE_ERROR;
-            rexx_halted = TRUE;
-         }
-         break;
-      case RXFNC:
          fnc_parm = (RXFNCCAL_PARM *)ParmBlock;
 /*       fprintf(stderr,"Got a RXFNC: %s %d\n",fnc_parm->rxfnc_name,fnc_parm->rxfnc_namel); */
          /*
@@ -476,6 +380,9 @@ REH_RETURN_TYPE THE_Exit_Handler
             rc = RXEXIT_NOT_HANDLED;
             break;
          }
+#if defined(THE_TRACE)
+         trace_string( "%s %s\n", "RXFNC:", macroname );
+#endif
          /*
           * Found the macro file, we will process it instead of the Rexx interpreter
           */
@@ -483,10 +390,11 @@ REH_RETURN_TYPE THE_Exit_Handler
           * Set up pointer to REXX Exit Handler.
           */
 #if defined(USE_REXX6000)
-         exit_list[0].sysexit_func = THE_Exit_Handler;
+         exit_list[0].sysexit_func = THE_SayTrace_Exit_Handler;
+         exit_list[0].sysexit_func = THE_Function_Exit_Handler;
 #else
-         exit_list[0].sysexit_name = "THE_EXIT";
-         exit_list[1].sysexit_name = "THE_EXIT";
+         exit_list[0].sysexit_name = "THE_SAYTRACE_EXIT";
+         exit_list[1].sysexit_name = "THE_FUNCTION_EXIT";
 #endif
          exit_list[0].sysexit_code = RXSIO;
          exit_list[1].sysexit_code = RXFNC;
@@ -532,6 +440,227 @@ REH_RETURN_TYPE THE_Exit_Handler
    TRACE_RETURN();
    return(rc);
 }
+
+/***********************************************************************/
+REH_RETURN_TYPE THE_SayTrace_Exit_Handler
+#if defined(HAVE_PROTO)
+   (
+   REH_ARG0_TYPE ExitNumber,    /* code defining the exit function    */
+   REH_ARG1_TYPE Subfunction,   /* code defining the exit subfunction */
+   REH_ARG2_TYPE ParmBlock      /* function dependent control block   */
+   )
+#else
+   ( ExitNumber, Subfunction, ParmBlock )
+   REH_ARG0_TYPE ExitNumber;    /* code defining the exit function    */
+   REH_ARG1_TYPE Subfunction;   /* code defining the exit subfunction */
+   REH_ARG2_TYPE ParmBlock;     /* function dependent control block   */
+#endif
+/***********************************************************************/
+{
+   LONG rc=0L;
+   int i=0;
+   char rexxout_temp[60];
+   VIEW_DETAILS *found_view=NULL;
+   RXSTRING *saytrcstr;
+   static bool first=TRUE;
+   FILE *outfp;
+
+   TRACE_FUNCTION("rexx.c:    THE_SayTrace_Exit_Handler");
+
+   STARTUPCONSOLE();
+   if ( ExitNumber == RXSIO )
+   {
+      switch( Subfunction )
+      {
+         case RXSIOSAY:
+         case RXSIOTRC:
+         {
+#if defined(THE_TRACE)
+            trace_string( "%s\n", "RXSIO" );
+#endif
+            if ( Subfunction == RXSIOSAY )
+            {
+               RXSIOSAY_PARM *say_parm = (RXSIOSAY_PARM *)ParmBlock;
+               saytrcstr = &say_parm->rxsio_string;
+               outfp = stdout;
+            }
+            else
+            {
+               RXSIOTRC_PARM *trc_parm = (RXSIOTRC_PARM *)ParmBlock;
+               saytrcstr  = &trc_parm->rxsio_string;
+               outfp = stderr;
+            }
+            /*
+             * If this is the first time this exit handler is called, set up the
+             * handling of the result; either open the capture file, or set the
+             * terminal out of curses mode so scrolling etc. work.
+             */
+            if ( !rexx_output )
+            {
+               rexx_output = TRUE;
+               if ( CAPREXXOUTx )
+               {
+                  /*
+                   * Initialise the temporary file...
+                   */
+                  if ( first )
+                  {
+                     first = FALSE;
+                     strcpy((DEFCHAR *)rexx_pathname,(DEFCHAR *)dir_pathname);
+                     strcat((DEFCHAR *)rexx_pathname,(DEFCHAR *)rexxoutname);
+                     if ( splitpath( rexx_pathname ) != RC_OK )
+                     {
+                        rc = RXEXIT_RAISE_ERROR;
+                     }
+                     strcpy((DEFCHAR *)rexx_pathname,(DEFCHAR *)sp_path);
+                     strcpy((DEFCHAR *)rexx_filename,(DEFCHAR *)sp_fname);
+                  }
+                  /*
+                   * Free up the existing linked list (if any)
+                   */
+#if !defined(MULTIPLE_PSEUDO_FILES)
+                  rexxout_first_line = rexxout_last_line = lll_free(rexxout_first_line);
+                  rexxout_number_lines = 0L;
+                  if ((found_view = find_file(rexx_pathname,rexx_filename)) != (VIEW_DETAILS *)NULL)
+                  {
+                     found_view->file_for_view->first_line = found_view->file_for_view->last_line = NULL;
+                     found_view->file_for_view->number_lines = 0L;
+                  }
+#endif
+                  /*
+                   * first_line is set to "Top of File"
+                   */
+                  if ( (rexxout_first_line = add_LINE(rexxout_first_line,NULL,TOP_OF_FILE,strlen((DEFCHAR *)TOP_OF_FILE),0,FALSE) ) == NULL )
+                     rc = RXEXIT_RAISE_ERROR;
+                  /*
+                   * last line is set to "Bottom of File"
+                   */
+                  if ( (rexxout_last_line = add_LINE(rexxout_first_line,rexxout_first_line,BOTTOM_OF_FILE,strlen((DEFCHAR *)BOTTOM_OF_FILE),0,FALSE) ) == NULL )
+                     rc = RXEXIT_RAISE_ERROR;
+                  rexxout_curr = rexxout_first_line;
+                  if (found_view != (VIEW_DETAILS *)NULL)
+                  {
+                     found_view->file_for_view->first_line = rexxout_first_line;
+                     found_view->file_for_view->last_line = rexxout_last_line;
+                  }
+               }
+#ifndef USE_XCURSES
+               else
+               {
+                  if ( !batch_only )
+                  {
+                     wmove(statarea,0,COLS-1);
+                     wrefresh(statarea);
+                     suspend_curses();
+                  }
+                  fputc( '\n', outfp );               /* scroll the screen 1 line */
+                  if ( saytrcstr->strptr != NULL )
+                  {
+                     for( i = 0; i < (long)saytrcstr->strlength; i++ )
+                     {
+                        fputc( ( char )saytrcstr->strptr[i], outfp );
+                     }
+                  }
+                  fputc( '\n', outfp );
+                  rc = RXEXIT_HANDLED;
+               }
+#endif
+            }
+            /*
+             * If the REXX interpreter has been halted by line limit exceeded, just
+             * return to the interpreter indicating that THE is hadnling the output
+             * of messages. This is done to stop the "clutter" that comes back as
+             * the interpreter tries to tell us that it is stopping.
+             */
+            if (rexx_halted)
+            {
+               TRACE_RETURN();
+               return(RXEXIT_HANDLED);
+            }
+            /*
+             * If we are capturing the rexx output, print the string to the file.
+             */
+            if (CAPREXXOUTx)
+            {
+               rexxout_number_lines++;
+               if ((rexxout_curr = add_LINE(rexxout_first_line,rexxout_curr,
+                                    (CHARTYPE *)saytrcstr->strptr,
+                                    (saytrcstr->strlength==(-1))?0:saytrcstr->strlength,0,FALSE)) == NULL)
+                  rc = RXEXIT_RAISE_ERROR;
+               else
+                  rc = RXEXIT_HANDLED;
+            }
+            else
+            {
+               if ( saytrcstr->strptr != NULL )
+               {
+                  for( i = 0; i < (long)saytrcstr->strlength; i++ )
+                  {
+                     fputc( ( char )saytrcstr->strptr[i], outfp );
+                  }
+               }
+               fputc( '\n', outfp );
+               rc = RXEXIT_HANDLED;
+            }
+            /*
+             * If the number of lines processed exceeds the line limit, display our
+             * own message telling what has happened and exit with
+             * RXEXIT_RAISE_ERROR. This tells the interpreter that it is to stop.
+             */
+            if (++captured_lines > CAPREXXMAXx)
+            {
+               if (CAPREXXOUTx)
+               {
+                  rexxout_number_lines++;
+                  sprintf(rexxout_temp,"THE: REXX macro halted - line limit (%ld) exceeded",CAPREXXMAXx);
+                  rexxout_curr = add_LINE(rexxout_first_line,rexxout_curr,
+                                  (CHARTYPE *)rexxout_temp,
+                                  strlen((DEFCHAR *)rexxout_temp),0,FALSE);
+               }
+               else
+               {
+                  printf("THE: REXX macro halted - line limit (%ld) exceeded\n",CAPREXXMAXx);
+               }
+               rc = RXEXIT_RAISE_ERROR;
+               rexx_halted = TRUE;
+            }
+            break;
+         }
+         case RXSIOTRD:
+         {
+            RXSIOTRD_PARM *trd_parm = (RXSIOTRD_PARM *)ParmBlock;
+            int ch = 0;
+            do
+            {
+               if ( i < 256 )
+                  trd_parm->rxsiotrd_retc.strptr[i++] = ch = getc( stdin ) ;
+            } while( ch != '\012' && (ch != EOF ) ) ;
+            trd_parm->rxsiotrd_retc.strlength = i - 1;
+            rc = RXEXIT_HANDLED;
+            break;
+         }
+         case RXSIODTR:
+         {
+            RXSIODTR_PARM *dtr_parm = (RXSIODTR_PARM *)ParmBlock;
+            int ch = 0;
+            do
+            {
+               if ( i < 256 )
+                  dtr_parm->rxsiodtr_retc.strptr[i++] = ch = getc( stdin ) ;
+            } while( ch != '\012' && (ch != EOF ) ) ;
+            dtr_parm->rxsiodtr_retc.strlength = i - 1;
+            rc = RXEXIT_HANDLED;
+            break;
+         }
+         default:
+            rc = RXEXIT_NOT_HANDLED;
+      }
+   }
+   else
+      rc = RXEXIT_NOT_HANDLED;
+   TRACE_RETURN();
+   return(rc);
+}
 /***********************************************************************/
 RFH_RETURN_TYPE THE_Function_Handler
 #if defined(HAVE_PROTO)
@@ -558,21 +687,9 @@ RFH_RETURN_TYPE THE_Function_Handler
 
    TRACE_FUNCTION("rexx.c:    THE_Function_Handler");
 #ifdef THE_TRACE
-   trace_string( "THE_Function_Handler: [%s]\n", FunctionName );
+   trace_string( "FunctionName: \"%s\"\n", FunctionName );
 #endif
 
-#ifdef REXXCALLBACK
-   if ( strcmp( (DEFCHAR *)FunctionName, "XXYYZZ" ) == 0 )
-   {
-      int rcode;
-      char bbuf[100];
-      rc = RexxCallBack( "fred", Argc, Argv, (PSHORT)&rcode, Retstr );
-      sprintf(bbuf,"rc: %d rcode: %d retstr: %s",rc,rcode,Retstr->strptr);
-      display_error( 0, (CHARTYPE *)bbuf,FALSE);
-      TRACE_RETURN();
-      return 0L;
-   }
-#endif
    itemno = split_function_name( (CHARTYPE *)FunctionName, &functionname_length );
    /*
     * If the tail is > maximum number of variables that we can
@@ -686,6 +803,15 @@ RFH_RETURN_TYPE THE_Function_Handler
                                      (LINETYPE)Argv[0].strlength );
       }
    }
+   /*
+    * Test if we have exceeded the number of function calls...
+    */
+   function_calls++;
+   if ( FUNCTIONCALLSx != 0
+   &&   function_calls >= FUNCTIONCALLSx )
+   {
+      RexxSetHalt( getpid(), 0 );          /* raise a halt condition */
+   }
 
    if ( item_values[item_index].len > 256 )
    {
@@ -744,8 +870,16 @@ short initialise_rexx
    }
 
 #if !defined(USE_REXX6000)
-   rc = RexxRegisterExitExe((RREE_ARG0_TYPE)"THE_EXIT",
-                            (RREE_ARG1_TYPE)THE_Exit_Handler,
+   rc = RexxRegisterExitExe((RREE_ARG0_TYPE)"THE_FUNCTION_EXIT",
+                            (RREE_ARG1_TYPE)THE_Function_Exit_Handler,
+                            (RREE_ARG2_TYPE)NULL);
+   if (rc != RXEXIT_OK)
+   {
+      TRACE_RETURN();
+      return((short)rc);
+   }
+   rc = RexxRegisterExitExe((RREE_ARG0_TYPE)"THE_SAYTRACE_EXIT",
+                            (RREE_ARG1_TYPE)THE_SayTrace_Exit_Handler,
                             (RREE_ARG2_TYPE)NULL);
    if (rc != RXEXIT_OK)
    {
@@ -804,10 +938,9 @@ short finalise_rexx
 #if defined(USE_REXX6000)
    rc = RexxDeregisterSubcom((RDS_ARG0_TYPE)"THE");
 #else
-   rc = RexxDeregisterSubcom((RDS_ARG0_TYPE)"THE",
-                           (RDS_ARG1_TYPE)NULL);
-   rc = RexxDeregisterExit((RDE_ARG0_TYPE)"THE_EXIT",
-                         (RDE_ARG1_TYPE)NULL);
+   rc = RexxDeregisterSubcom((RDS_ARG0_TYPE)"THE", (RDS_ARG1_TYPE)NULL);
+   rc = RexxDeregisterExit((RDE_ARG0_TYPE)"THE_FUNCTION_EXIT", (RDE_ARG1_TYPE)NULL);
+   rc = RexxDeregisterExit((RDE_ARG0_TYPE)"THE_SAYTRACE_EXIT", (RDE_ARG1_TYPE)NULL);
 #endif
 
 #ifdef NO_NEED_TO_DEREGISTER_FUNCTIONS_ANYMORE
@@ -876,7 +1009,6 @@ short execute_macro_file
    RXSTRING retstr;
    RXSTRING argstr;
    ULONG rc=0;
-/*   CHAR retbuf[260]; */
    LONG num_params=0L;
    CHARTYPE *rexx_args=NULL;
    RXSYSEXIT exit_list[3];                /* system exit list           */
@@ -907,29 +1039,26 @@ short execute_macro_file
       MAKERXSTRING(argstr,(DEFCHAR *)rexx_args,strlen((DEFCHAR *)rexx_args));
    }
 
-/*   MAKERXSTRING(retstr,retbuf,sizeof(retbuf)); */
    MAKERXSTRING( retstr, NULL, 0 );
 
+   /*
+    * Save the name of the macro being run so we can see the name in the pseudo
+    * file for Rexx output
+    */
    strcpy((DEFCHAR *)rexx_macro_name,(DEFCHAR *)filename);
    /*
     * Set up pointer to REXX Exit Handler.
     */
 #if defined(USE_REXX6000)
-   exit_list[0].sysexit_func = THE_Exit_Handler;
+   exit_list[0].sysexit_func = THE_SayTrace_Exit_Handler;
+   exit_list[1].sysexit_func = THE_Function_Exit_Handler;
 #else
-   exit_list[0].sysexit_name = "THE_EXIT";
-   exit_list[1].sysexit_name = "THE_EXIT";
+   exit_list[0].sysexit_name = "THE_SAYTRACE_EXIT";
+   exit_list[1].sysexit_name = "THE_FUNCTION_EXIT";
 #endif
    exit_list[0].sysexit_code = RXSIO;
    exit_list[1].sysexit_code = RXFNC;
    exit_list[2].sysexit_code = RXENDLST;
-#if (defined(WIN32) || defined(OS2)) && defined(HAVE_RESET_PROG_MODE)
-   /*
-    * Save the current "program" settings
-    */
-   if ( curses_started )
-      def_prog_mode();
-#endif
    /*
     * Under OS/2 use of interactive trace in a macro only works if an OS
     * command has been run before executing the macro, so we run a REM
@@ -938,7 +1067,6 @@ short execute_macro_file
    {
 #if defined(OS2) || defined(WIN32)
       execute_os_command((CHARTYPE*)"REM",TRUE,FALSE);
-      reset_shell_mode();
 #endif
 #ifdef UNIX
       execute_os_command((CHARTYPE*)"echo",TRUE,FALSE);
@@ -948,6 +1076,11 @@ short execute_macro_file
    captured_lines = 0L;
    rexx_output = FALSE;
    rexx_halted = FALSE;
+   /*
+    * Reset our count of calls to commands, functions and messages
+    */
+   function_calls = command_calls = 0;
+   halt_signalled = 0;
    /*
     * Call the REXX interpreter.
     */
@@ -986,7 +1119,7 @@ short execute_macro_file
       {
          if (batch_only)
             error_on_screen = TRUE;
-#ifndef XCURSES
+#ifndef USE_XCURSES
          else
          {
             /*
@@ -995,8 +1128,8 @@ short execute_macro_file
              */
             printf("\n%s",HIT_ANY_KEY);
             fflush(stdout);
-            resume_curses();
             (void)my_getch(stdscr);
+            resume_curses();
             if (number_of_files > 0)
             {
 #if defined(HAVE_BROKEN_SYSVR4_CURSES)
@@ -1012,13 +1145,6 @@ short execute_macro_file
 #endif
       }
    }
-#if (defined(WIN32) || defined(OS2)) && defined(HAVE_RESET_PROG_MODE)
-   else
-   {
-      if ( curses_started )
-         reset_prog_mode();
-   }
-#endif
 
    if (rexx_args != NULL)
       (*the_free)(rexx_args);
@@ -1047,7 +1173,7 @@ short execute_macro_instore
 #elif defined(USE_REXX6000)
    LONG rexxrc=0L;
 #else
-   USHORT rexxrc=0L;
+   SHORT rexxrc=0L;
 #endif
    RXSTRING instore[2];
    RXSTRING retstr;
@@ -1065,13 +1191,13 @@ short execute_macro_instore
     * Set up pointer to REXX Exit Handler.
     */
 #if defined(USE_REXX6000)
-   exit_list[0].sysexit_func = THE_Exit_Handler;
+   exit_list[0].sysexit_func = THE_SayTrace_Exit_Handler;
 #else
-   exit_list[0].sysexit_name = "THE_EXIT";
+   exit_list[0].sysexit_name = "THE_SAYTRACE_EXIT";
 #endif
    exit_list[0].sysexit_code = RXSIO;
    exit_list[1].sysexit_code = RXENDLST;
-#if (defined(WIN32) || defined(OS2)) && defined(HAVE_RESET_PROG_MODE)
+#ifdef USE_PROG_MODE
    /*
     * Save the current "program" settings
     */
@@ -1090,6 +1216,10 @@ short execute_macro_instore
       instore[1].strptr = (RXSTRING_STRPTR_TYPE)NULL;
    instore[1].strlength = (pcode_len) ? *pcode_len : 0;
    MAKERXSTRING(retstr,retbuf,sizeof(retbuf));
+   /*
+    * Reset our count of calls to commands, functions and messages
+    */
+   function_calls = command_calls = 0;
    /*
     * Call the REXX interpreter.
     */
@@ -1147,7 +1277,7 @@ short execute_macro_instore
       {
          if (batch_only)
             error_on_screen = TRUE;
-#ifndef XCURSES
+#ifndef USE_XCURSES
          else
          {
             /*
@@ -1156,8 +1286,8 @@ short execute_macro_instore
              */
             printf("\n%s",HIT_ANY_KEY);
             fflush(stdout);
-            resume_curses();
             (void)my_getch(stdscr);
+            resume_curses();
             if (number_of_files > 0)
             {
 #if defined(HAVE_BROKEN_SYSVR4_CURSES)
@@ -1173,7 +1303,7 @@ short execute_macro_instore
 #endif
       }
    }
-#if (defined(WIN32) || defined(OS2)) && defined(HAVE_RESET_PROG_MODE)
+#ifdef USE_PROG_MODE
    else
    {
       if ( curses_started )
@@ -1231,7 +1361,7 @@ CHARTYPE *get_rexx_interpreter_version
 {
  RXSYSEXIT Exits[2] ;
  RXSTRING Instore[2] ;
- RS_ARG7_TYPE rexxrc=0;
+ short rexxrc=0;
  int rc ;
 
  if (rexx_support)
@@ -1425,7 +1555,7 @@ static RXSTRING *get_compound_rexx_variable
          }
 #if defined(REXXFREEMEMORY)
          RexxFreeMemory( shv.shvvalue.strptr );
-#elif defined(WIN32) && (defined(USE_OREXX) || defined(USE_WINREXX) || defined(USE_QUERCUS))
+#elif defined(WIN32) && (defined(USE_OOREXX) || defined(USE_OREXX) || defined(USE_WINREXX) || defined(USE_QUERCUS))
          GlobalFree( shv.shvvalue.strptr );
 #elif defined(USE_OS2REXX)
          DosFreeMem( shv.shvvalue.strptr );
@@ -1457,16 +1587,16 @@ static RXSTRING *get_compound_rexx_variable
 /***********************************************************************/
 static short valid_target_function
 #if defined(HAVE_PROTO)
-      (ULONG Argc,RXSTRING Argv[])
+      (RFH_ARG1_TYPE Argc,RFH_ARG2_TYPE Argv)
 #else
      (Argc,Argv)
-      ULONG Argc;
-      RXSTRING Argv[];
+      RFH_ARG1_TYPE Argc;
+      RFH_ARG2_TYPE Argv;
 #endif
 /***********************************************************************/
 {
    static TARGET target={NULL,0L,0L,0L,NULL,0,0,FALSE};
-   short target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
+   long target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
    LINETYPE true_line=0L;
    short rc=0;
 
@@ -1548,11 +1678,11 @@ static short valid_target_function
 /***********************************************************************/
 static short run_os_function
 #if defined(HAVE_PROTO)
-      (ULONG Argc,RXSTRING Argv[])
+      (RFH_ARG1_TYPE Argc, RFH_ARG2_TYPE Argv)
 #else
-     (Argc,Argv)
-      ULONG Argc;
-      RXSTRING Argv[];
+     (Argc, Argv)
+      RFH_ARG1_TYPE Argc;
+      RFH_ARG2_TYPE Argv;
 #endif
 /***********************************************************************/
 {
@@ -1816,6 +1946,13 @@ static int run_os_command
          }
       }
    }
+#if defined(USE_WINGUICURSES)
+   /*
+    * For the Windows GUI version we need to allocate a console to the process
+    * so that we have standard I/O handles
+    */
+   StartupConsole();
+#endif
    /*
     * Save file ids for stdin, stdout and stderr, then reassign them to
     * the appropriate temporary files.
@@ -1849,10 +1986,10 @@ static int run_os_command
    {
       if (err)
       {
-#if defined(UNIX)
-         if ((errfd = open(errfile,O_RDWR|O_CREAT|O_TRUNC)) == (-1))
-#else
+#if defined(S_IWRITE) && defined(S_IREAD)
          if ((errfd = open(errfile,O_RDWR|O_CREAT|O_TRUNC,S_IWRITE|S_IREAD)) == (-1))
+#else
+         if ((errfd = open(errfile,O_RDWR|O_CREAT|O_TRUNC)) == (-1))
 #endif
          {
             TRACE_RETURN();
@@ -1869,6 +2006,7 @@ static int run_os_command
          chmod(errfile,S_IWUSR|S_IRUSR);
    }
 #endif
+
    if (in)  dup2(infd,fileno(stdin));
    if (out) dup2(outfd,fileno(stdout));
    if (err) dup2(errfd,fileno(stderr));
@@ -1878,10 +2016,18 @@ static int run_os_command
    {
       if (err) close(errfd);
    }
+#ifdef USE_PROG_MODE
+   def_prog_mode();
+#endif
+
    /*
     * Execute the OS command supplied.
     */
    rcode = system((DEFCHAR *)cmd);
+
+#ifdef USE_PROG_MODE
+   reset_prog_mode();
+#endif
 #if defined(HAVE_SYS_WAIT_H)
    if (rcode) rcode = WEXITSTATUS(rcode);
 #endif

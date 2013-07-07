@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2002 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: query.c,v 1.49 2005/12/13 08:56:22 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -102,6 +101,7 @@ extern ExtractFunction extract_eof;
 extern ExtractFunction extract_eof_function;
 extern ExtractFunction extract_eolout;
 extern ExtractFunction extract_equivchar;
+extern ExtractFunction extract_erroroutput;
 extern ExtractFunction extract_etmode;
 extern ExtractFunction extract_field;
 extern ExtractFunction extract_fieldword;
@@ -110,6 +110,7 @@ extern ExtractFunction extract_focuseof_function;
 extern ExtractFunction extract_focustof_function;
 extern ExtractFunction extract_filename;
 extern ExtractFunction extract_filestatus;
+extern ExtractFunction extract_filetabs;
 extern ExtractFunction extract_fmode;
 extern ExtractFunction extract_fname;
 extern ExtractFunction extract_fpath;
@@ -131,6 +132,7 @@ extern ExtractFunction extract_inprefix_function;
 extern ExtractFunction extract_inputmode;
 extern ExtractFunction extract_insertmode;
 extern ExtractFunction extract_insertmode_function;
+extern ExtractFunction extract_interface;
 extern ExtractFunction extract_lastkey;
 extern ExtractFunction extract_lastmsg;
 extern ExtractFunction extract_lastop;
@@ -162,12 +164,15 @@ extern ExtractFunction extract_point;
 extern ExtractFunction extract_position;
 extern ExtractFunction extract_prefix;
 extern ExtractFunction extract_printer;
+extern ExtractFunction extract_profile;
+extern ExtractFunction extract_pscreen;
 extern ExtractFunction extract_reprofile;
 extern ExtractFunction extract_regexp;
 extern ExtractFunction extract_readonly;
 extern ExtractFunction extract_readv;
 extern ExtractFunction extract_reserved;
 extern ExtractFunction extract_rexx;
+extern ExtractFunction extract_rexxhalt;
 extern ExtractFunction extract_rexxoutput;
 extern ExtractFunction extract_rightedge_function;
 extern ExtractFunction extract_ring;
@@ -180,11 +185,13 @@ extern ExtractFunction extract_shadow_function;
 extern ExtractFunction extract_shift_function;
 extern ExtractFunction extract_showkey;
 extern ExtractFunction extract_size;
-extern ExtractFunction extract_synonym;
-extern ExtractFunction extract_synelem;
+extern ExtractFunction extract_slk;
 extern ExtractFunction extract_spacechar_function;
+extern ExtractFunction extract_statopt;
 extern ExtractFunction extract_statusline;
 extern ExtractFunction extract_stay;
+extern ExtractFunction extract_synelem;
+extern ExtractFunction extract_synonym;
 extern ExtractFunction extract_tabkey;
 extern ExtractFunction extract_tabline;
 extern ExtractFunction extract_tabs;
@@ -200,8 +207,10 @@ extern ExtractFunction extract_tofeof;
 extern ExtractFunction extract_topedge_function;
 extern ExtractFunction extract_trailing;
 extern ExtractFunction extract_typeahead;
+extern ExtractFunction extract_ui;
 extern ExtractFunction extract_undoing;
 extern ExtractFunction extract_untaa;
+extern ExtractFunction extract_utf8;
 extern ExtractFunction extract_verify;
 extern ExtractFunction extract_vershift;
 extern ExtractFunction extract_verone_function;
@@ -295,11 +304,13 @@ AUTOSCroll
      autoscroll.1    - OFF|HALF|n
 
 BACKup
-     Indicates if a .bak file is kept after editing.
+     Indicates if a backup file is kept after editing and what the
+     backup suffix is.
      (QEMS)
 
-     backup.0        - 1
+     backup.0        - 2
      backup.1        - ON|OFF|TEMP|KEEP|INPLACE
+     backup.2        - backup suffix string
 
 BEEP
      Indicates if the bell is sounded on display of error messages.
@@ -472,7 +483,7 @@ CTLchar [*|char]
      With the ['*'] option, (or no option), returns a list of all
      control characters that have been defined.
 
-     ctlchar.0       - 3
+     ctlchar.0       - 1 if ctlchar.1 is OFF, otherwise 3
      ctlchar.1       - ON|OFF
      ctlchar.2       - The character defined as the escape character.
      ctlchar.3       - List of defined control characters, if any.
@@ -546,21 +557,37 @@ CURSORSTay
      cursorstay.0    - 1
      cursorstay.1    - ON|OFF
 
-DEFINE [key|*]
+DEFINE [key|KEY|MOUSE|*]
      Returns details about the commands associated with a keyboard key
      or mouse key.  The details returned are the same as those displayed
      by the <SHOWKEY> command.
      Set by <DEFINE>.
 
-     Three forms are available:
+     The following forms are available:
 
      With no parameter or '*', all details about all key and mouse
-     definitions are returned. (Similar to <SHOWKEY> ALL)
+     event definitions are returned. (Similar to <SHOWKEY> ALL)
      (E)
 
      define.0        - number of all definitions
      define.1        - command assigned to the 1st key or mouse
      define.n        - command assigned to the nth key or mouse
+
+     With a parameter of 'KEY', all details about all key
+     definitions are returned.
+     (E)
+
+     define.0        - number of key definitions
+     define.1        - command assigned to the 1st key
+     define.n        - command assigned to the nth key
+
+     With a parameter of 'MOUSE', all details about all mouse event
+     definitions are returned.
+     (E)
+
+     define.0        - number of mouse definitions
+     define.1        - command assigned to the 1st mouse event
+     define.n        - command assigned to the nth mouse event
 
      With a 'key' mnemonic specified, details about this one key are
      returned. The displayed output from a <QUERY> DEFINE is in the same
@@ -580,13 +607,18 @@ DEFSORT
      defsort.2       - ASCENDING|DESCENDING
 
 DIRFILEID
-     The value of the path and filename of the focus line in a DIR.DIR
+     The value of the path and filename of the <focus line> in a DIR.DIR
      file.
      (E)
 
      dirfileid.0     - 2
      dirfileid.1     - full path of directory
-     dirfileid.2     - file name at focus line
+     dirfileid.2     - file name at <focus line>
+
+     If the <focus line> is <Bottom-of-File line> or <Top-of-File line> then:
+
+     dirfileid.0     - 1
+     dirfileid.1     - full path of directory
 
 DIRInclude
      The value of the file type masks currently in place for display
@@ -690,6 +722,14 @@ EQUIVChar
      equivchar.0     - 2
      equivchar.1     - equivalence character
 
+ERROROUTput
+     Indicates if THE errors are also echoed to the calling window.
+     Set by <SET ERROROUTPUT>.
+     (QEMS)
+
+     erroroutput.0    - 1
+     erroroutput.1    - ON|OFF
+
 ETMODE
      Indicates if extended display mode is set. Set by <SET ETMODE>.
      (QEMS)
@@ -720,9 +760,10 @@ FIELDWORD
      Details about the word closest to the cursor in the current cursor field.
      (E)
 
-     fieldword.0     - 2
+     fieldword.0     - 3
      fieldword.1     - word as defined by <SET WORD> ALPHANUM
      fieldword.2     - word as defined by <SET WORD> NONBLANK
+     fieldword.3     - starting column of word
 
 FILEName
      The full filename of the current file, including any file
@@ -740,6 +781,13 @@ FILESTATUS
      filestatus.1    - sharing mode - NONE
      filestatus.2    - access type - READONLY|READWRITE
      filestatus.3    - end of line - CR/LF/CRLF/NONE
+
+FILETABS
+     Indicates if the <filetabs> window is displayed or not.
+     (QEMS)
+
+     filetabs.0      - 1
+     filetabs.1      - ON|OFF
 
 FMode
      The file mode of the current file. Under Un*x, this will
@@ -844,13 +892,21 @@ HIGHlight
      highlight.2     - minimum (or only) selection level for SELECT
      highlight.3     - maximum selection level for SELECT
 
-IDline
+IDline [*]
      Indicates if the <idline> is displayed for a file. Set by
      <SET IDLINE>.
      (QEMS)
 
      idline.0        - 1
      idline.1        - ON|OFF
+
+     With ['*'] option with EXTRACT, the contents of the <idline>
+     is also returned.
+     (E)
+
+     idline.0        - 2
+     idline.1        - ON|OFF
+     idline.2        - contents of <idline>.
 
 IMPMACro
      Indicates if implied <macro> processing is on or off. Set by
@@ -1047,8 +1103,9 @@ MSGMode
      Indicates if messages are suppressed. Set by <SET MSGMODE>.
      (QEMS)
 
-     msgmode.0       - 1
+     msgmode.0       - 2
      msgmode.1       - ON|OFF
+     msgmode.2       - LONG
 
 NBFile
      Returns with the number of files currently in the <ring>.
@@ -1203,6 +1260,13 @@ PRINTER
      printer.0       - 1
      printer.1       - port or spooler name
 
+PROFile
+     Returns the value of the profile file being used.
+     (QES)
+
+     profile.0       - 1
+     profile.1       - profile file name of blank if none being used
+
 READONLY
      Indicates if the file being edited is allowed to be alterered.
      Set by <SET READONLY>.
@@ -1255,6 +1319,15 @@ REXX
 
      rexx.0          - 1
      rexx.1          - Version strings
+
+REXXHalt
+     Returns details on when a <REXX> macro can be halted during execution.
+     Set by <SET REXXHALT>.
+     (QE)
+
+     rexxhalt.0      - 2
+     rexxhalt.1      - Number of command calls or OFF
+     rexxhalt.2      - Number of function calls or OFF
 
 REXXOUTput
      Indicates if <REXX> output is captured to a file or not and the
@@ -1356,6 +1429,50 @@ SIze
      size.0          - 1
      size.1          - Lines in current file.
 
+SLK [*|number]
+     Returns details about Soft Label Keys.
+
+     With no optional argument.
+     (QEMS)
+
+     slk.0           - 1
+     slk.1           - ON|OFF
+
+     With ['number'] option, details about the specific label are returned.
+     (QE)
+
+     slk.0           - 1
+     slk.1           - label for SLK
+
+     With ['*'] option, details about all labels are returned.
+     (E)
+
+     slk.0           - number of labels defined
+     slk.1           - label for first SLK
+     slk.n           - label of nth SLK
+
+STATOPT [*|option]
+     Displays the current status options in effect on the <status line>.
+     Set by <SET STATOPT>
+
+     With the ['*'] option, (or no option), returns setings
+     for all options that are in effect. The returned settings are
+     the same as the arguments specified in the <SET STATOPT> command.
+     (QE)
+
+     statopt.0       - the number of status options in effect
+     statopt.1       - the first status option in effect
+     statopt.2       - the second status option in effect
+     statopt.n       - the nth status option in effect
+
+     With the ['option'] option, returns settings for the specified
+     option. If the option is invalid or has net been set, the status
+     will be returned as OFF.
+     (QE)
+
+     statopt.0       - 1
+     statopt.1       - the status option settings
+
 STATUSLine
      Indicates if the <status line> is displayed and if so, where.
      Set by <SET STATUSLINE>.
@@ -1416,7 +1533,7 @@ SYNonym [*|name]
 
      With ['*'] option, details about all defined synonyms are
      returned.
-     (QE)
+     (E)
 
      synonym.0       - number of synonyms defined
      synonym.1       - synonym definition of first synonym
@@ -1519,7 +1636,7 @@ TRAILING
      (QEMS)
 
      trailing.0      - 1
-     trailing.1      - ON|OFF|EMPTY|SINGLE
+     trailing.1      - ON|OFF|REMOVE|EMPTY|SINGLE
 
 TYPEAhead
      Indicates if THE will wait until all keyboard input has been
@@ -1546,6 +1663,13 @@ UNTAA
      untaa.0         - 1
      untaa.1         - ON|OFF
 
+UTF8
+     Indicates if the UTF8 support is built in.
+     (QES)
+
+     utf8.0          - 1
+     utf8.1          - ON|OFF
+
 Verify
      Returns verify column settings. Set by <SET VERIFY>.
      (QEMS)
@@ -1565,11 +1689,12 @@ VERSION
      information.
      (QES)
 
-     version.0       - 4
+     version.0       - 5
      version.1       - THE
      version.2       - version string eg. 1.5
-     version.3       - platform version (DOS,OS2,UNIX,X11,WIN32)
+     version.3       - platform version (DOS,OS2,UNIX,X11,WIN32,...)
      version.4       - version status information eg. release date, beta
+     version.5       - platform kernel (DOS,OS2,Linux,WIN32,...)
 
 Width
      Returns maximum line width setting. Set by -w command line switch
@@ -1715,7 +1840,10 @@ incommand()
      Returns '1' if the cursor is on the <command line>.
 
 initial()
-     Returns '1' if the function is called from the <profile>.
+     Returns '1' if the function is called when THE is executing the <profile>
+     against files specified on the Operating System command line. Once THE is
+     ready to accept the first keystroke, not as a result of a command from within
+     <profile>, this function returns 0;
 
 inprefix()
      Returns '1' if the cursor is located in the <prefix area>.
@@ -1849,7 +1977,7 @@ QUERY_ITEM _THE_FAR query_item[] =
    {(CHARTYPE *)"autocolour",     10,10,ITEM_AUTOCOLOUR,    3, 0,          LVL_FILE,QUERY_QUERY             |QUERY_EXTRACT             ,extract_autocolour             },
    {(CHARTYPE *)"autosave",        8, 2,ITEM_AUTOSAVE,      1, 1,          LVL_FILE,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_autosave               },
    {(CHARTYPE *)"autoscroll",     10, 6,ITEM_AUTOSCROLL,    1, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_autoscroll             },
-   {(CHARTYPE *)"backup",          6, 4,ITEM_BACKUP,        1, 1,          LVL_FILE,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_backup                 },
+   {(CHARTYPE *)"backup",          6, 4,ITEM_BACKUP,        2, 2,          LVL_FILE,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_backup                 },
    {(CHARTYPE *)"beep",            4, 4,ITEM_BEEP,          1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_beep                   },
    {(CHARTYPE *)"block",           5, 5,ITEM_BLOCK,         0, 6,          LVL_VIEW,QUERY_QUERY             |QUERY_EXTRACT             ,extract_block                  },
    {(CHARTYPE *)"case",            4, 4,ITEM_CASE,          6, 6,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_case                   },
@@ -1879,12 +2007,14 @@ QUERY_ITEM _THE_FAR query_item[] =
    {(CHARTYPE *)"eof",             3, 3,ITEM_EOF,           1, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT             ,extract_eof                    },
    {(CHARTYPE *)"eolout",          6, 3,ITEM_EOLOUT,        1, 1,          LVL_FILE,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_eolout                 },
    {(CHARTYPE *)"equivchar",       9, 6,ITEM_EQUIVCHAR,     1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_equivchar              },
+   {(CHARTYPE *)"erroroutput",    11, 8,ITEM_ERROROUTPUT,   1, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_erroroutput            },
    {(CHARTYPE *)"etmode",          6, 6,ITEM_ETMODE,        2, 2,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_etmode                 },
    {(CHARTYPE *)"fext",            4, 2,ITEM_FEXT,          1, 1,          LVL_FILE,QUERY_QUERY|             QUERY_EXTRACT|QUERY_MODIFY,extract_ftype                  },
    {(CHARTYPE *)"field",           5, 5,ITEM_FIELD,         4, 4,          LVL_VIEW,QUERY_QUERY|             QUERY_EXTRACT             ,extract_field                  },
-   {(CHARTYPE *)"fieldword",       9, 9,ITEM_FIELDWORD,     2, 2,          LVL_VIEW,                         QUERY_EXTRACT             ,extract_fieldword              },
+   {(CHARTYPE *)"fieldword",       9, 9,ITEM_FIELDWORD,     3, 3,          LVL_VIEW,                         QUERY_EXTRACT             ,extract_fieldword              },
    {(CHARTYPE *)"filename",        8, 5,ITEM_FILENAME,      1, 1,          LVL_FILE,QUERY_QUERY|             QUERY_EXTRACT|QUERY_MODIFY,extract_filename               },
    {(CHARTYPE *)"filestatus",     10,10,ITEM_FILESTATUS,    3, 3,          LVL_FILE,QUERY_QUERY|             QUERY_EXTRACT|QUERY_MODIFY,extract_filestatus             },
+   {(CHARTYPE *)"filetabs",        8, 8,ITEM_FILETABS,      1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_filetabs               },
    {(CHARTYPE *)"fmode",           5, 2,ITEM_FMODE,         1, 1,          LVL_FILE,QUERY_QUERY|             QUERY_EXTRACT|QUERY_MODIFY,extract_fmode                  },
    {(CHARTYPE *)"fname",           5, 2,ITEM_FNAME,         1, 1,          LVL_FILE,QUERY_QUERY|             QUERY_EXTRACT|QUERY_MODIFY,extract_fname                  },
    {(CHARTYPE *)"fpath",           5, 2,ITEM_FPATH,         1, 1,          LVL_FILE,QUERY_QUERY|             QUERY_EXTRACT|QUERY_MODIFY,extract_fpath                  },
@@ -1901,6 +2031,7 @@ QUERY_ITEM _THE_FAR query_item[] =
    {(CHARTYPE *)"impos",           5, 5,ITEM_IMPOS,         1, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_impos                  },
    {(CHARTYPE *)"inputmode",       9, 6,ITEM_INPUTMODE,     1, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_inputmode              },
    {(CHARTYPE *)"insertmode",     10, 6,ITEM_INSERTMODE,    1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_insertmode             },
+   {(CHARTYPE *)"interface",       9, 3,ITEM_INTERFACE,     1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_interface              },
    {(CHARTYPE *)"lastkey",         7, 7,ITEM_LASTKEY,       4, 4,          LVL_GLOB,                         QUERY_EXTRACT             ,extract_lastkey                },
    {(CHARTYPE *)"lastmsg",         7, 4,ITEM_LASTMSG,       1, 1,          LVL_GLOB,                         QUERY_EXTRACT             ,extract_lastmsg                },
    {(CHARTYPE *)"lastop",          6, 6,ITEM_LASTOP,        9, 9,          LVL_GLOB,QUERY_QUERY             |QUERY_EXTRACT             ,extract_lastop                 },
@@ -1917,7 +2048,7 @@ QUERY_ITEM _THE_FAR query_item[] =
    {(CHARTYPE *)"monitor",         7, 7,ITEM_MONITOR,       2, 2,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT             ,extract_monitor                },
    {(CHARTYPE *)"mouse",           5, 5,ITEM_MOUSE,         1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_mouse                  },
    {(CHARTYPE *)"msgline",         7, 4,ITEM_MSGLINE,       4, 4,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_msgline                },
-   {(CHARTYPE *)"msgmode",         7, 4,ITEM_MSGMODE,       1, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_msgmode                },
+   {(CHARTYPE *)"msgmode",         7, 4,ITEM_MSGMODE,       2, 2,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_msgmode                },
    {(CHARTYPE *)"nbfile",          6, 3,ITEM_NBFILE,        1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT             ,extract_nbfile                 },
    {(CHARTYPE *)"nbscope",         7, 3,ITEM_NBSCOPE,       2, 2,          LVL_VIEW,QUERY_QUERY             |QUERY_EXTRACT             ,extract_nbscope                },
    {(CHARTYPE *)"newlines",        8, 4,ITEM_NEWLINES,      1, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_newlines               },
@@ -1930,12 +2061,15 @@ QUERY_ITEM _THE_FAR query_item[] =
    {(CHARTYPE *)"position",        8, 3,ITEM_POSITION,      3, 3,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_position               },
    {(CHARTYPE *)"prefix",          6, 3,ITEM_PREFIX,        0, 4,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_prefix                 },
    {(CHARTYPE *)"printer",         7, 7,ITEM_PRINTER,       1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_printer                },
+   {(CHARTYPE *)"profile",         4, 7,ITEM_PROFILE,       1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT             ,extract_profile                },
+   {(CHARTYPE *)"pscreen",         7, 4,ITEM_PSCREEN,       2, 2,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_pscreen                },
    {(CHARTYPE *)"readonly",        8, 8,ITEM_READONLY,      1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_readonly               },
    {(CHARTYPE *)"readv",           5, 5,ITEM_READV,         4, 1,          LVL_GLOB,QUERY_READV                                        ,extract_readv                  },
    {(CHARTYPE *)"regexp",          6, 6,ITEM_REGEXP,        1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_regexp                 },
    {(CHARTYPE *)"reprofile",       9, 6,ITEM_REPROFILE,     1, 1,          LVL_FILE,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_reprofile              },
    {(CHARTYPE *)"reserved",        8, 5,ITEM_RESERVED,      1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT             ,extract_reserved               },
    {(CHARTYPE *)"rexx",            4, 4,ITEM_REXX,          1, 1,          LVL_GLOB,QUERY_QUERY                                        ,extract_rexx                   },
+   {(CHARTYPE *)"rexxhalt",        5, 5,ITEM_REXXHALT,      2, 2,          LVL_GLOB,QUERY_QUERY             |QUERY_EXTRACT             ,extract_rexxhalt               },
    {(CHARTYPE *)"rexxoutput",     10, 7,ITEM_REXXOUTPUT,    2, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_rexxoutput             },
    {(CHARTYPE *)"ring",            4, 4,ITEM_RING,          1, 0,          LVL_GLOB,QUERY_QUERY             |QUERY_EXTRACT             ,extract_ring                   },
    {(CHARTYPE *)"scale",           5, 4,ITEM_SCALE,         2, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_scale                  },
@@ -1945,6 +2079,8 @@ QUERY_ITEM _THE_FAR query_item[] =
    {(CHARTYPE *)"shadow",          6, 4,ITEM_SHADOW,        1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_shadow                 },
    {(CHARTYPE *)"showkey",         7, 4,ITEM_SHOWKEY,       1, 1,          LVL_FILE,                         QUERY_EXTRACT             ,extract_showkey                },
    {(CHARTYPE *)"size",            4, 2,ITEM_SIZE,          1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT             ,extract_size                   },
+   {(CHARTYPE *)"slk",             3, 3,ITEM_SLK,           1, 0,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_slk                    },
+   {(CHARTYPE *)"statopt",         7, 7,ITEM_STATOPT,       1, 1,          LVL_GLOB,QUERY_QUERY             |QUERY_EXTRACT             ,extract_statopt                },
    {(CHARTYPE *)"statusline",     10, 7,ITEM_STATUSLINE,    1, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_statusline             },
    {(CHARTYPE *)"stay",            4, 4,ITEM_STAY,          1, 2,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_stay                   },
    {(CHARTYPE *)"synelem",         7, 4,ITEM_SYNELEM,       1, 0,          LVL_VIEW,QUERY_QUERY             |QUERY_EXTRACT             ,extract_synelem                },
@@ -1962,11 +2098,13 @@ QUERY_ITEM _THE_FAR query_item[] =
    {(CHARTYPE *)"tofeof",          6, 6,ITEM_TOFEOF,        1, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_tofeof                 },
    {(CHARTYPE *)"trailing",        8, 8,ITEM_TRAILING,      1, 1,          LVL_FILE,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_trailing               },
    {(CHARTYPE *)"typeahead",       9, 5,ITEM_TYPEAHEAD,     1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_typeahead              },
+   {(CHARTYPE *)"ui",              2, 2,ITEM_UI,            1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT             ,extract_ui                     },
    {(CHARTYPE *)"undoing",         7, 7,ITEM_UNDOING,       1, 1,          LVL_FILE,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_undoing                },
    {(CHARTYPE *)"untaa",           5, 5,ITEM_UNTAA,         1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_untaa                  },
+   {(CHARTYPE *)"utf8",            4, 4,ITEM_UTF8,          1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT             ,extract_utf8                   },
    {(CHARTYPE *)"verify",          6, 1,ITEM_VERIFY,        1, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_verify                 },
    {(CHARTYPE *)"vershift",        8, 4,ITEM_VERSHIFT,      1, 1,          LVL_VIEW,QUERY_QUERY             |QUERY_EXTRACT             ,extract_vershift               },
-   {(CHARTYPE *)"version",         7, 7,ITEM_VERSION,       4, 4,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT             ,extract_version                },
+   {(CHARTYPE *)"version",         7, 7,ITEM_VERSION,       5, 5,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT             ,extract_version                },
    {(CHARTYPE *)"width",           5, 1,ITEM_WIDTH,         1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_width                  },
    {(CHARTYPE *)"word",            4, 4,ITEM_WORD,          1, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_word                   },
    {(CHARTYPE *)"wordwrap",        8, 5,ITEM_WORDWRAP,      1, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_wordwrap               },
@@ -2064,14 +2202,28 @@ bool mouse_key;
 {
    CHARTYPE *keyname=NULL;
    int shift=0;
-   if (mouse_key)
+   int mod_shift, mod_ctrl, mod_alt;
+
+#if defined(PDCURSES_MOUSE_ENABLED) || defined(NCURSES_MOUSE_VERSION)
+   if ( mouse_key )
    {
-      item_values[1].value = mouse_key_number_to_name( key, query_rsrvd );
-      item_values[1].len = strlen( (DEFCHAR *)item_values[1].value );
+      int b,ba,bm,w;
+      CHARTYPE scrn;
+      if ( get_mouse_info( &b, &ba, &bm ) == RC_OK )
+      {
+         which_window_is_mouse_in( &scrn, &w );
+         key = mouse_info_to_key( w, b, ba, bm );
+         item_values[1].value = mouse_key_number_to_name( key, query_rsrvd, &shift );
+         item_values[1].len = strlen( (DEFCHAR *)item_values[1].value );
+      }
+      mod_shift = SHIFT_MOUSE_SHIFT;
+      mod_ctrl = SHIFT_MOUSE_CTRL;
+      mod_alt = SHIFT_MOUSE_ALT;
    }
    else
+#endif
    {
-      keyname = get_key_name(key,&shift);
+      keyname = get_key_name( key, &shift );
       if (keyname == NULL)
       {
          item_values[1].value = (CHARTYPE *)"";
@@ -2080,35 +2232,38 @@ bool mouse_key;
       else
       {
          item_values[1].value = keyname;
-         item_values[1].len = strlen((DEFCHAR *)keyname);
+         item_values[1].len = strlen( (DEFCHAR *)keyname );
       }
+      mod_shift = SHIFT_SHIFT;
+      mod_ctrl = SHIFT_CTRL;
+      mod_alt = SHIFT_ALT;
    }
    if (key < 256
    &&  key >= 0)
    {
       sprintf((DEFCHAR *)query_num1,"%d",key);
       item_values[2].value = query_num1;
-      item_values[2].len = strlen((DEFCHAR *)query_num1);
+      item_values[2].len = strlen( (DEFCHAR *)query_num1 );
    }
    else
    {
       item_values[2].value = (CHARTYPE *)"";
       item_values[2].len = 0;
    }
-   sprintf((DEFCHAR *)query_num2,"%d",key);
+   sprintf( (DEFCHAR *)query_num2, "%d", key );
    item_values[3].value = query_num2;
-   item_values[3].len = strlen((DEFCHAR *)query_num2);
-   memset((DEFCHAR *)query_num3,'0',8);
+   item_values[3].len = strlen( (DEFCHAR *)query_num2 );
+   memset( (DEFCHAR *)query_num3, '0', 8 );
    query_num3[8] = '\0';
-   if (key != -1)
+   if ( key != -1 )
    {
-      if (INSERTMODEx)
+      if ( INSERTMODEx )
          query_num3[0] = '1';
-      if (shift & SHIFT_ALT)
+      if ( shift & mod_alt )
          query_num3[4] = '1';
-      if (shift & SHIFT_CTRL)
+      if ( shift & mod_ctrl )
          query_num3[5] = '1';
-      if (shift & SHIFT_SHIFT)
+      if ( shift & mod_shift )
          query_num3[6] = query_num3[7] = '1';
    }
    item_values[4].value = query_num3;
@@ -2662,7 +2817,7 @@ CHARTYPE query_type;
          i = 0;
          while(curr != NULL)
          {
-            tmpbuf = (CHARTYPE *)(*the_malloc)(sizeof(CHARTYPE)*(strlen((DEFCHAR *)curr->name)+strlen((DEFCHAR *)curr->line)+1));
+            tmpbuf = (CHARTYPE *)(*the_malloc)(sizeof(CHARTYPE)*(strlen((DEFCHAR *)curr->name)+strlen((DEFCHAR *)curr->line)+2));
             if (tmpbuf == (CHARTYPE *)NULL)
             {
                display_error(30,(CHARTYPE *)"",FALSE);
@@ -2791,8 +2946,6 @@ bool us,isecolour;
    int start=0,end=0,number_variables=0,off=0;
    bool found=FALSE;
    CHARTYPE *attr_string=NULL,tmparea[2];
-   CHARTYPE save_msgline_base = CURRENT_VIEW->msgline_base;
-   short save_msgline_off = CURRENT_VIEW->msgline_off;
    ROWTYPE save_msgline_rows = CURRENT_VIEW->msgline_rows;
    bool save_msgmode_status = CURRENT_VIEW->msgmode_status;
    CHARTYPE *ptr,*area,*colour=(CHARTYPE*)"colour ",*color=(CHARTYPE*)"color ",*ecolour=(CHARTYPE*)"ecolour ",*ecolor=(CHARTYPE*)"ecolor ";
@@ -2852,8 +3005,6 @@ bool us,isecolour;
    }
    if (query_type == QUERY_QUERY)
    {
-      CURRENT_VIEW->msgline_base   = POSITION_TOP;
-      CURRENT_VIEW->msgline_off    = 1;
       CURRENT_VIEW->msgline_rows   = min(terminal_lines-1,end-start);
       CURRENT_VIEW->msgmode_status = TRUE;
    }
@@ -2889,7 +3040,9 @@ bool us,isecolour;
          area = tmparea;
       }
       else
+      {
          area = valid_areas[i].area;
+      }
       sprintf((DEFCHAR *)query_rsrvd,"%s%s %s",
             (query_type == QUERY_QUERY) ? (DEFCHAR *)ptr : "",
             area,
@@ -2909,8 +3062,6 @@ bool us,isecolour;
    }
    if (query_type == QUERY_QUERY)
    {
-      CURRENT_VIEW->msgline_base   = save_msgline_base;
-      CURRENT_VIEW->msgline_off    = save_msgline_off;
       CURRENT_VIEW->msgline_rows   = save_msgline_rows;
       CURRENT_VIEW->msgmode_status = save_msgmode_status;
       rc = EXTRACT_VARIABLES_SET;
@@ -2937,8 +3088,6 @@ bool us;
    register int i=0;
    int number_variables=0,off=0;
    bool found=FALSE;
-   CHARTYPE save_msgline_base = CURRENT_VIEW->msgline_base;
-   short save_msgline_off = CURRENT_VIEW->msgline_off;
    ROWTYPE save_msgline_rows = CURRENT_VIEW->msgline_rows;
    bool save_msgmode_status = CURRENT_VIEW->msgmode_status;
    CHARTYPE *ptr,*ptr_mask=NULL,*ptr_magic=NULL,*ptr_parser=NULL;
@@ -2952,8 +3101,6 @@ bool us;
       if (query_type == QUERY_QUERY)
       {
          for (i=0,curr=first_parser_mapping;curr!=NULL;curr=curr->next,i++);
-         CURRENT_VIEW->msgline_base   = POSITION_TOP;
-         CURRENT_VIEW->msgline_off    = 1;
          CURRENT_VIEW->msgline_rows   = min(terminal_lines-1,i);
          CURRENT_VIEW->msgmode_status = TRUE;
       }
@@ -2982,8 +3129,6 @@ bool us;
    {
       if (query_type == QUERY_QUERY)
       {
-         CURRENT_VIEW->msgline_base   = POSITION_TOP;
-         CURRENT_VIEW->msgline_off    = 1;
          CURRENT_VIEW->msgline_rows   = 1;
          CURRENT_VIEW->msgmode_status = TRUE;
       }
@@ -3059,8 +3204,6 @@ bool us;
 
    if (query_type == QUERY_QUERY)
    {
-      CURRENT_VIEW->msgline_base   = save_msgline_base;
-      CURRENT_VIEW->msgline_off    = save_msgline_off;
       CURRENT_VIEW->msgline_rows   = save_msgline_rows;
       CURRENT_VIEW->msgmode_status = save_msgmode_status;
       rc = EXTRACT_VARIABLES_SET;

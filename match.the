@@ -1,5 +1,5 @@
 /*
-$Id: match.the,v 1.3 2001/02/25 07:03:57 mark Exp $
+$Id: match.the,v 1.5 2011/07/09 23:47:46 mark Exp $
 */
 /***********************************************************************/
 /* Description: REXX macro to match pairs of keywords                  */
@@ -16,39 +16,38 @@ $Id: match.the,v 1.3 2001/02/25 07:03:57 mark Exp $
 /*               loop     - endloop                                    */
 /*               \begin{  - \end{                   (added by A. Pool) */
 /* Bugs:        Only keywords that START a line are considered for     */
-/*              matching and each keyword must be on seperate lines.   */
+/*              matching and each keyword must be on separate lines.   */
 /***********************************************************************/
 Trace o
-string.1 =  '#IF #ENDIF >'
-string.2 =  '#ENDIF #IF <'
-string.3 =  'BEGIN END; >'
-string.4 =  'END; BEGIN <'
-string.5 =  'DO END >'
-string.6 =  'END DO <'
-string.7 =  'IF ENDIF >'
-string.8 =  'ENDIF IF <'
-string.9 =  'LOOP ENDLOOP >'
-string.10 = 'ENDLOOP LOOP <'
-string.11 = '\BEGIN{ \END{ >'                      /* added by A. Pool */
-string.12 = '\END{ \BEGIN{ <'                      /* added by A. Pool */
-string.13 = '<TABLE </TABLE> >'
-string.14 = '</TABLE> <TABLE <'
-string.15 = '<TR </TR> >'
-string.16 = '</TR> <TR <'
-num_string = 16
+string.1 =  '> #IF #ENDIF'
+string.2 =  '< #ENDIF #IF'
+string.3 =  '> BEGIN END;'
+string.4 =  '< END; BEGIN'
+string.5 =  '> DO END'
+string.6 =  '< END DO'
+string.7 =  '> IF ENDIF'
+string.8 =  '< ENDIF IF'
+string.9 =  '> LOOP ENDLOOP'
+string.10 = '< ENDLOOP LOOP'
+string.11 = '> \BEGIN{ \END{'                      /* added by A. Pool */
+string.12 = '< \END{ \BEGIN{'                      /* added by A. Pool */
+string.13 = '> <TABLE </TABLE>'
+string.14 = '< </TABLE> <TABLE'
+string.15 = '> <TR </TR>'
+string.16 = '< </TR> <TR'
+string.17 =  '> #ELSE #ENDIF'
+string.18 =  '> #IFDEF #ENDIF'
+num_string = 18
 
 'EXTRACT /LINE/CURLINE/'/* get the focus line contents and line number */
 save_current_line = line.1
-newline = ''
-Do i = 1 To Words(curline.3)      /* get rid of all blanks in the line */
-   newline = newline||Strip(Word(curline.3,i))
-End
-newline = Translate(newline)            /* uppercase to match keywords */
+keyword = Word( Translate( Space( curline.3 ) ), 1 )
 stridx = 0
+say '['keyword']'
 Do i = 1 To num_string                             /* find a keyword...*/
-   source = Word(string.i,1)
-   length = Length(source)
-   If Substr(newline,1,length) = source Then
+   source = Word( string.i, 2 )
+say source
+   If keyword = source Then
       Do
         stridx = i
         Leave
@@ -59,30 +58,29 @@ If stridx = 0 Then                       /* if no keyword found, error */
      'EMSG Unknown match string'
      Exit
    End
+/*
+ * We have a keyword on the current line, look for its pair
+ */
 'preserve'
 num_source = 1
 num_target = 0
-source = Word(string.stridx,1)
-target = Word(string.stridx,2)
-direction = Word(string.stridx,3)
+direction = Word( string.stridx, 1 )
+source = Word( string.stridx, 2 )
+target = Word( string.stridx, 3 )
 Do Forever                                  /* find matching keyword...*/
    If direction = '>' Then 'N'
    Else 'U'
    If rc \= 0 Then Leave
    'EXTRACT /CURLINE/'
-   newline = ''
-   Do i = 1 To Words(curline.3)
-      newline = newline||Strip(Word(curline.3,i))
-   End
-   newline = Translate(newline)
+   keyword = Word( Translate( Space( curline.3 ) ), 1 )
    Select
-     When Substr(newline,1,Length(source)) = source Then num_source = num_source + 1
-     When Substr(newline,1,Length(target)) = target Then num_target = num_target + 1
+     When keyword = source Then num_source = num_source + 1
+     When keyword = target Then num_target = num_target + 1
      Otherwise
    End
    If num_source = num_target Then                 /* if match found...*/
       Do
-        'reset block'                           
+        'reset block'
         'mark line'                             /*...mark a line block */
         ':'||save_current_line
         'mark line'

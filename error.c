@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: error.c,v 1.14 2005/09/01 10:32:22 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -52,9 +51,9 @@ static void open_msgline();
 #endif
 /***********************************************************************/
 #ifdef HAVE_PROTO
-void display_error(unsigned short err_num,CHARTYPE *mess,bool ignore_bell)
+int display_error(unsigned short err_num,CHARTYPE *mess,bool ignore_bell)
 #else
-void display_error(err_num,mess,ignore_bell)
+int display_error(err_num,mess,ignore_bell)
 unsigned short err_num;
 CHARTYPE *mess;
 bool ignore_bell;
@@ -138,8 +137,8 @@ static CHARTYPE _THE_FAR *error_message[] =
    (CHARTYPE *)"",
    (CHARTYPE *)"",
    (CHARTYPE *)"",
-   (CHARTYPE *)"",
-   (CHARTYPE *)"",
+   (CHARTYPE *)"Error 0075: Too many sort fields - maximum is 1000",
+   (CHARTYPE *)"Error 0076: Fileid already in ring:",
    (CHARTYPE *)"Error 0077: Files still open in batch:",
    (CHARTYPE *)"Error 0078: Printing error:",
    (CHARTYPE *)"Error 0079: Can't add another tab position; already have 32 defined",
@@ -217,7 +216,7 @@ static CHARTYPE _THE_FAR *error_message[] =
    (CHARTYPE *)"",
    (CHARTYPE *)"",
    (CHARTYPE *)"",
-   (CHARTYPE *)"",
+   (CHARTYPE *)"Error 0154: JOIN would cause truncation",
    (CHARTYPE *)"",
    (CHARTYPE *)"",
    (CHARTYPE *)"",
@@ -283,6 +282,7 @@ static CHARTYPE _THE_FAR *error_message[] =
 };
    int new_last_message_length = 0;
    int x=0, y=0;
+   int rc=RC_OK;
 
    TRACE_FUNCTION("error.c:   display_error");
 
@@ -302,7 +302,7 @@ static CHARTYPE _THE_FAR *error_message[] =
       if (last_message == NULL)
       {
          TRACE_RETURN();
-         return;
+         return rc;
       }
    }
    else
@@ -314,7 +314,7 @@ static CHARTYPE _THE_FAR *error_message[] =
          if (last_message == NULL)
          {
             TRACE_RETURN();
-            return;
+            return rc;
          }
       }
    }
@@ -330,7 +330,7 @@ static CHARTYPE _THE_FAR *error_message[] =
       if (!CURRENT_VIEW->msgmode_status)
       {
          TRACE_RETURN();
-         return;
+         return rc;
       }
    }
    /*
@@ -339,7 +339,7 @@ static CHARTYPE _THE_FAR *error_message[] =
    if (in_nomsg)
    {
       TRACE_RETURN();
-      return;
+      return rc;
    }
 #ifdef MSWIN
    {
@@ -358,7 +358,7 @@ static CHARTYPE _THE_FAR *error_message[] =
       error_on_screen = TRUE;
       Operator("%s%s",hdr,last_message);
       TRACE_RETURN();
-      return;
+      return rc;
    }
    }
 #else
@@ -370,15 +370,21 @@ static CHARTYPE _THE_FAR *error_message[] =
          if (number_of_files == 0)
             fprintf(stderr,"*** Messages from profile file ***\n");
          else
-            fprintf(stderr,"*** Messages from profile file for %s%s ***\n",
-                           CURRENT_FILE->fpath,CURRENT_FILE->fname);
+            fprintf(stderr,"*** Messages from profile file for %s%s ***\n", CURRENT_FILE->fpath,CURRENT_FILE->fname );
       }
       error_on_screen = TRUE;
       fprintf(stderr,"%s\n",last_message);
       TRACE_RETURN();
-      return;
+      return rc;
    }
 #endif
+   /*
+    * If SET ERROROUTPUT is ON, write the error message to stderr
+    */
+   if ( ERROROUTPUTx )
+   {
+      fprintf(stderr,"%s\n",last_message);
+   }
    /*
     * Append the current message to the end of the error linked list.
     */
@@ -386,20 +392,20 @@ static CHARTYPE _THE_FAR *error_message[] =
    if (last_error == NULL)
    {
       TRACE_RETURN();
-      return;
+      return rc;
    }
    last_error->line = (CHARTYPE *)(*the_malloc)((strlen((DEFCHAR *)last_message)+1)*sizeof(CHARTYPE));
    if (last_error->line == NULL)
    {
       TRACE_RETURN();
-      return;
+      return rc;
    }
    strcpy((DEFCHAR *)last_error->line,(DEFCHAR *)last_message);
    last_error->length = strlen((DEFCHAR *)last_message);
    if (first_error == NULL)
       first_error = last_error;
    errors_displayed++;
-   expose_msgline();
+   rc = expose_msgline();
    /*
     * If capturing REXX output, then add a new line to the pseudo file.
     */
@@ -407,8 +413,7 @@ static CHARTYPE _THE_FAR *error_message[] =
    &&  rexx_output)
    {
       rexxout_number_lines++;
-      rexxout_curr = add_LINE(rexxout_first_line,rexxout_curr,
-                            last_message,strlen((DEFCHAR *)last_message),0,FALSE);
+      rexxout_curr = add_LINE( rexxout_first_line, rexxout_curr, last_message, strlen((DEFCHAR *)last_message), 0, FALSE );
    }
 #ifdef HAVE_BEEP
    if (BEEPx
@@ -422,7 +427,7 @@ static CHARTYPE _THE_FAR *error_message[] =
    if ( first_screen_display )
       wrefresh( error_window );
    TRACE_RETURN();
-   return;
+   return rc;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
@@ -449,6 +454,9 @@ ROWTYPE base,off,rows;
       delwin( error_window );
    error_window = newwin( rows, CURRENT_SCREEN.screen_cols, CURRENT_SCREEN.screen_start_row + start_row, CURRENT_SCREEN.screen_start_col );
    wattrset( error_window, set_colour(&attr) );
+#ifdef HAVE_KEYPAD
+   keypad( error_window, TRUE );
+#endif
    TRACE_RETURN();
    return;
 }
@@ -506,18 +514,22 @@ CHARTYPE *prompt;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-void expose_msgline(void)
+int expose_msgline(void)
 #else
-void expose_msgline()
+int expose_msgline()
 #endif
 /***********************************************************************/
 {
+#define NORMAL_PROMPT "Press any key to continue..."
+#define IN_MACRO_PROMPT "Press SPACE to terminate macro or any other key to continue..."
    LINE *curr_error=NULL;
    register int i=0;
    ROWTYPE errors_to_display=0;
    CHARTYPE msgline_base=POSITION_TOP;
    short msgline_off=2;
    ROWTYPE msgline_rows=5,max_rows,start_row;
+   int rc=RC_OK;
+   CHARTYPE *prompt;
 
    TRACE_FUNCTION("error.c:   expose_msgline");
    /*
@@ -528,7 +540,7 @@ void expose_msgline()
       if (!CURRENT_VIEW->msgmode_status)
       {
          TRACE_RETURN();
-         return;
+         return rc;
       }
       msgline_rows = CURRENT_VIEW->msgline_rows;
       msgline_base = CURRENT_VIEW->msgline_base;
@@ -573,20 +585,30 @@ void expose_msgline()
    }
    wnoutrefresh( error_window );
    error_on_screen = TRUE;
-   if ( errors_to_display == msgline_rows
-   &&   errors_displayed % errors_to_display == 1
+   if ( errors_to_display
+   &&   errors_to_display == msgline_rows
+   &&   (errors_displayed % errors_to_display) == 1
    &&   curr_error != NULL )
    {
+      if ( in_macro )
+         prompt = (CHARTYPE *)IN_MACRO_PROMPT;
+      else
+         prompt = (CHARTYPE *)NORMAL_PROMPT;
       wmove( error_window, msgline_rows - 1, 0 );
       my_wclrtoeol( error_window );
       if ( CURRENT_VIEW == NULL
       ||   CURRENT_FILE == NULL)
-         mvwaddstr( error_window, msgline_rows - 1, 0, (DEFCHAR *)"Press any key to continue..." );
+      {
+         mvwaddstr( error_window, msgline_rows - 1, 0, (DEFCHAR *)prompt );
+      }
       else
-         put_string( error_window, (ROWTYPE)(msgline_rows - 1), 0, (CHARTYPE *)"Press any key to continue...", 28 );
+      {
+         put_string( error_window, (ROWTYPE)(msgline_rows - 1), 0, (CHARTYPE *)prompt, strlen( (DEFCHAR *)prompt ) );
+      }
       wrefresh( error_window );
-      my_getch( stdscr );
+      if ( my_getch( error_window ) == ' ' )
+         rc = RC_TERMINATE_MACRO;
    }
    TRACE_RETURN();
-   return;
+   return rc;
 }

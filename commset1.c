@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: commset1.c,v 1.34 2006/01/29 08:00:50 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -50,6 +49,7 @@ the_header_mapping thm[] =
    {"COLUMN",                6,  HEADER_COLUMN      },
    {"POSTCOMPARE",          11,  HEADER_POSTCOMPARE },
    {"MARKUP",                6,  HEADER_MARKUP      },
+   {"DIRECTORY",             3,  HEADER_DIRECTORY   },
    {"*",                     1,  HEADER_ALL         }, /* this should be last */
    {NULL,                    0,  0                  },
 };
@@ -68,6 +68,8 @@ short area;
    int i;
    COLOUR_ATTR attr;
    chtype ch=0L,nondisp_attr=0L;
+
+   TRACE_FUNCTION("commset1.c:set_active_colour");
 
    memcpy( &attr, CURRENT_FILE->attr+area, sizeof(COLOUR_ATTR) );
    /*
@@ -97,7 +99,7 @@ short area;
       TRACE_RETURN();
       return(RC_OK);
    }
-#if defined(USE_XCURSES) && PDC_BUILD >= 2501
+#if ( defined(USE_XCURSES) || defined(USE_SDLCURSES) || defined(USE_WINGUICURSES) ) && PDC_BUILD >= 2501
    /*
     * For the special BOUNDMARK colour, set the curses global colour
     * to the foreground and return
@@ -121,7 +123,7 @@ short area;
             wattrset(CURRENT_WINDOW_FILEAREA,set_colour(CURRENT_FILE->attr+area));
          build_screen(current_screen);
          display_screen(current_screen);
-#if defined(USE_XCURSES) && PDC_BUILD >= 2501
+#if ( defined(USE_XCURSES) || defined(USE_SDLCURSES) || defined(USE_WINGUICURSES) ) && PDC_BUILD >= 2501
          if ( area == ATTR_BOUNDMARK)
          {
             redraw_window(CURRENT_WINDOW_FILEAREA);
@@ -215,18 +217,6 @@ short area;
    }
    TRACE_RETURN();
    return(RC_OK);
-}
-
-#ifdef HAVE_PROTO
-short Birthday(CHARTYPE *params)
-#else
-short Birthday(params)
-CHARTYPE *params;
-#endif
-{
- short rc=RC_OK;
- rc = execute_set_on_off(params,&BIRTHDAYx, TRUE );
- return(rc);
 }
 
 /*man-start*********************************************************************
@@ -403,14 +393,14 @@ CHARTYPE *params;
           * 1 or 2 parameters, validate them...
           */
          if ( equal( word[0], EQUIVCHARstr, 1 ) )
-            arbsts = arbsts;
+            ;
          else
             rc = execute_set_on_off(word[0],&arbsts, TRUE );
          break;
       case 2:
       case 3:
          if ( equal( word[0], EQUIVCHARstr, 1 ) )
-            arbsts = arbsts;
+            ;
          else
          {
             rc = execute_set_on_off(word[0],&arbsts, TRUE );
@@ -422,7 +412,7 @@ CHARTYPE *params;
           * For 2 parameters, check that a single character has been supplied...
           */
          if ( equal( word[1], EQUIVCHARstr, 1 ) )
-            arbchr_multiple = arbchr_multiple;
+            ;
          else
          {
             if (strlen((DEFCHAR *)word[1]) != 1)
@@ -443,7 +433,7 @@ CHARTYPE *params;
           * For 3 parameters, check that a single character has been supplied...
           */
          if ( equal( word[2], EQUIVCHARstr, 1 ) )
-            arbchr_single = arbchr_single;
+            ;
          else
          {
             if (strlen((DEFCHAR *)word[2]) != 1)
@@ -724,7 +714,7 @@ DESCRIPTION
      10 for 'n' would result in the file being automatically saved after
      each 10 alterations have been made to the file.
 
-     It is not possible to set AUTOSAVE for 'psuedo' files such as the
+     It is not possible to set AUTOSAVE for 'pseudo' files such as the
      directory listing 'file', Rexx output 'file' and the key definitions
      'file'
 
@@ -872,7 +862,7 @@ COMMAND
      set backup - indicate if a backup copy of the file is to be kept
 
 SYNTAX
-     [SET] BACKup OFF|TEMP|KEEP|ON|INPLACE
+     [SET] BACKup OFF|TEMP|KEEP|ON|INPLACE [suffix]
 
 DESCRIPTION
      The SET BACKUP command allows the user to determine if a backup copy
@@ -897,9 +887,15 @@ DESCRIPTION
      in place of the original.  This option ensures that all operating
      system file attributes are retained.
 
+     The optional 'suffix' specifies the string to append to the file name
+     of the backup copy including a period if required. The maximum length
+     of 'suffix' is 100 characters.
+     By default this is ".bak".
+
 COMPATIBILITY
      XEDIT: N/A
      KEDIT: Compatible.
+            'suffix' is a THE extension
 
 DEFAULT
      KEEP
@@ -919,23 +915,59 @@ CHARTYPE *params;
 /***********************************************************************/
 {
    short rc=RC_OK;
+#define BAC_PARAMS  2
+   CHARTYPE *word[BAC_PARAMS+1];
+   CHARTYPE strip[BAC_PARAMS];
+   short num_params=0;
 
-   TRACE_FUNCTION("commset1.c:Backup");
-   params = MyStrip( params, STRIP_BOTH, ' ' );
-   if ( equal( (CHARTYPE *)"off", params, 3 ) )
+   TRACE_FUNCTION( "commset1.c:Backup" );
+   strip[0]=STRIP_BOTH;
+   strip[1]=STRIP_BOTH;
+   num_params = param_split( params, word, BAC_PARAMS, WORD_DELIMS, TEMP_PARAM, strip, FALSE );
+   if ( num_params == 0 )
+   {
+      display_error( 3, (CHARTYPE *)"", FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
+   if ( num_params > 2 )
+   {
+      display_error( 2, (CHARTYPE *)"", FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
+   /*
+    * Validate the first parameter
+    */
+   if ( equal( (CHARTYPE *)"off", word[0], 3 ) )
       CURRENT_FILE->backup = BACKUP_OFF;
-   else if ( equal( (CHARTYPE *)"on", params, 2 ) )
+   else if ( equal( (CHARTYPE *)"on", word[0], 2 ) )
       CURRENT_FILE->backup = BACKUP_ON;
-   else if ( equal( (CHARTYPE *)"keep", params, 4 ) )
+   else if ( equal( (CHARTYPE *)"keep", word[0], 4 ) )
       CURRENT_FILE->backup = BACKUP_KEEP;
-   else if ( equal( (CHARTYPE *)"temp", params, 4 ) )
+   else if ( equal( (CHARTYPE *)"temp", word[0], 4 ) )
       CURRENT_FILE->backup = BACKUP_TEMP;
-   else if ( equal( (CHARTYPE *)"inplace", params, 2 ) )
+   else if ( equal( (CHARTYPE *)"inplace", word[0], 2 ) )
       CURRENT_FILE->backup = BACKUP_INPLACE;
    else
    {
-      display_error( 1, params, FALSE );
+      display_error( 1, word[0], FALSE );
       rc = RC_INVALID_OPERAND;
+   }
+   if ( num_params == 2 )
+   {
+      /*
+       * Save the second arg as the backup suffix
+       */
+      if ( strlen( (DEFCHAR *)word[1] ) > 100 )
+      {
+         display_error( 37, word[1], FALSE );
+         rc = RC_INVALID_OPERAND;
+      }
+      else
+      {
+         strcpy( (DEFCHAR *)BACKUP_SUFFIXx, (DEFCHAR *)word[1] );
+      }
    }
    TRACE_RETURN();
    return(rc);
@@ -1060,6 +1092,8 @@ CHARTYPE *params;
       CURRENT_VIEW->boundmark = BOUNDMARK_TABS;
    else if (equal((CHARTYPE *)"verify",word[0],1))
       CURRENT_VIEW->boundmark = BOUNDMARK_VERIFY;
+   else if (equal((CHARTYPE *)"off",word[0],3))
+      CURRENT_VIEW->boundmark = BOUNDMARK_OFF;
    else
    {
       display_error(1,(CHARTYPE *)word[0],FALSE);
@@ -1180,7 +1214,7 @@ CHARTYPE *params;
       return( RC_INVALID_OPERAND );
    }
    /*
-    * Save the current values of each remaining case setting.
+    * Save the current values of each optional case setting.
     */
    parm[1] = CURRENT_VIEW->case_locate;
    parm[2] = CURRENT_VIEW->case_change;
@@ -1199,11 +1233,11 @@ CHARTYPE *params;
             if ( equal( (CHARTYPE *)"mixed", word[i], 1 ) )
                parm[i] = CASE_MIXED;
             else if ( equal( (CHARTYPE *)"upper", word[i], 1 ) )
-               parm[0] = CASE_UPPER;
+               parm[i] = CASE_UPPER;
             else if ( equal( (CHARTYPE *)"lower", word[i], 1 ) )
-               parm[0] = CASE_LOWER;
+               parm[i] = CASE_LOWER;
             else if ( equal( (CHARTYPE *)EQUIVCHARstr, word[i], 1 ) )
-               parm[0] = CURRENT_VIEW->case_enter;
+               parm[i] = CURRENT_VIEW->case_enter;
             else
             {
                display_error( 1, (CHARTYPE *)word[i], FALSE );
@@ -1521,14 +1555,15 @@ CHARTYPE *params;
 }
 /*man-start*********************************************************************
 COMMAND
-     set color - set colours for display
+     set color - set colors for display
 
 SYNTAX
      [SET] COLOR  area [modifier[...]] [foreground] [ON] [background]
      [SET] COLOR  area [modifier[...]] ON|OFF
+     [SET] COLOUR color red blue green
 
 DESCRIPTION
-     The SET COLOR command changes the colours or display attributes of
+     The SET COLOR command changes the colors or display attributes of
      various display areas in THE.
 
      Valid values for 'area':
@@ -1542,6 +1577,7 @@ DESCRIPTION
           Cmdline    - <command line>
           CTofeof    - as for TOfeof if the same as <current line>
           CUrline    - the <current line>
+          CURSORline - the line in <filearea> that the cursor is or was on
           DIALOG     - dialog boxes; see <DIALOG>
           Divider    - dividing line between vertical split screens
           Filearea   - area containing file lines
@@ -1563,7 +1599,7 @@ DESCRIPTION
           TOfeof     - <Top-of-File line> and <Bottom-of-File line>
           *          - All area (second format only)
 
-     Valid values for 'foreground' and 'background':
+     Valid values for 'foreground', 'background' and 'color':
 
           BLAck
           BLUe
@@ -1589,10 +1625,20 @@ DESCRIPTION
           REVerse
           Underline
           DARK
-          Italic - only available on X11 port with valid Italic font
+          Italic - only available on X11 port with valid Italic font and on
+                   Windows with "GUI" PDcurses
 
      The second format of this command allows the user to turn on or off
      any of the valid modifiers.
+
+     The third format of this command allows the user to change the intensity
+     of specified colors on platforms that support changing the content of a
+     color (X11, Windows GUI).  The specified color can be changed by supplying
+     the intensity of red, green and blue. These are numeric values between 0
+     and 1000 inclusive.  eg To change 'red' to 'blue': SET COLOR RED 0 0 1000.
+     All characters being displayed as 'red' will be displayed with the specified
+     intensities. Note that this behaviour is not consistent across platforms, and
+     should be considered experimental at this stage.
 
      It is an error to attempt to set a colour on a mono display.
 
@@ -1617,6 +1663,7 @@ COMMAND
 SYNTAX
      [SET] COLOUR area [modifier[...]] [foreground] [on background]
      [SET] COLOUR area [modifier[...]] ON|OFF
+     [SET] COLOUR colour red blue green
 
 DESCRIPTION
      The SET COLOUR command is a synonym for the <SET COLOR> command.
@@ -1643,13 +1690,14 @@ CHARTYPE *params;
 #endif
 /***********************************************************************/
 {
-#define COL_PARAMS 2
+#define COL_PARAMS_DEF 2
+#define COL_PARAMS_COLOUR 4
 #define COL_MODIFIER_NO_SET  0
 #define COL_MODIFIER_SET_ON  1
 #define COL_MODIFIER_SET_OFF 2
-   CHARTYPE *word[COL_PARAMS+1];
-   CHARTYPE strip[COL_PARAMS];
-   CHARTYPE parm[COL_PARAMS];
+   CHARTYPE *word[COL_PARAMS_COLOUR+1];
+   CHARTYPE strip[COL_PARAMS_COLOUR];
+   CHARTYPE parm[COL_PARAMS_COLOUR];
    register short i=0;
    unsigned short num_params=0;
    short area=-1;
@@ -1658,11 +1706,15 @@ CHARTYPE *params;
    bool any_colours=FALSE;
    short word1_len,modifier_set=COL_MODIFIER_NO_SET;
    bool window_set[MAX_THE_WINDOWS];
+   int clr;
+   int cont[3];
 
    TRACE_FUNCTION("commset1.c:Colour");
    strip[0]=STRIP_BOTH;
    strip[1]=STRIP_BOTH;
-   num_params = param_split(params,word,COL_PARAMS,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
+   strip[2]=STRIP_BOTH;
+   strip[3]=STRIP_BOTH;
+   num_params = param_split(params,word,COL_PARAMS_DEF,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
    if (num_params < 2 )
    {
       display_error(3,(CHARTYPE *)"",FALSE);
@@ -1673,63 +1725,94 @@ CHARTYPE *params;
     * Check which format of this command we are running.
     * If the last word is ON or OFF then we are executing the
     * second format.
+    * If the first word is a colour, it is format three.
     */
    word1_len = strlen( (DEFCHAR *)word[1] );
-   if ( my_stricmp( (DEFCHAR *)word[1]+word1_len-2, "ON" ) == 0 )
-      modifier_set = COL_MODIFIER_SET_ON;
-   else if ( my_stricmp( (DEFCHAR *)word[1]+word1_len-3, "OFF" ) == 0 )
-      modifier_set = COL_MODIFIER_SET_OFF;
-   if ( modifier_set )
+   clr = is_valid_colour( word[0] );
+   if ( clr == (-1) )
    {
-      /*
-       * Check that first parameter is an area or '*'
-       */
-      parm[0] = FALSE;
-      if ( strcmp( (DEFCHAR *)word[0], "*" ) == 0 )
+      if ( my_stricmp( (DEFCHAR *)word[1]+word1_len-3, " ON" ) == 0 )
+         modifier_set = COL_MODIFIER_SET_ON;
+      else if ( my_stricmp( (DEFCHAR *)word[1]+word1_len-4, " OFF" ) == 0 )
+         modifier_set = COL_MODIFIER_SET_OFF;
+      if ( modifier_set )
       {
-         area = -1;
-         parm[0] = TRUE;
-      }
-      else
-      {
-         for ( i = 0; i < ATTR_MAX; i++ )
+         /*
+          * Check that first parameter is an area or '*'
+          */
+         parm[0] = FALSE;
+         if ( strcmp( (DEFCHAR *)word[0], "*" ) == 0 )
          {
-            if (equal(valid_areas[i].area,word[0],valid_areas[i].area_min_len))
+            area = -1;
+            parm[0] = TRUE;
+         }
+         else
+         {
+            for ( i = 0; i < ATTR_MAX; i++ )
             {
-               parm[0] = TRUE;
-               area = i;
-               break;
+               if (equal(valid_areas[i].area,word[0],valid_areas[i].area_min_len))
+               {
+                  parm[0] = TRUE;
+                  area = i;
+                  break;
+               }
             }
          }
-      }
-      if (parm[0] == FALSE)
-      {
-         display_error(1,(CHARTYPE *)word[0],FALSE);
-         TRACE_RETURN();
-         return(RC_INVALID_OPERAND);
-      }
-      /*
-       * Check that each subsequent parameter (except the last) is
-       * a modifier.
-       */
-      if ( parse_modifiers( word[1], &tmp_attr ) != RC_OK )
-      {
-         TRACE_RETURN();
-         return(RC_INVALID_OPERAND);
-      }
-      /*
-       * For each area, turn off the modifiers and redraw the affected part of
-       * the screen
-       */
-      if ( area == (-1) )
-      {
-         for ( i = 0; i < MAX_THE_WINDOWS; i++ )
+         if (parm[0] == FALSE)
          {
-            window_set[i] = FALSE;
+            display_error(1,(CHARTYPE *)word[0],FALSE);
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
          }
-         for ( i = 0; i < ATTR_MAX; i++ )
+         /*
+          * Check that each subsequent parameter (except the last) is
+          * a modifier.
+          */
+         if ( parse_modifiers( word[1], &tmp_attr ) != RC_OK )
          {
-            attr = CURRENT_FILE->attr[i];
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+         }
+         /*
+          * For each area, turn off the modifiers and redraw the affected part of
+          * the screen
+          */
+         if ( area == (-1) )
+         {
+            for ( i = 0; i < MAX_THE_WINDOWS; i++ )
+            {
+               window_set[i] = FALSE;
+            }
+            for ( i = 0; i < ATTR_MAX; i++ )
+            {
+               attr = CURRENT_FILE->attr[i];
+               if ( modifier_set == COL_MODIFIER_SET_ON )
+               {
+                  if ( colour_support )
+                     attr.mod |= tmp_attr.mod;
+                  else
+                     attr.mono |= tmp_attr.mono;
+               }
+               else
+               {
+                  if ( colour_support )
+                     attr.mod &= ~tmp_attr.mod;
+                  else
+                     attr.mono &= ~tmp_attr.mono;
+               }
+               CURRENT_FILE->attr[i] = attr;
+               if ( i == ATTR_BOUNDMARK
+               ||   i == ATTR_NONDISP
+               ||   window_set[valid_areas[i].area_window] == FALSE )
+               {
+                  set_active_colour( i );
+                  window_set[valid_areas[i].area_window] = TRUE;
+               }
+            }
+         }
+         else
+         {
+            attr = CURRENT_FILE->attr[area];
             if ( modifier_set == COL_MODIFIER_SET_ON )
             {
                if ( colour_support )
@@ -1744,73 +1827,91 @@ CHARTYPE *params;
                else
                   attr.mono &= ~tmp_attr.mono;
             }
-            CURRENT_FILE->attr[i] = attr;
-            if ( i == ATTR_BOUNDMARK
-            ||   i == ATTR_NONDISP
-            ||   window_set[valid_areas[i].area_window] == FALSE )
-            {
-               set_active_colour( i );
-               window_set[valid_areas[i].area_window] = TRUE;
-            }
+            CURRENT_FILE->attr[area] =attr;
+            set_active_colour( area );
          }
       }
       else
       {
+         /*
+          * Check that the supplied area matches one of the values in the area
+          * array and that the length is at least as long as the minimum.
+          */
+         parm[0] = FALSE;
+         for (i=0;i<ATTR_MAX;i++)
+         {
+            if (equal(valid_areas[i].area,word[0],valid_areas[i].area_min_len))
+            {
+               parm[0] = TRUE;
+               area = i;
+               break;
+            }
+         }
+         if (parm[0] == FALSE)
+         {
+            display_error(1,(CHARTYPE *)word[0],FALSE);
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+         }
          attr = CURRENT_FILE->attr[area];
-         if ( modifier_set == COL_MODIFIER_SET_ON )
+         /*
+          * Determine colours and modifiers.
+          */
+         if (parse_colours(word[1],&attr,&dummy,FALSE,&any_colours) != RC_OK)
          {
-            if ( colour_support )
-               attr.mod |= tmp_attr.mod;
-            else
-               attr.mono |= tmp_attr.mono;
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
          }
-         else
-         {
-            if ( colour_support )
-               attr.mod &= ~tmp_attr.mod;
-            else
-               attr.mono &= ~tmp_attr.mono;
-         }
-         CURRENT_FILE->attr[area] =attr;
+         /*
+          * Now we have the new colours, save them with the current file...
+          */
+         CURRENT_FILE->attr[area] = attr;
          set_active_colour( area );
       }
    }
    else
    {
-      /*
-       * Check that the supplied area matches one of the values in the area
-       * array and that the length is at least as long as the minimum.
-       */
-      parm[0] = FALSE;
-      for (i=0;i<ATTR_MAX;i++)
+      /* can the terminal support changing colour? */
+      if ( !can_change_color() )
       {
-         if (equal(valid_areas[i].area,word[0],valid_areas[i].area_min_len))
+         display_error( 61, (CHARTYPE *)"Changing colors unsupported.", FALSE );
+         TRACE_RETURN();
+         return(RC_INVALID_ENVIRON);
+      }
+      /* SET COLOUR colour red green blue */
+      num_params = param_split( params, word, COL_PARAMS_COLOUR, WORD_DELIMS, TEMP_PARAM, strip, FALSE );
+      if ( num_params != 4 )
+      {
+         display_error(3,(CHARTYPE *)"",FALSE);
+         TRACE_RETURN();
+         return(RC_INVALID_OPERAND);
+      }
+      /*
+       * Validate the colour contents
+       */
+      for ( i = 1; i < 4; i++ )
+      {
+         if ( !valid_positive_integer( word[i] ) )
          {
-            parm[0] = TRUE;
-            area = i;
-            break;
+            display_error(4, (CHARTYPE *)word[i], FALSE );
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+         }
+         cont[i-1] = atoi( (DEFCHAR *)word[i] );
+         if ( cont[i-1]  < 0 )
+         {
+            display_error(5, (CHARTYPE *)word[i], FALSE );
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+         }
+         if ( cont[i-1]  > 1000 )
+         {
+            display_error(6, (CHARTYPE *)word[i], FALSE );
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
          }
       }
-      if (parm[0] == FALSE)
-      {
-         display_error(1,(CHARTYPE *)word[0],FALSE);
-         TRACE_RETURN();
-         return(RC_INVALID_OPERAND);
-      }
-      attr = CURRENT_FILE->attr[area];
-      /*
-       * Determine colours and modifiers.
-       */
-      if (parse_colours(word[1],&attr,&dummy,FALSE,&any_colours) != RC_OK)
-      {
-         TRACE_RETURN();
-         return(RC_INVALID_OPERAND);
-      }
-      /*
-       * Now we have the new colours, save them with the current file...
-       */
-      CURRENT_FILE->attr[area] = attr;
-      set_active_colour( area );
+      init_color( clr, cont[0], cont[1], cont[2] );
    }
    TRACE_RETURN();
    return(RC_OK);
@@ -1974,8 +2075,8 @@ DESCRIPTION
 
      This command is most useful as the first <SET> command in a
      profile file. It will change the default settings of THE to
-     initially look like the chosen editor. You can then make any
-     additional changes in THE by issuing other <SET> commands.
+     initially look and behave like the chosen editor. You can then
+     make any additional changes in THE by issuing other <SET> commands.
 
      It is recommended that this command NOT be executed from the
      command line, particularly if you have 2 files being displayed
@@ -2251,7 +2352,7 @@ COMMAND
 SYNTAX
      [SET] CTLchar OFF
      [SET] CTLchar char Escape | OFF
-     [SET] CTLchar char Protect|Noprotect [modifier[...]] [fore [ON back]]
+     [SET] CTLchar char Protect|Noprotect [modifier[...]] fore [ON back]
 
 DESCRIPTION
      The SET CTLCHAR command defines control characters to be used when
@@ -2353,7 +2454,7 @@ CHARTYPE *params;
              * Turns off the escape character in word[0]
              * Find the entry in
              */
-            for (i=0;i<MAX_CTLCHARS;i++)
+            for ( i = 0; i < MAX_CTLCHARS; i++ )
             {
                if (ctlchar_char[i] == word[0][0])
                {
@@ -2361,6 +2462,39 @@ CHARTYPE *params;
                   break;
                }
             }
+            /*
+             * Find the first spare CTLCHAR spec for the supplied character
+             * and add it.
+             */
+            found = FALSE;
+            for (i=0;i<MAX_CTLCHARS;i++)
+            {
+               if (ctlchar_char[i] == 0)
+               {
+                  ctlchar_char[i] = word[0][0];
+                  ctlchar_attr[i].pair = -1;
+                  found = TRUE;
+                  break;
+               }
+            }
+            if (!found)
+            {
+               display_error(80,(CHARTYPE *)"",FALSE);
+               TRACE_RETURN();
+               return(RC_INVALID_OPERAND);
+            }
+         }
+         else if (equal((CHARTYPE *)"protect",word[1],1))
+         {
+            display_error(3,(CHARTYPE *)"",FALSE);
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+         }
+         else if (equal((CHARTYPE *)"noprotect",word[1],1))
+         {
+            display_error(3,(CHARTYPE *)"",FALSE);
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
          }
          else
          {
@@ -2395,11 +2529,12 @@ CHARTYPE *params;
           * Find any existing CTLCHAR spec for the supplied character
           * and turn it off...
           */
-         for (i=0;i<MAX_CTLCHARS;i++)
+         for ( i = 0; i < MAX_CTLCHARS; i++ )
          {
             if (ctlchar_char[i] == word[0][0])
             {
                ctlchar_char[i] = 0;
+               ctlchar_protect[i] = FALSE;
                break;
             }
          }
@@ -2414,6 +2549,7 @@ CHARTYPE *params;
             {
                ctlchar_char[i] = word[0][0];
                ctlchar_attr[i] = attr;
+               ctlchar_protect[i] = protect;
                found = TRUE;
                break;
             }
@@ -3314,6 +3450,12 @@ CHARTYPE *params;
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
+   if ( display_length != 0
+   &&   eolchar != EOLOUT_NONE )
+   {
+      display_error( 0, (CHARTYPE *)"Warning: Setting EOLOUT will result in extra characters appended to each line on SAVE/FILE!", FALSE );
+   }
+
    EOLx = CURRENT_FILE->eolout = eolchar;
    TRACE_RETURN();
    return(RC_OK);
@@ -3376,6 +3518,45 @@ CHARTYPE *params;
     * Save it.
     */
    EQUIVCHARstr[0] = EQUIVCHARx = *(params);
+   TRACE_RETURN();
+   return(rc);
+}
+/*man-start*********************************************************************
+COMMAND
+     set erroroutput - indicate whether THE error messages are echoed to screen
+
+SYNTAX
+     [SET] ERROROUTput ON|OFF
+
+DESCRIPTION
+     With SET ERROROUTPUT OFF, THE error messages are shown in the MSGLINE.
+     With SET ERROROUTPUT ON, THE error messages are also displayed in the window
+     in which THE was started, provided one exists.
+     This is particularly useful when tracing THE macros as the error message
+     is shown afte the invocation of the command that caused the error.
+
+COMPATIBILITY
+     XEDIT: N/A
+     KEDIT: N/A
+
+DEFAULT
+     OFF
+
+STATUS
+     Complete.
+**man-end**********************************************************************/
+#ifdef HAVE_PROTO
+short Erroroutput(CHARTYPE *params)
+#else
+short Erroroutput(params)
+CHARTYPE *params;
+#endif
+/***********************************************************************/
+{
+   short rc=RC_OK;
+
+   TRACE_FUNCTION("commset1.c:Erroroutput");
+   rc = execute_set_on_off(params,&ERROROUTPUTx, TRUE );
    TRACE_RETURN();
    return(rc);
 }
@@ -3628,12 +3809,9 @@ SYNTAX
      [SET] FType ext
 
 DESCRIPTION
-     The SET FEXT command allows the user to change the path of
-     the file currently being edited.
-
-     The 'path' parameter can be specified with or without the
-     trailing directory seperator.  Under DOS, OS/2 and Windows ports,
-     the drive letter is considered part of the file's path.
+     The SET FEXT command allows the user to change the extension of
+     the file currently being edited. The extension is the characters
+     after the last period.
 
      See <SET FILENAME> for a full explanation of THE's definitions
      of fpath, filename, fname, fext and fmode.
@@ -3708,6 +3886,15 @@ CHARTYPE *params;
       return(RC_OK);
    }
    /*
+    * Check we don't already have this filename in the ring
+    */
+   if ( is_file_in_ring( CURRENT_FILE->fpath, sp_fname ) )
+   {
+      display_error( 76, tmp_name, FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
+   /*
     * If the length of the new path is > the existing one,
     * free up any memory for the existing path and allocate some
     * more. Save the new path.
@@ -3746,7 +3933,7 @@ DESCRIPTION
 
      In THE, a fully qualified file name consists of a file path and a
      file name.  THE treats all characters up to and including the
-     last directory seperator (usually / or \) as the file's path.
+     last directory separator (usually / or \) as the file's path.
      From the first character after the end of the file's path, to
      the end of the fully qualified file name is the file name.
 
@@ -3843,7 +4030,7 @@ CHARTYPE *params;
    /*
     * If a = is specified...
     */
-   if ( strcmp( (DEFCHAR*)EQUIVCHARstr, (DEFCHAR*)params ) == 0 )
+   if ( equal( params, EQUIVCHARstr, 1 ) )
    {
       TRACE_RETURN();
       return(RC_OK);
@@ -3928,6 +4115,15 @@ CHARTYPE *params;
       return(RC_OK);
    }
    /*
+    * Check we don't already have this filename in the ring
+    */
+   if ( is_file_in_ring( CURRENT_FILE->fpath, sp_fname ) )
+   {
+      display_error( 76, tmp_name, FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
+   /*
     * If the length of the new filename is > the existing one,
     * free up any memory for the existing name and allocate some
     * more. Save the new name.
@@ -3997,6 +4193,15 @@ CHARTYPE *params;
    rc = execute_set_on_off( params, &FILETABSx , TRUE );
    if ( save_filetabs != FILETABSx )
    {
+      if ( FILETABSx && filetabs == (WINDOW *)NULL )
+      {
+         create_filetabs_window();
+      }
+      else if ( !FILETABSx && filetabs != (WINDOW *)NULL )
+      {
+         delwin( filetabs );
+         filetabs = (WINDOW *)NULL;
+      }
       /*
        * To get here something has changed, so rebuild the windows and
        * display the screen.
@@ -4140,6 +4345,15 @@ CHARTYPE *params;
       return(RC_OK);
    }
    /*
+    * Check we don't already have this filename in the ring
+    */
+   if ( is_file_in_ring( sp_path, CURRENT_FILE->fname ) )
+   {
+      display_error( 76, tmp_name, FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
+   /*
     * If the length of the new path is > the existing one,
     * free up any memory for the existing path and allocate some
     * more. Save the new path.
@@ -4272,6 +4486,15 @@ CHARTYPE *params;
       return(RC_OK);
    }
    /*
+    * Check we don't already have this filename in the ring
+    */
+   if ( is_file_in_ring( CURRENT_FILE->fpath, sp_fname ) )
+   {
+      display_error( 76, tmp_name, FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
+   /*
     * If the length of the new path is > the existing one,
     * free up any memory for the existing path and allocate some
     * more. Save the new path.
@@ -4309,7 +4532,7 @@ DESCRIPTION
      the file currently being edited.
 
      The 'path' parameter can be specified with or without the
-     trailing directory seperator.  Under DOS, OS/2 and Windows ports,
+     trailing directory separator.  Under DOS, OS/2 and Windows ports,
      the drive letter is considered part of the file's path.
 
      See <SET FILENAME> for a full explanation of THE's definitions
@@ -4335,6 +4558,7 @@ CHARTYPE *params;
 #endif
 /***********************************************************************/
 {
+   CHARTYPE tmp_name[MAX_FILE_NAME+1];
    short rc=RC_OK;
 
    TRACE_FUNCTION("commset1.c:Fpath");
@@ -4387,6 +4611,16 @@ CHARTYPE *params;
    {
       TRACE_RETURN();
       return(RC_OK);
+   }
+   /*
+    * Check we don't already have this filename in the ring
+    */
+   if ( is_file_in_ring( sp_path, CURRENT_FILE->fname ) )
+   {
+      sprintf( (DEFCHAR *)tmp_name, "%s%s", (CHARTYPE *)sp_path, CURRENT_FILE->fname );
+      display_error( 76, tmp_name, FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
    }
    /*
     * If the length of the new path is > the existing one,
@@ -4492,8 +4726,8 @@ DESCRIPTION
      'section' refers to one of the following headers that can be specified
      in a TLD file:
      NUMBER, COMMENT, STRING, KEYWORD, FUNCTION, HEADER, LABEL, MATCH,
-     COLUMN, POSTCOMPARE, MARKUP.
-     'section' can also be specified as '*', in which case, all headers
+     COLUMN, POSTCOMPARE, MARKUP, DIRECTORY.
+     'section' can also be specified as '*', in which case all headers
      are applied or not applied.
 
 COMPATIBILITY
@@ -4602,7 +4836,7 @@ DESCRIPTION
 COMPATIBILITY
      XEDIT: Adds support for decimal representation. See below.
      KEDIT: Compatible. See below.
-     Spaces must seperate each character representation.
+     Spaces must separate each character representation.
 
 DEFAULT
      OFF
@@ -4975,7 +5209,7 @@ SYNTAX
      [SET] IMPcmscp ON|OFF
 
 DESCRIPTION
-     The SET IMPCMSCP command is used to toggle implied operating system
+     The SET IMPCMSCP command is used to set implied operating system
      command processing from the command line. By turning this feature
      on you can then issue an operating system command without the need
      to prefix the operating system command with the <OS> command.
@@ -5002,7 +5236,7 @@ SYNTAX
      [SET] IMPMACro ON|OFF
 
 DESCRIPTION
-     The SET IMPMACRO command is used to toggle implied macro processing
+     The SET IMPMACRO command is used to set implied macro processing
      from the command line. By turning this feature on you can then
      issue a <macro> command without the need to prefix the macro name
      with the <MACRO> command.
@@ -5043,7 +5277,7 @@ SYNTAX
      [SET] IMPOS ON|OFF
 
 DESCRIPTION
-     The SET IMPOS command is used to toggle implied operating system
+     The SET IMPOS command is used to set implied operating system
      command processing from the command line. By turning this feature
      on you can then issue an operating system command without the need
      to prefix the operating system command with the <OS> command.
@@ -5201,7 +5435,7 @@ DESCRIPTION
      developed by IBM.  This command specifies that CUA behaiour should
      occur on various actions during the edit session.
 
-     The major differences between CLASSIC and CUA behaviour, involve
+     The major differences between CLASSIC and CUA behaviour involve
      keyboard and mouse actions. Various THE commands have CUA options to
      allow the user to customise the behaviour individual keys or the
      mouse to behave in a CUA manner.
@@ -5334,7 +5568,12 @@ CHARTYPE *params;
    }
    else
    {
-      strcpy( (DEFCHAR *)lastop[i].value, (DEFCHAR *)word[1] );
+      rc = save_lastop( i, word[1] );
+      if ( rc != RC_OK )
+      {
+         display_error( 30, (CHARTYPE *)"", FALSE );
+         rc = RC_OUT_OF_MEMORY;
+      }
    }
    TRACE_RETURN();
    return(rc);
@@ -5389,8 +5628,8 @@ CHARTYPE *params;
    CHARTYPE *save_params;
    short num_params=0,num_flags;
    short rc=RC_OK;
-   short target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
-   short save_target_type=TARGET_UNFOUND;
+   long target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
+   long save_target_type=TARGET_UNFOUND;
    TARGET target;
    bool num_lines_based_on_scope=FALSE,no_flag=FALSE;
    unsigned int new_flag=2;
@@ -5733,7 +5972,7 @@ SYNTAX
 
 DESCRIPTION
      The SET MACROPATH command sets up the search path from which macro
-     command files are executed. Each directory is seperated by a
+     command files are executed. Each directory is separated by a
      colon (Unix) or semi-colon (DOS & OS/2). Only 20 directories are
      allowed to be specified.
 
@@ -6372,14 +6611,14 @@ COMMAND
      set msgmode - set display of messages on or off
 
 SYNTAX
-     [SET] MSGMode ON|OFF
+     [SET] MSGMode ON|OFF [Short|Long]
 
 DESCRIPTION
      The SET MSGMODE set command determines whether error messages will
      be displayed or suppressed.
 
 COMPATIBILITY
-     XEDIT: Does not support [Short|Long] options.
+     XEDIT: Does not implement [Short|Long] options.
      KEDIT: Compatible
 
 DEFAULT
@@ -6396,12 +6635,59 @@ CHARTYPE *params;
 #endif
 /***********************************************************************/
 {
+#define MSGM_PARAMS  2
+   CHARTYPE *word[MSGM_PARAMS+1];
+   CHARTYPE strip[MSGM_PARAMS];
+   short num_params=0;
    short rc=RC_OK;
+   bool new_msgmode=FALSE;
 
    TRACE_FUNCTION("commset1.c:Msgmode");
-   rc = execute_set_on_off(params,&CURRENT_VIEW->msgmode_status, TRUE );
+   strip[0]=STRIP_BOTH;
+   strip[1]=STRIP_BOTH;
+   num_params = param_split(params,word,MSGM_PARAMS,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
+   if ( num_params < 1 )
+   {
+      display_error( 3,(CHARTYPE *)"",FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
+   /*
+    * Parse the status parameter...
+    */
+   rc = execute_set_on_off( word[0],&new_msgmode, TRUE );
+   if (rc != RC_OK)
+   {
+      TRACE_RETURN();
+      return(rc);
+   }
+   /*
+    * If present the second argument is validated but ignored...
+    */
+   if ( num_params > 1 )
+   {
+      if ( equal( (CHARTYPE *)"SHORT", word[1], 1 ) )
+      {
+         /*
+          * Ignore
+          */
+      }
+      else if ( equal( (CHARTYPE *)"LONG", word[1], 1 ) )
+      {
+         /*
+          * Ignore
+          */
+      }
+      else
+      {
+         display_error( 1, word[1], FALSE );
+         TRACE_RETURN();
+         return(RC_INVALID_OPERAND);
+      }
+   }
+   CURRENT_VIEW->msgmode_status = new_msgmode;
    TRACE_RETURN();
-   return(rc);
+   return(RC_OK);
 }
 /*man-start*********************************************************************
 COMMAND
@@ -6529,7 +6815,7 @@ SYNTAX
      [SET] NUMber ON|OFF
 
 DESCRIPTION
-     The SET NUMBER command allows the user to toggle the display of
+     The SET NUMBER command allows the user to set the display of
      numbers in the <prefix area>.
 
 COMPATIBILITY

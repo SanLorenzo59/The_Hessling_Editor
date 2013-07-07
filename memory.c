@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,14 +29,13 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  *
  * The code in this module is borrowed from:
  * The Regina Rexx Interpreter
  * Copyright (C) 1992-1994  Anders Christensen <anders@pvv.unit.no>
  */
 
-static char RCSid[] = "$Id: memory.c,v 1.5 2002/10/22 09:59:20 mark Exp $";
 
 /*
  * The routines in this file try to minimize the the number of calls
@@ -46,37 +45,37 @@ static char RCSid[] = "$Id: memory.c,v 1.5 2002/10/22 09:59:20 mark Exp $";
  * interpreter grow. Memory are allocated in only certain sizes, and
  * are "freed" to a freelist, which is within the interpreter.
  *
- * The important routines are get_a_chunk() and give_a_chunk(), which 
+ * The important routines are get_a_chunk() and give_a_chunk(), which
  * might be called a large number of times. All the other routines are
- * either called once to initiate, or it is used in tracing and 
- * debugging, where speed and space is not important anyway. 
+ * either called once to initiate, or it is used in tracing and
+ * debugging, where speed and space is not important anyway.
  *
  * The algorithm works something like this: memory can only be allocated
- * in predetermined sizes (8, 12, 16, 24, 32, ...) and allocation of a 
+ * in predetermined sizes (8, 12, 16, 24, 32, ...) and allocation of a
  * size other than that will have to allocate something slightly bigger.
- * For each size, there is a linked list of free pieces of memory of 
- * that size, the first entry of each of these lists can be accessed 
- * through 'flists', which is an array of pointers to these lists. 
+ * For each size, there is a linked list of free pieces of memory of
+ * that size, the first entry of each of these lists can be accessed
+ * through 'flists', which is an array of pointers to these lists.
  *
- * Every time someone needs a piece of memory, the first piece of the 
- * freelist containing memory of suitable size (as big or slightly 
- * bigger) is returned. If the list is empty, a large piece of 
+ * Every time someone needs a piece of memory, the first piece of the
+ * freelist containing memory of suitable size (as big or slightly
+ * bigger) is returned. If the list is empty, a large piece of
  * memory is allocated by malloc(), chopped up and put on the freelist
- * that was empty. 
+ * that was empty.
  *
- * When memory is released, the prime problem is to decide which 
- * freelist to put it on. To manage that, each time memory is 
- * allocated by malloc(), the upper and lower address of the memory 
+ * When memory is released, the prime problem is to decide which
+ * freelist to put it on. To manage that, each time memory is
+ * allocated by malloc(), the upper and lower address of the memory
  * is put in hashtable; given a particular address, the hashtable
- * can be sought using the address as hashvalue, and the result will 
+ * can be sought using the address as hashvalue, and the result will
  * be the size of the memory chunks at that address.
  *
- * When dealloacting strings, we know the max-size of the string, and 
+ * When dealloacting strings, we know the max-size of the string, and
  * then we can calculate which freelist the string should be put on,
  * without having to search the hashtable structure. Note that there
  * is no need to deallocate strings using the give_a_string() function,
  * the normal give_a_chunk() will work just as well, but is somewhat
- * slower. 
+ * slower.
  *
  * If you don't #define FLISTS, then malloc() and free() should be
  * used instead. That might be very slow on some machines, since rexx
@@ -85,11 +84,11 @@ static char RCSid[] = "$Id: memory.c,v 1.5 2002/10/22 09:59:20 mark Exp $";
  * the routines defined here.
  *
  * Note that using this metod, the last piece of memory freed will be
- * the first to be used when more memory is needed. 
+ * the first to be used when more memory is needed.
  *
- * The number of calls to malloc() seems to be negligable when using 
+ * The number of calls to malloc() seems to be negligable when using
  * this metod (typical less than 100 for medium sized programs). But
- * this is of course dependent on how the program uses memory. 
+ * this is of course dependent on how the program uses memory.
  *
  * extention for debugging purposes. Whenever memory is allocated,
  * used like this:
@@ -97,30 +96,30 @@ static char RCSid[] = "$Id: memory.c,v 1.5 2002/10/22 09:59:20 mark Exp $";
  *   0       4       8      12       16 bytes
  *   | count |f|m|seq| prev  | next  | start of allocated memory
  *
- * The 'count' is the number of bytes allocated, 'f' (flag) is used in 
- * garbage collection, and 'prev' and 'next' are pointers used in a 
- * double linked list. seqv is a sequence number which is iterated 
+ * The 'count' is the number of bytes allocated, 'f' (flag) is used in
+ * garbage collection, and 'prev' and 'next' are pointers used in a
+ * double linked list. seqv is a sequence number which is iterated
  * for each memoryallocation.
- * 
- * count is int, prev and next are char*, f is char and seqv is a 
- * 16 bit integer. The 'm' is a magic number. Actually it is just 
+ *
+ * count is int, prev and next are char*, f is char and seqv is a
+ * 16 bit integer. The 'm' is a magic number. Actually it is just
  * there to fill the space, and can be used for more useful purposed
  * if needed.
  *
  * memory with bitpatterns. If the PATTERN_MEMORY cpp-variable is set,
  * is set BEEN_USED before deallocation.
- * 
+ *
  * Garbage-collection is not implemented, but listleaked will list out
  * every chunk of allocated memory that are not currently in use. The
  * array markptrs contains a list of functions for marking memory.
- * There is a potensial problem with garbage collection, since the 
+ * There is a potensial problem with garbage collection, since the
  * interpreter might 'loose' some memory everytime it hits a syntax
- * error, like "say random(.5)". To fix that, memory should either 
- * be traced and then garbage collected, or it should have a sort 
+ * error, like "say random(.5)". To fix that, memory should either
+ * be traced and then garbage collected, or it should have a sort
  * of transaction oriented memory management (yuk!).
  *
  *      this:  sizeof(int) = sizeof(char*) = 32 bits. It might work
- *      guarantee it. 
+ *      guarantee it.
  *
  */
 #include <stdio.h>
@@ -171,37 +170,37 @@ void the_free_flists( void )
 
 #ifdef FLISTS
 
-/* 
- * CHUNK_SIZE it the size in which memory is allocated using malloc(), 
- * and that memory is then divided into pieces of the wanted size. 
- * If you increase it, things will work slightly faster, but more 
+/*
+ * CHUNK_SIZE it the size in which memory is allocated using malloc(),
+ * and that memory is then divided into pieces of the wanted size.
+ * If you increase it, things will work slightly faster, but more
  * memory is wasted, and vice versa. The 'right' size is dependent on
  * your machine, rexx scripts and your personal taste.
  */
 #define CHUNK_SIZE (8192)
 
 /*
- * MAX_INTERNAL_SIZE is the max size of individual pieces of memory 
+ * MAX_INTERNAL_SIZE is the max size of individual pieces of memory
  * that this system will handle itself. If bigger pieces are requested
- * it will just forward the request to malloc()/free(). Note that 
+ * it will just forward the request to malloc()/free(). Note that
  * this value should be less than or equal to CHUNK_SIZE.
  */
 #define MAX_INTERNAL_SIZE (4096)
 
-/* 
+/*
  * MEMINFO_HASHSIZE is the size of the 'hashtable' used to find the size
- * of a chunk of memory, given an address of a byte within that chunk. 
+ * of a chunk of memory, given an address of a byte within that chunk.
  * Actually, this isn't much of a real hashtable, but still. Allocating
- * large value will not make much harm other than wasting memory. Using 
+ * large value will not make much harm other than wasting memory. Using
  * too small value can seriously degrade execution. The optimal size
- * is such that MEMINFO_HASHSIZE * CHUNK_SIZE is only slight bigger 
- * than the actual use of memory in your rexx script (including the 
+ * is such that MEMINFO_HASHSIZE * CHUNK_SIZE is only slight bigger
+ * than the actual use of memory in your rexx script (including the
  * memory that will be wasted)
  */
 #define MEMINFO_HASHSIZE (499)
 
-/* 
- * GET_SIZE() is a 'function' that returns a index into the 'hash' 
+/*
+ * GET_SIZE() is a 'function' that returns a index into the 'hash'
  * variable, given a specific number. The index returned will be the
  * index of the ptr to the list of free memory entries that is identical
  * or slightly bigger than the parameter in size.
@@ -213,35 +212,35 @@ void the_free_flists( void )
  * just shift away some of the lower bits and fold the result around
  * the 'hashtable'. Note that '13' is corresponent to CHUNK_SIZE, since
  * 8192 == 1<<13, which is the optimal size. If you change one of them
- * be sure to change the other. 
- * 
+ * be sure to change the other.
+ *
  * Maybe we could eliminate a division by letting MEMINFO_HASHSIZE have
  * a number equal to a binary 'round' number (e.g. 512). There is no
- * need to keep the size a prime number, since the elements in the 
+ * need to keep the size a prime number, since the elements in the
  * table *will* be well distributed.
  */
 #define mem_hash_func(a) (((a)>>13)%MEMINFO_HASHSIZE)
 
-/* 
+/*
  * Here are the list of the 'approved' sizes. Memory is only allocatable
  * in these sizes. If you need anything else, use the lowest number that
  * is higher than what you need.
  *
- * Why exactly these numbers? Why not? Note that these are a subset 
- * of the series {8,16,32,64,128...} and {12,24,48,96} mingled together. 
- * Note that you can not allocate memory in smaller sizes than is 
- * possible to fit a pointer (to char and/or void) into. Also take 
+ * Why exactly these numbers? Why not? Note that these are a subset
+ * of the series {8,16,32,64,128...} and {12,24,48,96} mingled together.
+ * Note that you can not allocate memory in smaller sizes than is
+ * possible to fit a pointer (to char and/or void) into. Also take
  * into consideration that all these sizes should be aligned according
  * to the size of ints and pointers, so don't make them too small.
  */
 #define NUMBER_SIZES 19
-static const int sizes[NUMBER_SIZES] = 
-                     {    8,   12,   16,   24,   32,   48,   64,   96, 
-                        128,  192 , 256,  384,  512,  768, 1024, 1536, 
+static const int sizes[NUMBER_SIZES] =
+                     {    8,   12,   16,   24,   32,   48,   64,   96,
+                        128,  192 , 256,  384,  512,  768, 1024, 1536,
                        2048, 3072, 4096 } ;
 
-/* 
- * The array of pointers to the freelists having memory of the sizes 
+/*
+ * The array of pointers to the freelists having memory of the sizes
  * specified in 'sizes'. I.e. theflists[0] is a pointer to a linked list
  * of free memory chunks of size 8, flist[1] to memory of size 12 etc.
  * The size of this array is the same as the size of 'sizes'.
@@ -249,13 +248,13 @@ static const int sizes[NUMBER_SIZES] =
 static char *theflists[NUMBER_SIZES] = { NULL } ;
 
 /*
- * The type meminfo holds the info about the connection between the 
+ * The type meminfo holds the info about the connection between the
  * address of allocated memory and the size of that memory. When new
  * memory is allocated by malloc(), in size CHUNK_SIZE, a new box of
  * meminfo is created, which holds the address returned from malloc()
  * and the size in which the chunk was divided {8,12,16,24,32...}.
  */
-typedef struct meminfo_type 
+typedef struct meminfo_type
 {
    char *start ;                /* start of memory's address */
    char *last ;                 /* end of memory's address */
@@ -263,16 +262,16 @@ typedef struct meminfo_type
    int size ;                   /* size of chunks at that address */
 } meminfo ;
 
-/* 
+/*
  * The 'hashtable'. Used for quick access to the size of a chunk of
  * memory, given its address.
  */
 static meminfo *hashtable[ MEMINFO_HASHSIZE ] = { NULL } ;
 
-/* 
+/*
  * Array used for rounding a number to an 'approved' size, i.e. a size
- * in which the interpreter will allocate memory. Remember that the 
- * approved sizes are {8,12,16,24,32 ...}? This function will return 
+ * in which the interpreter will allocate memory. Remember that the
+ * approved sizes are {8,12,16,24,32 ...}? This function will return
  * 8 for 1 through 8; 12 for 9 through 12; 16 for 13 through 16 etc.
  * It is not initially set, but will be set by init_hash_table().
  *
@@ -282,10 +281,10 @@ static meminfo *hashtable[ MEMINFO_HASHSIZE ] = { NULL } ;
  *
  * Actually, the name is somewhat misleading, since this is not really
  * a hashtable, it is just a leftover from the time when it actually
- * was a hashtable. 
+ * was a hashtable.
  *
- * Due to how the hash array is initialized, we have to allocate one 
- * more item than is going to be used. This is really a klugde, and we 
+ * Due to how the hash array is initialized, we have to allocate one
+ * more item than is going to be used. This is really a klugde, and we
  * really ought to fix it a more clean way.
  */
 static short hash[ CHUNK_SIZE/4 + 1 ] ;
@@ -345,15 +344,15 @@ void *chunk;
 }
 
 /*
- * This function initiates the variable 'hash'. This might have been 
- * done initially, since the values in this will never change. But 
- * since the size is rather big. it is more efficient to spend some 
+ * This function initiates the variable 'hash'. This might have been
+ * done initially, since the values in this will never change. But
+ * since the size is rather big. it is more efficient to spend some
  * CPU on initiating it. The startup time might be decreased by swapping
- * this routine for a pre-defined variable. Perhaps it should be 
- * rewritten to use two arrays, one for large pieces of memory and 
+ * this routine for a pre-defined variable. Perhaps it should be
+ * rewritten to use two arrays, one for large pieces of memory and
  * one for small pieces. That would save space in 'hash'
  *
- * The values put into the array has been described above. 
+ * The values put into the array has been described above.
  */
 /******************************************************************************/
 #ifdef HAVE_PROTO
@@ -368,19 +367,19 @@ void init_memory_table()
    int size ;
    int num ;
 
-   /* 
+   /*
     * Set the few lowest values manually, since the algoritm breaks
-    * down for sufficient small values. 
+    * down for sufficient small values.
     */
    indeks = 0 ;
    hash[indeks++] = 0 ;  /* when size equals 0, well ... 8 :-) */
    hash[indeks++] = 0 ;  /* for 1 <= size < 4 */
    hash[indeks++] = 0 ;  /* for 4 <= size < 8 */
 
-   /* 
-    * The main loop. How does this algorithm work, well, look at the 
+   /*
+    * The main loop. How does this algorithm work, well, look at the
     * following table, in which all numbers should be multiplied with
-    * 4 to get the correct numbers. 
+    * 4 to get the correct numbers.
     *
     *  bin        sizes
     *   0   (8) :  2
@@ -388,8 +387,8 @@ void init_memory_table()
     *   2  (16) :  4  5
     *   3  (24) :  6  7
     *   4  (32) :  8  9 10 11
-    *   5  (48) : 12 13 14 15 
-    *   6  (64) : 16 17 18 19 20 21 22 23 
+    *   5  (48) : 12 13 14 15
+    *   6  (64) : 16 17 18 19 20 21 22 23
     *   7  (96) : 24 25 26 27 28 29 30 31
     *   8 (128) : 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
     *   9 (192) : 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63
@@ -415,7 +414,7 @@ void init_memory_table()
    num = 1 ;
    for (; indeks<(CHUNK_SIZE/4); )
    {
-      /* 
+      /*
        * Initalize first in each pair of bins of same length.
        * I.e  8, 16, 32,  64 ... etc
        */
@@ -423,7 +422,7 @@ void init_memory_table()
          hash[indeks++] = num ;
       num++ ;
 
-      /* 
+      /*
        * Initialize the second in each pair: 12, 24, 48, 96 ... etc
        */
       for (j=0; j<size; j++ )
@@ -432,7 +431,7 @@ void init_memory_table()
       size = size << 1 ;
    }
 
-   /* 
+   /*
     * Do I need this? I don't think so. It is a kludge to make something
     * work on 64 bit machines, but I don't think it is needed anymore.
     * Just let is be commented out, and the delete it if things seem
@@ -448,10 +447,10 @@ void init_memory_table()
 
 
 /*
- * Adds information about a chunk of memory to the hashtable memory 
+ * Adds information about a chunk of memory to the hashtable memory
  * addresses and the chunksize at that address. Note that two addresses
  * are sent as parameters, the start of the memory to be registerd, and
- * the address under which the information is to be registered. Why? 
+ * the address under which the information is to be registered. Why?
  * Look at the following figure:
  *
  * 0               8K               16K                24K
@@ -459,7 +458,7 @@ void init_memory_table()
  * |    AAAAAAAAAAAAAAAAAA   BBBBBBBBBBBBBBBBBB
  * +----+----------------+---+----------------+-------------------------+
  *      3K              11K 13K              21K
- * 
+ *
  * Two chunks are allocated: A and B. The chunks are allocated in 8K
  * blocks, but they will in general not follow the 8K boundaries of
  * the machine. The 'hashtable' array have entries that _do_ follow
@@ -468,13 +467,13 @@ void init_memory_table()
  * segment, and the 8-16K segment. And vice versa, the 8-16K segment
  * may contain parts of chunk A and B.
  *
- * This could be avoided, if the chunks were aligned with the boundaries 
+ * This could be avoided, if the chunks were aligned with the boundaries
  * of the computer. If you change any of the constants in this part of
  * the program, be sure to tune them to match eachother!
- * 
- * Of course, this routines need memory to be able to register other 
- * memory, so to avoid a deadlock, it calls malloc directly. It will 
- * never release memory, since we can really not be sure that all 
+ *
+ * Of course, this routines need memory to be able to register other
+ * memory, so to avoid a deadlock, it calls malloc directly. It will
+ * never release memory, since we can really not be sure that all
  * memory has been released.
  */
 /******************************************************************************/
@@ -494,7 +493,7 @@ int bin_no;
    static int indeks=128 ;      /* force it to allocate at first invocation */
 
    /*
-    * If we have used all free meminfo-boxes, allocate more. This is 
+    * If we have used all free meminfo-boxes, allocate more. This is
     * forces upon us at the first invocation. Allocate space for 128
     * at a time.
     */
@@ -508,11 +507,11 @@ int bin_no;
       indeks = 0 ;
    }
 
-   /* 
-    * Fill in the fields of the box, and put it in the front of the 
+   /*
+    * Fill in the fields of the box, and put it in the front of the
     * requested bin in hashtable
     */
-   ptr = &mem[ indeks++ ] ;   
+   ptr = &mem[ indeks++ ] ;
    ptr->next = hashtable[tmp=mem_hash_func((unsigned long)addr)] ;
    ptr->size = bin_no ;
    ptr->start = start ;
@@ -520,7 +519,7 @@ int bin_no;
    return(0);
 }
 
-/* 
+/*
  * Allocate a piece of memory. The size is given as the 'size' parameter.
  * If size is more than MAX_INTERNAL_SIZE, it will call malloc()
  * directly, else, it will return a piece of memory from the freelist,
@@ -538,15 +537,15 @@ int size;
 {
    register int bin ;     /* bin no in array of freelists */
    register char *vptr ;  /* holds the result */
-   register void *result ; 
+   register void *result ;
 #ifdef THE_DEBUG_MEMORY2
    int before, after;
 #endif
 
    /*
-    * If memory is too big, let malloc() handle the problem. 
+    * If memory is too big, let malloc() handle the problem.
     */
-   if (size>MAX_INTERNAL_SIZE) 
+   if (size>MAX_INTERNAL_SIZE)
    {
       if ((result=malloc( size )))
       {
@@ -561,7 +560,7 @@ int size;
    /*
     * Get the first item from the appropriate freelist, and let 'vptr'
     * point to it. Simultaneously set bin to the bin no in 'theflists'
-    * to avoid recalculating the number. If the freelist is empty 
+    * to avoid recalculating the number. If the freelist is empty
     * (i.e vptr==NULL) then allocate more memory.
     */
    if ((vptr=theflists[bin=GET_SIZE(size)])==NULL)
@@ -569,21 +568,21 @@ int size;
       char *ptr ;      /* work ptr, to loop through the memory */
       char *topaddr ;  /* points to last item in memory */
 
-      /* 
-       * Allocate the memory, and set both vptr and initiate the 
+      /*
+       * Allocate the memory, and set both vptr and initiate the
        * right element in 'theflists'. Note that the value in 'flists' is
        * 'incremented' later, so it must be set to the value which now
-       * is to be allocated. 
+       * is to be allocated.
        */
       vptr = (char *)malloc( CHUNK_SIZE ) ;
       if (!vptr)
           return(NULL);
       theflists[bin] = vptr ;
 
-      /* 
-       * Calculate the top address of the memory allocated, and put 
-       * the memory into 'topaddr'. Then register the chunk of memory 
-       * in both the possible CHUNK_SIZE segments of the machine. In 
+      /*
+       * Calculate the top address of the memory allocated, and put
+       * the memory into 'topaddr'. Then register the chunk of memory
+       * in both the possible CHUNK_SIZE segments of the machine. In
        * some rare cases the last registration might not be needed,
        * but do it anyway, to avoid having to determine it.
        */
@@ -596,13 +595,13 @@ int size;
          return(NULL);
 
       /*
-       * Then loop through the individual pieced of memory within the 
-       * newly allocated chunk, and make it a linked list, where the 
+       * Then loop through the individual pieced of memory within the
+       * newly allocated chunk, and make it a linked list, where the
        * last ptr in the list is NULL.
        */
       for (ptr=vptr; ptr<topaddr; ptr=ptr+sizes[bin] )
          *(char**)ptr = ptr + sizes[bin] ;
-  
+
       *((char**)(ptr-sizes[bin])) = NULL ;
 
 #ifdef THE_DEBUG_MEMORY2
@@ -612,7 +611,7 @@ int size;
 
    /*
     * Update the pointer in 'flist' to point to the next entry in the
-    * freelist instead of the one we just allocated, and return to 
+    * freelist instead of the one we just allocated, and return to
     * caller.
     */
 #ifdef THE_DEBUG_MEMORY2
@@ -629,11 +628,11 @@ int size;
 
 
 /*
- * The standard interface to freeing memory. The parameter 'ptr' is 
+ * The standard interface to freeing memory. The parameter 'ptr' is
  * a pointer to the memory to be freed, is put first in the freelist
  * pointed to by the appropriate element in 'theflists'.
- * 
- * I am not really sure what cptr do in this, but I think it has 
+ *
+ * I am not really sure what cptr do in this, but I think it has
  * something to do with *void != *char on Crays ... The main consumer
  * of CPU in this routine is the for(;;) loop, it should be rewritten.
  */
@@ -654,32 +653,32 @@ void *ptr;
 
    /*
     * initialize a few values, 'cptr' is easy, while 'mptr' is the
-    * list of values for this piece of memory, that is in the 
+    * list of values for this piece of memory, that is in the
     * hashtable that returns memory size given a specific address
     */
    cptr = (char*)ptr ;
    mptr = hashtable[ mem_hash_func( ((unsigned long)cptr) ) ] ;
 
-   /* 
-    * For each element in the list attached to the specific hashvalue, 
-    * loop through the list, and stop at the entry which has a start 
-    * address _less_ than 'cptr' and a stop address _higher_ than 
+   /*
+    * For each element in the list attached to the specific hashvalue,
+    * loop through the list, and stop at the entry which has a start
+    * address _less_ than 'cptr' and a stop address _higher_ than
     * 'cptr' (i.e. cptr is within the chunk.)
     */
-   for ( ; (mptr) && 
+   for ( ; (mptr) &&
         ((mptr->start+CHUNK_SIZE<=cptr) || (mptr->start>cptr)) ;
         mptr = mptr->next) ;
 
    /*
     * Now, there are two possibilities, either is mptr==NULL, in which
-    * case this piece of memory is never registered in the system, or 
-    * then we have more information. In the former case, just give 
+    * case this piece of memory is never registered in the system, or
+    * then we have more information. In the former case, just give
     * the address to free(), hoping it knows more. In the latter, put
-    * the memory on the appropriate freelist. 
+    * the memory on the appropriate freelist.
     */
    if (mptr)
    {
-      /* 
+      /*
        * Link it into the first place of the freelist.
        */
 #ifdef THE_DEBUG_MEMORY2
@@ -694,12 +693,12 @@ void *ptr;
 #endif
    }
    else
-      free( ptr ) ; 
+      free( ptr ) ;
 }
 
 /*
  * The interface to resizing memory. The parameter 'ptr' is
- * a pointer to the memory to be resized. First, if the requested size 
+ * a pointer to the memory to be resized. First, if the requested size
  * is within the size of the existing block, just return it. Otherwise
  * the block is put back on the free lists and a new block allocated.
  */
@@ -715,34 +714,34 @@ int size;
 {
    char *cptr ;      /* pseudonym for 'ptr' */
    meminfo *mptr ;   /* caches the right element in hashtable */
-   register void *result ; 
+   register void *result ;
 
    /*
     * initialize a few values, 'cptr' is easy, while 'mptr' is the
-    * list of values for this piece of memory, that is in the 
+    * list of values for this piece of memory, that is in the
     * hashtable that returns memory size given a specific address
     */
    cptr = (char*)ptr ;
    mptr = hashtable[ mem_hash_func( ((unsigned long)cptr) ) ] ;
 
-   /* 
-    * For each element in the list attached to the specific hashvalue, 
-    * loop through the list, and stop at the entry which has a start 
-    * address _less_ than 'cptr' and a stop address _higher_ than 
+   /*
+    * For each element in the list attached to the specific hashvalue,
+    * loop through the list, and stop at the entry which has a start
+    * address _less_ than 'cptr' and a stop address _higher_ than
     * 'cptr' (i.e. cptr is within the chunk.)
     */
-   for ( ; (mptr) && 
+   for ( ; (mptr) &&
         ((mptr->start+CHUNK_SIZE<=cptr) || (mptr->start>cptr)) ;
         mptr = mptr->next) ;
 
    /*
     * Now, there are two possibilities, either mptr==NULL, in which
     * case this piece of memory was never registered in the system, or
-    * we have more information. In the former case, just give 
+    * we have more information. In the former case, just give
     * the address to realloc(), and return. In the latter, if the
     * requested size is still within the currently allocated size
     * return it, or allocate a new chunk, copy the current contents
-    * to the new chunk and put the old piece of memory on the 
+    * to the new chunk and put the old piece of memory on the
     * appropriate freelist.
     */
    if (!mptr)
@@ -767,7 +766,7 @@ int size;
     */
    memcpy( result, cptr, sizes[mptr->size] ) ;
 
-   /* 
+   /*
     * Put the old chunk into the first place of the freelist.
     */
    *((char**)cptr) = theflists[mptr->size] ;

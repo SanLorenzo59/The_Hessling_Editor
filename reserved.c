@@ -4,7 +4,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -30,23 +30,23 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: reserved.c,v 1.4 2001/12/18 08:23:27 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
 
 /***********************************************************************/
 #ifdef HAVE_PROTO
-RESERVED *add_reserved_line(CHARTYPE *spec,CHARTYPE *line,short base,short off,COLOUR_ATTR *attr)
+RESERVED *add_reserved_line(CHARTYPE *spec,CHARTYPE *line,short base,short off,COLOUR_ATTR *attr, bool autoscroll)
 #else
-RESERVED *add_reserved_line(spec,line,base,off,attr)
+RESERVED *add_reserved_line(spec,line,base,off,attr,autoscroll)
 CHARTYPE *spec,*line;
 short base;
 short off;
 COLOUR_ATTR *attr;
+bool autoscroll;
 #endif
 /***********************************************************************/
 {
@@ -76,6 +76,12 @@ COLOUR_ATTR *attr;
       TRACE_RETURN();
       return(NULL);
    }
+   if ( ( curr->highlighting = (chtype *)(*the_malloc)( ( strlen( (DEFCHAR *)templine ) + 1 ) * sizeof(chtype) ) ) == NULL )
+   {
+      display_error( 30, (CHARTYPE *)"", FALSE );
+      TRACE_RETURN();
+      return(NULL);
+   }
    if ( ( curr->spec = (CHARTYPE *)(*the_malloc)( ( strlen( (DEFCHAR *)spec ) + 1 ) * sizeof(CHARTYPE) ) ) == NULL )
    {
       display_error( 30, (CHARTYPE *)"", FALSE );
@@ -93,6 +99,7 @@ COLOUR_ATTR *attr;
    curr->length = strlen( (DEFCHAR *)templine );
    curr->base = base;
    curr->off = off;
+   curr->autoscroll = autoscroll;
    memcpy( curr->attr, attr, sizeof(COLOUR_ATTR) );
    parse_reserved_line( curr );
    TRACE_RETURN();
@@ -160,6 +167,8 @@ short base,off;
       (*the_free)(curr->line);
    if ( curr->disp != NULL )
       (*the_free)(curr->disp);
+   if ( curr->highlighting != NULL )
+      (*the_free)(curr->highlighting);
    if ( curr->spec != NULL )
       (*the_free)(curr->spec);
    if ( curr->attr != NULL )

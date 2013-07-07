@@ -28,7 +28,7 @@ Performance Impact
 Syntax highlighting in an editor comes at a cost; reduced performance.
 
 Because of the extra processing required to determine which characters are
-displayed in which colours, displaying the screen is slower.  As THE 
+displayed in which colours, displaying the screen is slower.  As THE
 recalculates the display colours after every displayable key is pressed,
 then you may notice a reduction in responsiveness.
 
@@ -53,8 +53,8 @@ If all displayed lines are within a multi-line comment block and neither
 the starting comment token nor the ending comment token are displayed. THE
 will treat the displayed lines as code.
 
-When the starting or ending comment tokens for multi-line comments are 
-part of a language string. 
+When the starting or ending comment tokens for multi-line comments are
+part of a language string.
 
 Also bear in mind that excluding large portions of the file with ALL, will
 dramatically slow down checking of multi-line comments.
@@ -62,8 +62,8 @@ dramatically slow down checking of multi-line comments.
 --------------------------------
 File Extensions Vs Magic Numbers
 --------------------------------
-A THE extension to the KEDIT syntax highlighting model is support for 
-<magic numbers>. (See <SET AUTOCOLOR> for more details).  For the default 
+A THE extension to the KEDIT syntax highlighting model is support for
+<magic numbers>. (See <SET AUTOCOLOR> for more details).  For the default
 <parser>s, where there might be a conflict between setting syntax highlighting
 based on a file extension or a <magic number>, the file extension mapping takes
 precedence.
@@ -81,7 +81,7 @@ TLD files consist of several sections identified by header lines. Header
 lines start with a colon in column one.  Items within the particular header
 are listed on separate lines after the header to which they apply.
 Blank lines are ignored, and so are comments (* as first non-blank). Each
-item that can be repeated occurs on a separate line. The above definition 
+item that can be repeated occurs on a separate line. The above definition
 of what a TLD file looks like is expressed in the TLD file; tld.tld.
 
 Many items in a TLD are specified as a regular expression (RE).  THE supports a
@@ -113,12 +113,12 @@ Meaning of options:
 :case
 .....
 This section defines whether the case of letters that make up identifiers in
-the language are case-sensitive or not. Only one of the items below can be 
+the language are case-sensitive or not. Only one of the items below can be
 included.
 Syntax:
    RESPECT | IGNORE
 Meaning of options:
-   respect 
+   respect
       case is relevant. The keywords 'if', 'IF' and 'If' are different.
    ignore
       case is irrelevant. The keywords 'if' and 'IF' are treated as the
@@ -134,23 +134,23 @@ Syntax:
    PREPROCESSOR char
    FUNCTION char BLANK | NOBLANK [DEFAULT ALTernate x]
 Meaning of options:
-   rexx 
+   rexx
       specifies special processing for Rexx. eg. Functions defined in
       the :functions section, are also highlighted if preceeded by CALL.
-   preprocessor char 
-      languages like C that have preprocessor identifiers usually begin 
-      with a special character (specified by 'char') to differentiate 
+   preprocessor char
+      languages like C that have preprocessor identifiers usually begin
+      with a special character (specified by 'char') to differentiate
       these types of keywords from others.
    function char blank | noblank [default alternate x]
       this option is used to identify how keywords specified in the
       :function section are identified. 'char' specifies the character that
-      is used to start a function, usually '('. The 'blank' or 'noblank' 
+      is used to start a function, usually '('. The 'blank' or 'noblank'
       argument determines if blank characters can appear between the function
       identifier and the function start character. eg a Rexx function
       call must be written without blanks between the function name and
-      the function start character: 'word('. In C 'word  (' or 'word(' 
+      the function start character: 'word('. In C 'word  (' or 'word('
       are both valid syntax for a function call.
-      The optional "default alternate x" specifies the color in which 
+      The optional "default alternate x" specifies the color in which
       functions that are NOT specified in the :function section are to
       be displayed. See the explanation of alternate colors in the :function
       section.
@@ -209,8 +209,8 @@ Meaning of options:
       Some languages allow paired comments to be nested. (not implemented)
    nonest
       Defining this indicates that the language does not allow nesting
-      of paired comments. The effect of this option will result in the 
-      first close_string to end the paired comment no matter how many 
+      of paired comments. The effect of this option will result in the
+      first close_string to end the paired comment no matter how many
       open_string occurrences there are. (not implemented)
    line
       These type of comments cannot span multiple lines.  Everything on the
@@ -234,7 +234,7 @@ ECOLOR Character:
 :keyword
 ........
 This section specifies all of the identifiers that are to be considered
-language keywords. You must specific the :identifier section in the TLD 
+language keywords. You must specific the :identifier section in the TLD
 file before the :keyword section.
 Syntax:
    keyword [ALTernate x] [TYPE x]
@@ -244,14 +244,14 @@ Meaning of options:
       keyword.
    alternate x
       All keywords are displayed in the same colour, unless you use
-      this option to specify a different colour.  In KEDIT there are 
+      this option to specify a different colour.  In KEDIT there are
       9 alternate colours that can be used; ECOLOUR 1 through 9. In THE
       any ECOLOUR character can be used as an alternate colour.
       'alternate' can be abbreviated to 'alt'.
    type x
       (not implemented)
 ECOLOR Character:
-      Unless overridden by the 'alternate' option, the keyword is displayed 
+      Unless overridden by the 'alternate' option, the keyword is displayed
       in the colour specified with ECOLOUR 'D'.
 
 .........
@@ -261,7 +261,7 @@ This section specifies all of the identifiers that are to be considered
 functions.  Normally this is used for those functions that are builtin
 into the language, but can be any identifier. You specify the function
 identifier without the function char specified in the :option section.
-You must specify the :option and the :identifier sections in the TLD 
+You must specify the :option and the :identifier sections in the TLD
 file before the :function section.
 Syntax:
    function [ALTernate x]
@@ -271,7 +271,7 @@ Meaning of options:
       function.
    alternate x
       All functions are displayed in the same colour, unless you use
-      this option to specify a different colour.  In KEDIT there are 
+      this option to specify a different colour.  In KEDIT there are
       9 alternate colours that can be used; ECOLOUR 1 through 9. In THE
       any ECOLOUR character can be used as an alternate colour.
       'alternate' can be abbreviated to 'alt'.
@@ -286,20 +286,27 @@ This section specifies the format of headers. Headers are lines within a file
 that begin with a particular string and usually identify different parts of
 the file. They are similar to labels.
 Syntax:
-   LINE header_string ANY | FIRSTNONBLANK | COLUMN n
+   LINE header_string ANY | FIRSTNONBLANK | COLUMN n [ALTernate x]
 Meaning of options:
    header_string
       The string that defines a header.
    any
-      This indicates that the header_string can occur anywhere on the line, 
+      This indicates that the header_string can occur anywhere on the line,
       and all characters following it are part of the header.
    firstnonblank
-      This indicates that the header_string can only occur as the first 
+      This indicates that the header_string can only occur as the first
       non-blank of the line.
    column n
       This indicates that the header_string must start in the specified column.
+   alternate x
+      All headers are displayed in the same colour, unless you use
+      this option to specify a different colour.  In KEDIT there are
+      9 alternate colours that can be used; ECOLOUR 1 through 9. In THE
+      any ECOLOUR character can be used as an alternate colour.
+      'alternate' can be abbreviated to 'alt'.
 ECOLOR Character:
-      Headers are displayed in the colour specified with ECOLOUR 'G'.
+      Unless overridden by the 'alternate' option, the function is displayed
+      in the colour specified with ECOLOUR 'G'.
 
 ......
 :label
@@ -313,15 +320,15 @@ Meaning of options:
    label_string
       The string that defines a label.
    any
-      This indicates that the label_string can occur anywhere on the line, 
+      This indicates that the label_string can occur anywhere on the line,
       and all characters up to it are part of the label.
    firstnonblank
-      This indicates that the label_string can only occur as the first 
+      This indicates that the label_string can only occur as the first
       non-blank of the line.
    column n
-      As part of a DELIMITER label, this indicates that the label_string 
+      As part of a DELIMITER label, this indicates that the label_string
       must start in the specified column. If specified by itself, then the
-      label does not require any special delimiter; the non-keyword that 
+      label does not require any special delimiter; the non-keyword that
       starts in the specified column is regarded as a label.
 ECOLOR Character:
       Labels are displayed in the colour specified with ECOLOUR 'E'.
@@ -369,7 +376,7 @@ Meaning of options:
       the line.
    alternate x
       All excluded characters are displayed in the same colour, unless you use
-      this option to specify a different colour.  In KEDIT there are 
+      this option to specify a different colour.  In KEDIT there are
       9 alternate colours that can be used; ECOLOUR 1 through 9. In THE
       any ECOLOUR character can be used as an alternate colour.
       'alternate' can be abbreviated to 'alt'.
@@ -377,11 +384,47 @@ ECOLOR Character:
       Unless overridden by the 'alternate' option, the excluded characters
       are displayed in the colour specified with COLOUR FILEAREA.
 
+..........
+:directory
+..........
+This section is applicable only to the pseudo file; DIR.DIR. It is used
+to specify the colour used to display lines in the DIR.DIR file.
+Syntax:
+   DIRectory [ALTernate x]
+   LINK [ALTernate x]
+   EXEcutable [ALTernate x]
+   EXTensions ext1 ext2 ext3 ... ALTernate x
+Meaning of options:
+   directory
+      Indicates that directories are to be highlighted. Unless overridden
+      by the 'alternate' option, the matched line is displayed with ECOLOUR 'W'.
+   link
+      Indicates that symbolic links are to be highlighted. Unless overridden
+      by the 'alternate' option, the matched line is displayed with ECOLOUR 'X'.
+   executable
+      Used to specify the colour used to display executable files. The checking is simple
+      and simply determines if the executable bit is set for user, group or world.
+      Only applicable to UNIX systems.
+      Unless overridden by the 'alternate' option, the matched line is displayed
+      with ECOLOUR 'Y'.
+   extensions
+      A space-separated list of extensions to be displayed in the specifed
+      alternate colour.  The complete line is coloured.  The match is applied
+      by checking each extension against the characters at the end of the
+      line, so while it is intended for extensions, any string that is specified
+      as an extension can be matched; it doesn't have to have a period in the
+      matched string. A maximum of 10 extensions can be specified on each line.
+      The 'alternate' keyword and option must be specified.
+   alternate x
+      In KEDIT there are 9 alternate colours that can be used; ECOLOUR 1 through 9.
+      In THE any ECOLOUR character can be used as an alternate colour.
+      'alternate' can be abbreviated to 'alt'.
+
 ............
 :postcompare
 ............
 This section specifies items that are checked for after all other syntax
-checking has been completed.  This can be useful if you want to allow 
+checking has been completed.  This can be useful if you want to allow
 user-defined datatypes or other code to be displayed in different colours.
 Syntax:
    CLASS re [ALTernate x]
@@ -392,9 +435,9 @@ Meaning of options:
    string
       This indicates the literal string to be highlighted.
    alternate x
-      All matched postcompare characters are displayed in the same colour, 
-      unless you use this option to specify a different colour.  In KEDIT 
-      there are 9 alternate colours that can be used; ECOLOUR 1 through 9. 
+      All matched postcompare characters are displayed in the same colour,
+      unless you use this option to specify a different colour.  In KEDIT
+      there are 9 alternate colours that can be used; ECOLOUR 1 through 9.
       In THE any ECOLOUR character can be used as an alternate colour.
       'alternate' can be abbreviated to 'alt'.
 ECOLOR Character:

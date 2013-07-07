@@ -10,9 +10,9 @@ THE has currently been ported to the following platforms:
 - most Unix systems; text mode and native X11 application
 - OpenEdition on OS/390
 - Linux/390
-- 32bit DOS 
+- 32bit DOS
 - OS/2
-- Win32 
+- Win32
 - QNX
 - Amiga
 - BeOS
@@ -23,7 +23,7 @@ HPFS aware. THE also uses the OS/2 Rexx interpreter to execute macro files.
 An extensive interface exists between THE and Rexx giving THE the complete
 power of Rexx.
 
-Rexx support in the DOS DPMI and VCPI ports, QNX, Amiga and BeOS ports is 
+Rexx support in the DOS DPMI and VCPI ports, QNX, Amiga and BeOS ports is
 provided by the free Rexx interpreter, Regina, which is available from
 http://regina-rexx.sourceforge.net
 THE OS/2 version uses the Rexx interpreter that is supplied with OS/2.
@@ -41,7 +41,7 @@ THELIST: A Mailing list for announcements and discussion of THE.
 ---------------------------------------------------------------
 
 A mailing list has been created for discussion of THE. You can subscribe
-to it by sending an email message to listserv@uiuc.edu with the body of 
+to it by sending an email message to listserv@uiuc.edu with the body of
 the email message containing:
 
 SUBSCRIBE THELIST Your Name
@@ -74,7 +74,7 @@ thesrc??.zip            - source code for version ?.?
 THE-?.?.tar.gz          - source code for version ?.?
 thehtm??.zip            - HTML documentation for version ?.?
 
-Pre-compiled binaries for various Unix systems are also available from 
+Pre-compiled binaries for various Unix systems are also available from
 the site above.
 
 The HP-UX Porting and Archive Centre contains binary releases of THE for HP-UX 10
@@ -88,11 +88,11 @@ so unzipping under OS/2, DOS or Win9x/NT/2K/XP  use the -a switch.
 Notes on Source Distribution:
 ----------------------------
 
-THE uses curses as its screen handler. This makes it portable but not 
+THE uses curses as its screen handler. This makes it portable but not
 necessarily as fast as native screen handling routines.
 
 To compile the DOS, OS/2 and Win32 ports you need PDCurses 2.5 (or later); a
-public domain library of curses screen handling routines, of which I am 
+public domain library of curses screen handling routines, of which I am
 the current maintainer. PDCurses 2.5 is available from:
 
 http://pdcurses.sourceforge.net
@@ -112,8 +112,8 @@ patches in the official release.
 Enjoy, Mark.
 
 ------------------------------------------------------------------------
- Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
- Author of THE, a Free XEDIT/KEDIT editor and, Rexx/SQL
- Maintainer of PDCurses: Public Domain Curses and, Regina Rexx interpreter
+ Mark Hessling,  mark@rexx.org  http://www.rexx.org/
+ Author of THE, a Free XEDIT/KEDIT editor, Rexx/SQL, Rexx/DW, Rexx/cURL...
+ Maintainer of Regina Rexx interpreter and Rexx/tk
  Use Rexx ? join the Rexx Language Association: http://www.rexxla.org
 ------------------------------------------------------------------------

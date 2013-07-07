@@ -2,10 +2,10 @@
  -----------------------
  Command-line invocation
  -----------------------
- 
+
   the [-h?nmrsbq] [-p profile] [-a prof_arg] [-l line_num] [-c col_num]
       [-w width] [-u disp_len] -k[fmt] [[dir] [file [...]]]
- 
+
   Where:
     -h or -?      Display usage information and version.
     -n            Do not execute a profile file.
@@ -19,12 +19,12 @@
     -c column_num specify column number to make current
     -p profile    The name of the profile file to use.  If not specified,
                   the file ".\PROFILE.THE" (under OS/2, DOS and Win95/NT)
-                  or "$HOME/.therc" (under UNIX), will be used, unless 
+                  or "$HOME/.therc" (under UNIX), will be used, unless
                   overridden by the environment variable "THE_PROFILE_FILE".
     -a prof_arg   Used to pass a string to the profile file as argument.
                   Only works with Rexx macros.
     -w width      Length of longest line THE can handle (default 512)
-    -u disp_len   display length in non-line mode
+    -u disp_width Run as binary editor with specified display width.
     dir           Will display a directory of the specified dir.
     file [...]    Specifications of file(s) to edit.  If multiple files
                   are specified, each will be put in a separate file in
@@ -33,7 +33,7 @@
                   be displayed.
                   Issuing [SOS EDIT] on a file spec will edit that file.
                   [SOS EDIT] on a subdir will display that directory.
- 
+
     Option flags are case-sensitive.
 
 
