@@ -1,0 +1,6 @@
+#
+# Use full month and no spaces in date
+#
+VER=32
+VER_DOT="3.2"
+VER_DATE="29-January-2005"
