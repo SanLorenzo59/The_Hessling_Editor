@@ -1,0 +1,141 @@
+/*
+ * Mark Hessling's profile file for THE 3.0+
+ * This profile shows how detailed a profile file can be.
+ */
+Trace o
+'compat keditw'
+'reprofile on'
+'defsort dir'
+'hexdisplay on'
+'number on'
+'prefix on l 6 1'
+'autosave 10'
+'tabs incr 3'
+'set WORD alphanum'
+'set readonly on'
+'set targetsave string'
+'set filetabs on'
+'extract /version'
+If initial() Then
+   Do
+      Call Common_Initial
+      init = version.3'_Initial'
+      Interpret Call init
+   End
+Interpret Call version.3
+Return 0
+
+Common_Initial: Procedure
+'define C-S save'
+'define C-W mark word'
+'define C-F macro blockloc.the'
+'define C-N search'
+'define C-F1 macro build'
+'define C-F4 macro build show'
+'define C-F5 macro tags'
+'define C-F6 macro tags goto'
+'define C-F7 macro tags prev'
+'define C-F8 macro tags next'
+'parser make make.tld'
+'autocolor Makefile make'
+'autocolor Makefile.in make'
+'autocolor makefile make'
+'autocolor *.mak make'
+'autocolor *.wins make'
+'autocolor *.marm make'
+'parser m4 m4.tld'
+'autocolor *.m4 m4'
+'parser opl opl.tld'
+'autocolor *.opl opl'
+'parser c c.tld'
+'parser rexx rexx.tld'
+'parser nsi nsi.tld'
+'autocolor *.nsi nsi'
+Return
+
+WIN32_Initial: Procedure
+'define C-L mark line'
+'define C-O overlaybox'
+'define C-D duplicate 1 block'
+'define C-B mark box'
+'define C-G delete block'
+'define C-C copy block reset'
+'define C-K copy block'
+'define C-X sos edit'
+'define C-V move block reset'
+'define C-U reset block'
+Return
+
+OS2_Initial: Procedure
+'define C-L mark line'
+'define C-B mark box'
+'define C-G delete block'
+'define C-C copy block reset'
+'define C-K copy block'
+'define C-X sos edit'
+'define C-V move block reset'
+'define C-U reset block'
+Return
+
+QNX_Initial: Procedure
+'define DEL sos delback'
+'define END sos startendchar'
+'define S-CURR sos tabwordf'
+'define S-CURL sos tabwordb'
+'define S-F1 locate'
+'define C-F11 set point .a'
+'define C-F12 locate .a'
+'define S-NEXT bot'
+'define S-PREVIOUS top'
+'define EXIT sos delend'
+'define FIND macro filemenu.the'
+'define C-H macro cref.the'
+'define S-HOME tabfile'
+'define S-CANCEL tabfile -'
+'define S-COMMAND tabfile +'
+'printer lp'
+Return
+
+UNIX_Initial: Procedure
+'define find cursor home save'
+'define select sos startendchar'
+Return
+
+X11_Initial: Procedure
+'define S-F11 locate'
+Return
+
+X11: Procedure
+/*
+'color curline bold blink underline'
+'color ctofeof blink underline bold green on black'
+'color cblock blink underline bold red on blue'
+*/
+Return
+
+OS2: Procedure
+Return
+
+Win32: Procedure
+Return
+
+QNX: Procedure
+Return
+
+UNIX: Procedure
+If terminal.1() \= 'X11' Then
+   Do
+      'color * blink off'
+      'ecolor * blink off'
+      'define plus tabfile +'
+      'define minus tabfile -'
+      'define numenter tabfile'
+      'define c-curl sos tabwordb'
+      'define c-curr sos tabwordf'
+      'define c-pgup top'
+      'define c-pgdn bottom'
+      'define c-end sos delend'
+      'define backspace sos delchar'
+      'define END sos startendchar'
+   End
+Return
