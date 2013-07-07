@@ -3,7 +3,7 @@
  *
  *
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2002 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: query1.c,v 1.7 2005/08/22 11:42:18 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -330,7 +329,7 @@ LINETYPE arglen;
 #endif
 /***********************************************************************/
 {
-   switch(CURRENT_FILE->backup)
+   switch( CURRENT_FILE->backup )
    {
       case BACKUP_OFF:
          item_values[1].value = (CHARTYPE *)"OFF";
@@ -345,7 +344,11 @@ LINETYPE arglen;
          item_values[1].value = (CHARTYPE *)"INPLACE";
          break;
    }
-   item_values[1].len = strlen((DEFCHAR *)item_values[1].value);
+   item_values[1].len = strlen( (DEFCHAR *)item_values[1].value );
+   strcpy( (DEFCHAR *)query_rsrvd, (DEFCHAR *)BACKUP_SUFFIXx );
+   item_values[2].value = query_rsrvd;
+   item_values[2].len = strlen( (DEFCHAR *)item_values[2].value );
+
    return number_variables;
 }
 
@@ -596,6 +599,7 @@ LINETYPE arglen;
       default:
          break;
    }
+   item_values[5].len = 5;
    switch(CURRENT_VIEW->case_enter_cmdline)
    {
       case CASE_MIXED:
@@ -610,6 +614,7 @@ LINETYPE arglen;
       default:
          break;
    }
+   item_values[6].len = 5;
    switch(CURRENT_VIEW->case_enter_prefix)
    {
       case CASE_MIXED:
@@ -1029,12 +1034,19 @@ LINETYPE arglen;
 /***********************************************************************/
 {
    int i,j;
+   bool found=FALSE;
 
-   if (arg == NULL
-   ||  blank_field(arg)
-   ||  strcmp((DEFCHAR*)arg,"*") == 0)
+   if (!CTLCHARx)
    {
-      if (CTLCHARx)
+      item_values[1].value = (CHARTYPE *)"OFF";
+      item_values[1].len = 3;
+      number_variables = 1;
+   }
+   else
+   {
+      if (itemargs == NULL
+      ||  blank_field(itemargs)
+      ||  strcmp((DEFCHAR*)itemargs,"*") == 0)
       {
          item_values[1].value = (CHARTYPE *)"ON";
          item_values[1].len = 2;
@@ -1058,13 +1070,31 @@ LINETYPE arglen;
       }
       else
       {
-         item_values[1].value = (CHARTYPE *)"OFF";
-         item_values[1].len = 3;
-         number_variables = 1;
+         /*
+          * Find the matching CTLCHAR
+          */
+         for (i=0;i<MAX_CTLCHARS;i++)
+         {
+            if (ctlchar_char[i] == itemargs[0])
+            {
+               CHARTYPE *attr_string;
+               item_values[1].value = (ctlchar_protect[i]) ? (CHARTYPE *)"PROTECT" : (CHARTYPE *)"NOPROTECT";
+               item_values[1].len = strlen( (DEFCHAR *)item_values[1].value );
+               attr_string = get_colour_strings(&ctlchar_attr[i]);
+               strcpy( (DEFCHAR *)query_rsrvd, (DEFCHAR *)attr_string );
+               item_values[2].value = query_rsrvd;
+               item_values[2].len = strlen( (DEFCHAR *)item_values[2].value );
+               (*the_free)(attr_string);
+               number_variables = 2;
+               found = TRUE;
+            }
+         }
+         if ( found == FALSE )
+         {
+            display_error( 1, (CHARTYPE *)itemargs, FALSE );
+            number_variables = EXTRACT_ARG_ERROR;
+         }
       }
-   }
-   else
-   {
    }
    return number_variables;
 }
@@ -1258,7 +1288,49 @@ LINETYPE arglen;
    {
       if ( query_type == QUERY_EXTRACT )
       {
-         if ( set_rexx_variables_for_all_keys( &number_keys ) != RC_OK )
+         if ( set_rexx_variables_for_all_keys( KEY_TYPE_ALL, &number_keys ) != RC_OK )
+         {
+            display_error(54,(CHARTYPE *)"",FALSE);
+            number_variables = EXTRACT_ARG_ERROR;
+         }
+         else
+         {
+            len = sprintf( buf, "%d", number_keys );
+            set_rexx_variable( (CHARTYPE *)"define", (CHARTYPE *)buf, len, 0 );
+            number_variables = EXTRACT_VARIABLES_SET;
+         }
+      }
+      else
+      {
+         number_variables = EXTRACT_ARG_ERROR;
+      }
+   }
+   else if ( equal( (CHARTYPE *)"KEY", itemargs, 3 ) )
+   {
+      if ( query_type == QUERY_EXTRACT )
+      {
+         if ( set_rexx_variables_for_all_keys( KEY_TYPE_KEY, &number_keys ) != RC_OK )
+         {
+            display_error(54,(CHARTYPE *)"",FALSE);
+            number_variables = EXTRACT_ARG_ERROR;
+         }
+         else
+         {
+            len = sprintf( buf, "%d", number_keys );
+            set_rexx_variable( (CHARTYPE *)"define", (CHARTYPE *)buf, len, 0 );
+            number_variables = EXTRACT_VARIABLES_SET;
+         }
+      }
+      else
+      {
+         number_variables = EXTRACT_ARG_ERROR;
+      }
+   }
+   else if ( equal( (CHARTYPE *)"MOUSE", itemargs, 5 ) )
+   {
+      if ( query_type == QUERY_EXTRACT )
+      {
+         if ( set_rexx_variables_for_all_keys( KEY_TYPE_MOUSE, &number_keys ) != RC_OK )
          {
             display_error(54,(CHARTYPE *)"",FALSE);
             number_variables = EXTRACT_ARG_ERROR;
@@ -1301,7 +1373,7 @@ LINETYPE arglen;
             display_error( 1, itemargs, FALSE );
             number_variables = EXTRACT_ARG_ERROR;
          }
-         else if ( ( key = find_mouse_key_value( word[0], word[2]) ) == (-1) )
+         else if ( ( key = find_mouse_key_value_in_window( word[0], word[2]) ) == (-1) )
          {
             display_error(1,(CHARTYPE *)itemargs,FALSE);
             number_variables = EXTRACT_ARG_ERROR;
@@ -1429,10 +1501,9 @@ LINETYPE arglen;
    }
    if (true_line == (-1L))
    {
-      item_values[1].value = (CHARTYPE *)"";
-      item_values[1].len = 0;
-      item_values[2].value = (CHARTYPE *)"";
-      item_values[2].len = 0;
+      item_values[1].value = (CHARTYPE *)dir_path;
+      item_values[1].len = strlen((DEFCHAR *)dir_path);
+      number_variables = 1;
    }
    else
    {
@@ -1655,6 +1726,22 @@ LINETYPE arglen;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
+short extract_erroroutput(short number_variables,short itemno,CHARTYPE *itemargs,CHARTYPE query_type,LINETYPE argc,CHARTYPE *arg,LINETYPE arglen)
+#else
+short extract_erroroutput(number_variables,itemno,itemargs,query_type,argc,arg,arglen)
+short number_variables,itemno;
+CHARTYPE *itemargs;
+CHARTYPE query_type;
+LINETYPE argc;
+CHARTYPE *arg;
+LINETYPE arglen;
+#endif
+/***********************************************************************/
+{
+   return set_on_off_value(ERROROUTPUTx,1);
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
 short extract_etmode(short number_variables,short itemno,CHARTYPE *itemargs,CHARTYPE query_type,LINETYPE argc,CHARTYPE *arg,LINETYPE arglen)
 #else
 short extract_etmode(number_variables,itemno,itemargs,query_type,argc,arg,arglen)
@@ -1834,7 +1921,21 @@ LINETYPE arglen;
       CURRENT_VIEW->word = save_word;
       return( EXTRACT_ARG_ERROR );
    }
-   rc = set_rexx_variable( query_item[itemno].name, (CHARTYPE *)"2", 1, 0 );
+   /*
+    * Set the starting column
+    */
+   word_len = sprintf( (DEFCHAR *)query_num1, "%ld", first_col+1 );
+   rc = set_rexx_variable( query_item[itemno].name, query_num1, word_len, 3 );
+   if ( rc == RC_SYSTEM_ERROR )
+   {
+      display_error( 54, (CHARTYPE *)"", FALSE );
+      CURRENT_VIEW->word = save_word;
+      return( EXTRACT_ARG_ERROR );
+   }
+   /*
+    * Set the 0 tail
+    */
+   rc = set_rexx_variable( query_item[itemno].name, (CHARTYPE *)"3", 1, 0 );
    if ( rc == RC_SYSTEM_ERROR )
    {
       display_error( 54, (CHARTYPE *)"", FALSE );
@@ -1946,7 +2047,7 @@ LINETYPE arglen;
 {
    item_values[1].value = (CHARTYPE *)"NONE";
    item_values[1].len = 4;
-   if (CURRENT_FILE->disposition == FILE_READONLY)
+   if ( ISREADONLY(CURRENT_FILE) )
    {
       item_values[2].value = (CHARTYPE *)"READONLY";
       item_values[2].len = 8;
@@ -1976,6 +2077,22 @@ LINETYPE arglen;
          break;
    }
    return number_variables;
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
+short extract_filetabs(short number_variables,short itemno,CHARTYPE *itemargs,CHARTYPE query_type,LINETYPE argc,CHARTYPE *arg,LINETYPE arglen)
+#else
+short extract_filetabs(number_variables,itemno,itemargs,query_type,argc,arg,arglen)
+short number_variables,itemno;
+CHARTYPE *itemargs;
+CHARTYPE query_type;
+LINETYPE argc;
+CHARTYPE *arg;
+LINETYPE arglen;
+#endif
+/***********************************************************************/
+{
+   return set_on_off_value((bool)FILETABSx,1);
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
@@ -2167,8 +2284,6 @@ LINETYPE arglen;
 {
    short rc=RC_OK;
    register int i=0,off=0;
-   CHARTYPE save_msgline_base = CURRENT_VIEW->msgline_base;
-   short save_msgline_off = CURRENT_VIEW->msgline_off;
    ROWTYPE save_msgline_rows = CURRENT_VIEW->msgline_rows;
    bool save_msgmode_status = CURRENT_VIEW->msgmode_status;
 
@@ -2179,8 +2294,6 @@ LINETYPE arglen;
       {
          ;
       }
-      CURRENT_VIEW->msgline_base   = POSITION_TOP;
-      CURRENT_VIEW->msgline_off    = 1;
       CURRENT_VIEW->msgline_rows   = min(terminal_lines-1,i);
       CURRENT_VIEW->msgmode_status = TRUE;
    }
@@ -2205,8 +2318,6 @@ LINETYPE arglen;
 
    if (query_type == QUERY_QUERY)
    {
-      CURRENT_VIEW->msgline_base   = save_msgline_base;
-      CURRENT_VIEW->msgline_off    = save_msgline_off;
       CURRENT_VIEW->msgline_rows   = save_msgline_rows;
       CURRENT_VIEW->msgmode_status = save_msgmode_status;
       rc = EXTRACT_VARIABLES_SET;
@@ -2327,7 +2438,32 @@ LINETYPE arglen;
 #endif
 /***********************************************************************/
 {
-   return set_on_off_value(CURRENT_VIEW->id_line,1);
+   if ( query_type == QUERY_EXTRACT
+   &&   !blank_field( itemargs ) )
+   {
+      prepare_idline( current_screen );
+      /*
+       * Only time we supply 2 values; 'EXTRACT /IDLINE *'
+       */
+      if ( CURRENT_VIEW->id_line )
+      {
+         item_values[1].value = (CHARTYPE *)"ON";
+         item_values[1].len = 2;
+      }
+      else
+      {
+         item_values[1].value = (CHARTYPE *)"OFF";
+         item_values[1].len = 3;
+      }
+      item_values[2].value = linebuf;
+      item_values[2].len = strlen( (DEFCHAR *)item_values[2].value );
+      number_variables = 2;
+   }
+   else
+   {
+      return set_on_off_value( CURRENT_VIEW->id_line, 1 );
+   }
+   return number_variables;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
@@ -2525,12 +2661,12 @@ LINETYPE arglen;
       item_values[1].value = (CHARTYPE *)"OFF";
       item_values[1].len = 3;
    }
-   if (CURRENT_VIEW->inputmode == INPUTMODE_FULL)
+   else if (CURRENT_VIEW->inputmode == INPUTMODE_FULL)
    {
       item_values[1].value = (CHARTYPE *)"FULL";
       item_values[1].len = 4;
    }
-   if (CURRENT_VIEW->inputmode == INPUTMODE_LINE)
+   else if (CURRENT_VIEW->inputmode == INPUTMODE_LINE)
    {
       item_values[1].value = (CHARTYPE *)"LINE";
       item_values[1].len = 4;
@@ -2552,6 +2688,32 @@ LINETYPE arglen;
 /***********************************************************************/
 {
    return set_on_off_value(INSERTMODEx,1);
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
+short extract_interface(short number_variables,short itemno,CHARTYPE *itemargs,CHARTYPE query_type,LINETYPE argc,CHARTYPE *arg,LINETYPE arglen)
+#else
+short extract_interface(number_variables,itemno,itemargs,query_type,argc,arg,arglen)
+short number_variables,itemno;
+CHARTYPE *itemargs;
+CHARTYPE query_type;
+LINETYPE argc;
+CHARTYPE *arg;
+LINETYPE arglen;
+#endif
+/***********************************************************************/
+{
+   if ( INTERFACEx == INTERFACE_CLASSIC )
+   {
+      item_values[1].value = (CHARTYPE *)"CLASSIC";
+      item_values[1].len = 7;
+   }
+   else if ( INTERFACEx == INTERFACE_CUA )
+   {
+      item_values[1].value = (CHARTYPE *)"CUA";
+      item_values[1].len = 3;
+   }
+   return number_variables;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
@@ -2585,29 +2747,29 @@ LINETYPE arglen;
 {
    int keynum=0;
 
-   if (argc == 0)
-      set_key_values((current_key==-1)?-1:lastkeys[current_key],FALSE);
+   if ( blank_field( itemargs ) )
+      set_key_values( (current_key==-1) ? -1 : lastkeys[current_key], lastkeys_is_mouse[current_key] );
    else
    {
-      if (valid_positive_integer(itemargs))
+      if ( valid_positive_integer( itemargs ) )
       {
-         keynum = atoi((DEFCHAR *)itemargs);
-         if (keynum > 8)
-            return(EXTRACT_ARG_ERROR);
-         if (current_key == -1)
-            set_key_values(-1,FALSE);
+         keynum = atoi( (DEFCHAR *)itemargs );
+         if ( keynum > 8 )
+            return( EXTRACT_ARG_ERROR );
+         if ( current_key == -1 )
+            set_key_values( -1, FALSE );
          else
          {
             keynum--;  /* 0 base the number */
-            if (keynum <= current_key)
+            if ( keynum <= current_key )
                keynum = current_key - keynum;
             else
                keynum = 8 - (keynum - current_key);
-            set_key_values(keynum,FALSE);
+            set_key_values( lastkeys[keynum], lastkeys_is_mouse[keynum] );
          }
       }
       else
-         return(EXTRACT_ARG_ERROR);
+         return( EXTRACT_ARG_ERROR );
    }
    return number_variables;
 }
@@ -2654,8 +2816,6 @@ LINETYPE arglen;
    short rc=RC_OK;
    register int i=0;
    bool found=FALSE;
-   CHARTYPE save_msgline_base = CURRENT_VIEW->msgline_base;
-   short save_msgline_off = CURRENT_VIEW->msgline_off;
    ROWTYPE save_msgline_rows = CURRENT_VIEW->msgline_rows;
    bool save_msgmode_status = CURRENT_VIEW->msgmode_status;
    CHARTYPE *ptr_lastop=NULL;
@@ -2667,8 +2827,6 @@ LINETYPE arglen;
    {
       if (query_type == QUERY_QUERY)
       {
-         CURRENT_VIEW->msgline_base   = POSITION_TOP;
-         CURRENT_VIEW->msgline_off    = 1;
          CURRENT_VIEW->msgline_rows   = min(terminal_lines-1,LASTOP_MAX);
          CURRENT_VIEW->msgmode_status = TRUE;
       }
@@ -2679,7 +2837,7 @@ LINETYPE arglen;
          sprintf((DEFCHAR *)query_rsrvd,"%s%s %s",
            (query_type == QUERY_QUERY) ? (DEFCHAR *)"lastop " : "",
            lastop[i].command,
-           lastop[i].value );
+           (lastop[i].value) ? lastop[i].value : (CHARTYPE *)"" );
 
          if ( query_type == QUERY_QUERY )
             display_error( 0, query_rsrvd, TRUE);
@@ -2697,8 +2855,6 @@ LINETYPE arglen;
    {
       if (query_type == QUERY_QUERY)
       {
-         CURRENT_VIEW->msgline_base   = POSITION_TOP;
-         CURRENT_VIEW->msgline_off    = 1;
          CURRENT_VIEW->msgline_rows   = 1;
          CURRENT_VIEW->msgmode_status = TRUE;
       }
@@ -2709,7 +2865,7 @@ LINETYPE arglen;
       {
          if ( equal( lastop[i].command, (CHARTYPE *)itemargs, lastop[i].min_len ) )
          {
-            ptr_lastop = lastop[i].value;
+            ptr_lastop = (lastop[i].value) ? lastop[i].value : (CHARTYPE *)"";
             found = TRUE;
             break;
          }
@@ -2732,8 +2888,8 @@ LINETYPE arglen;
       {
          if (!found)
          {
-            return EXTRACT_ARG_ERROR;
             TRACE_RETURN();
+            return EXTRACT_ARG_ERROR;
          }
          item_values[1].value = lastop[i].command;
          item_values[1].len = strlen((DEFCHAR *)itemargs);
@@ -2745,8 +2901,6 @@ LINETYPE arglen;
 
    if (query_type == QUERY_QUERY)
    {
-      CURRENT_VIEW->msgline_base   = save_msgline_base;
-      CURRENT_VIEW->msgline_off    = save_msgline_off;
       CURRENT_VIEW->msgline_rows   = save_msgline_rows;
       CURRENT_VIEW->msgmode_status = save_msgmode_status;
       rc = EXTRACT_VARIABLES_SET;

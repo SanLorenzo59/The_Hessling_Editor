@@ -5,7 +5,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -31,10 +31,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: comm3.c,v 1.18 2005/09/01 10:29:16 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -77,6 +76,8 @@ DESCRIPTION
 
      If 'n' is supplied, the screen scrolls by that many columns.
 
+     LEFT 0 is equivalent to <SET VERIFY> 1
+
      If 'HALF' is specified the screen is scrolled by half the number
      of columns in the <filearea>.
 
@@ -91,7 +92,7 @@ COMPATIBILITY
      KEDIT: Compatible.
 
 SEE ALSO
-     <RIGHT>, <RGTLEFT>
+     <RIGHT>, <RGTLEFT>, <SET VERIFY>
 
 STATUS
      Complete.
@@ -112,11 +113,11 @@ CHARTYPE *params;
    /*
     * Validate only parameter, HALF or positive integer. 1 if no argument.
     */
-   if (equal((CHARTYPE *)"half",params,4))
-      shift_val = -(CURRENT_SCREEN.cols[WINDOW_FILEAREA]/2);
-   else if (equal((CHARTYPE *)"full",params,4))
-      shift_val = -(CURRENT_SCREEN.cols[WINDOW_FILEAREA]);
-   else if (blank_field(params))
+   if ( equal( (CHARTYPE *)"half", params, 4 ) )
+      shift_val = CURRENT_SCREEN.cols[WINDOW_FILEAREA]/2;
+   else if ( equal( (CHARTYPE *)"full", params, 4 ) )
+      shift_val = CURRENT_SCREEN.cols[WINDOW_FILEAREA];
+   else if ( blank_field( params ) )
       shift_val = 1L;
    else
    {
@@ -130,20 +131,24 @@ CHARTYPE *params;
          TRACE_RETURN();
          return(RC_INVALID_OPERAND);
       }
-      shift_val = atol((DEFCHAR *)params);
-      if (shift_val != 0)
-         shift_val = -shift_val;
+      shift_val = atol( (DEFCHAR *)params );
    }
    /*
-    * If the argument is 0, leave verify columns as is
+    * If the argument is 0, set verify column to 1
     */
-   if (shift_val != 0L)
-      CURRENT_VIEW->verify_col = max(1,CURRENT_VIEW->verify_col+shift_val);
+   if ( shift_val == 0L )
+   {
+      CURRENT_VIEW->verify_col = 1;
+   }
+   else
+   {
+      CURRENT_VIEW->verify_col = max( 1, CURRENT_VIEW->verify_col-shift_val );
+   }
 #ifdef MSWIN
-   Win31HScroll(CURRENT_VIEW->verify_col);
+   Win31HScroll( CURRENT_VIEW->verify_col );
 #endif
    build_screen( current_screen );
-   display_screen(current_screen);
+   display_screen( current_screen );
    TRACE_RETURN();
    return(rc);
 }
@@ -306,6 +311,9 @@ CHARTYPE *params;
    short macrorc=0;
 
    TRACE_FUNCTION( "comm3.c:   Macro" );
+#ifdef THE_TRACE
+   trace_string( "params: \"%s\"\n", params );
+#endif
    rc = execute_macro( params, TRUE, &macrorc );
    TRACE_RETURN();
    return( (rc == RC_SYSTEM_ERROR) ? rc : macrorc );
@@ -338,8 +346,8 @@ DESCRIPTION
      'col1' and 'col2' specify the first or last column of the
      marked block.
 
-     Any existing marked block will be replaced with the block specified
-     in this command.
+     Any currently marked block will be unmarked or extended depending on
+     the arguments supplied.
 
      When marking a <word block>, 'line1' and 'col1' refer to any position
      within the word.
@@ -442,6 +450,7 @@ CHARTYPE *params;
    strip[1]=STRIP_BOTH;
    strip[2]=STRIP_BOTH;
    strip[3]=STRIP_BOTH;
+   strip[4]=STRIP_BOTH;
    num_params = param_split(params,word,MAR_PARAMS,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
    /*
     * Validate the first parameter: must be Box, Line, Stream, Column, Word
@@ -541,7 +550,7 @@ CHARTYPE *params;
             rc = THEcursor_up( CURSOR_CUA );
             break;
          case CUA_DOWN:
-            rc = THEcursor_down( CURSOR_CUA );
+            rc = THEcursor_down( current_screen, CURRENT_VIEW, CURSOR_CUA );
             break;
          case CUA_FORWARD:
             rc = scroll_page(DIRECTION_FORWARD,1,FALSE);
@@ -950,11 +959,13 @@ CHARTYPE *params;
 {
    short rc=RC_OK;
 
-   TRACE_FUNCTION("comm3.c:   Modify");
-   if ((rc = execute_modify_command(params)) == RC_OK)
-      Cmsg(temp_cmd);
+   TRACE_FUNCTION( "comm3.c:   Modify" );
+   if ( ( rc = execute_modify_command( params ) ) == RC_OK )
+   {
+      Cmsg( temp_cmd );
+   }
    TRACE_RETURN();
-   return(rc);
+   return( rc );
 }
 /*man-start*********************************************************************
 COMMAND
@@ -1162,12 +1173,19 @@ DESCRIPTION
      This is similar to <EMSG>, but MSG does not sound the bell if
      <SET BEEP> is on.
 
+     If the number of messages displayed on the <message line> exceeds
+     the number of lines defined in the <message line> as set by
+     <SET MSGLINE>, a prompt will be displayed. If a macro is being
+     executed, the prompt will indicate that the user may terminate the macro
+     by pressing the SPACE bar or any other key to continue execution of
+     the macro.
+
 COMPATIBILITY
      XEDIT: Compatible.
      KEDIT: Compatible.
 
 SEE ALSO
-     <CMSG>, <EMSG>
+     <CMSG>, <EMSG>, <SET MSGLINE>
 
 STATUS
      Complete.
@@ -1180,10 +1198,11 @@ CHARTYPE *params;
 #endif
 /***********************************************************************/
 {
+   int rc;
    TRACE_FUNCTION("comm3.c:   Msg");
-   display_error(0,params,TRUE);
+   rc = display_error(0,params,TRUE);
    TRACE_RETURN();
-   return(RC_OK);
+   return rc;
 }
 /*man-start*********************************************************************
 COMMAND
@@ -1780,12 +1799,18 @@ CHARTYPE *params;
       rc = RC_INVALID_OPERAND;
    }
 #endif
+#ifdef USE_PROG_MODE
+   def_prog_mode();
+#endif
    /*
     * Run the supplied OS command with stdout and stderr going to the
     * supplied redirection file
     */
    if ( rc == RC_OK )
       rrc = system( (DEFCHAR *)word[1] );
+#ifdef USE_PROG_MODE
+   reset_prog_mode();
+#endif
    /*
     * Close the redirected file
     */

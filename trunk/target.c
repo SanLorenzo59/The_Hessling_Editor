@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: target.c,v 1.25 2006/01/29 08:03:54 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -61,6 +60,39 @@ static bool is_blank();
 
 /***********************************************************************/
 #ifdef HAVE_PROTO
+static int target_type_match( CHARTYPE *ptr, CHARTYPE *type, int minlen )
+#else
+static int target_type_match( ptr, type, minlen )
+CHARTYPE *ptr, *type;
+int minlen;
+#endif
+/***********************************************************************/
+/*
+ * Return the length of ptr that matches from the minlen of type.
+ * eg. chan, changed, 3 will result in 4
+ * If no match, return 0
+ */
+{
+   int i, result=0, maxlen;
+
+   TRACE_FUNCTION("target.c:  target_type_match");
+   maxlen = strlen( (DEFCHAR *)type );
+   for ( i = minlen; i <= maxlen; i++ )
+   {
+      if ( memcmpi( type, ptr, i ) == 0
+      && ( *(ptr+(i)) == ' '
+        || *(ptr+(i)) == '\0'
+        || *(ptr+(i)) == '\t') )
+      {
+         result = i;
+      }
+   }
+   TRACE_RETURN();
+   return result;
+}
+
+/***********************************************************************/
+#ifdef HAVE_PROTO
 short split_change_params(CHARTYPE *cmd_line,CHARTYPE **old_str,CHARTYPE **new_str,
                           TARGET *target,LINETYPE *num,LINETYPE *occ)
 #else
@@ -78,21 +110,29 @@ LINETYPE *num,*occ;
    CHARTYPE *target_start=NULL;
    short rc=RC_OK;
    CHARTYPE delim=' ';
-   LENGTHTYPE idx=0;
-   short target_type = TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL|TARGET_SPARE;
+   LENGTHTYPE len=strlen((DEFCHAR *)cmd_line),idx=0;
+   long target_type = TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL|TARGET_SPARE;
    unsigned short num_params=0;
    CHARTYPE _THE_FAR buffer[100];
 
    TRACE_FUNCTION("target.c:  split_change_params");
    /*
-    * First, determine the delimiter; the first character in the argument
+    * First, determine the delimiter; the first non-blank character in the argument
     * string.
     */
-   delim = *(cmd_line);
+   for ( i = 0; i < len; i++ )
+   {
+      if ( *(cmd_line+i ) != ' ' )
+      {
+         delim = *(cmd_line+i);
+         idx = i+1;
+         break;
+      }
+   }
    /*
     * Set up default values for the return values...
     */
-   *old_str = cmd_line+1;
+   *old_str = cmd_line+idx;
    *new_str = (CHARTYPE *)"";
    target_start = (CHARTYPE *)"";
    *num = *occ = 1L;
@@ -101,8 +141,7 @@ LINETYPE *num,*occ;
    /*
     * Set up default values for the return values...
     */
-   idx = strlen((DEFCHAR *)cmd_line);
-   for (i=1,j=0;i<idx;i++)
+   for ( i = idx, j = 0; i < len; i++ )
    {
       if (*(cmd_line+i) == delim)
       {
@@ -195,10 +234,11 @@ LINETYPE *num,*occ;
    TRACE_RETURN();
    return(RC_OK);
 }
+
 /***********************************************************************/
 #ifdef HAVE_PROTO
 short parse_target(CHARTYPE *target_spec,LINETYPE true_line,TARGET *target,
-                   short target_types,bool display_parse_error,
+                   long target_types,bool display_parse_error,
                    bool allow_error_display,bool column_target)
 #else
 short parse_target(target_spec,true_line,target,target_types,
@@ -206,7 +246,7 @@ short parse_target(target_spec,true_line,target,target_types,
 CHARTYPE *target_spec;
 LINETYPE true_line;
 TARGET *target;
-short target_types;
+long target_types;
 bool display_parse_error,allow_error_display,column_target;
 #endif
 /***********************************************************************/
@@ -264,6 +304,7 @@ bool display_parse_error,allow_error_display,column_target;
             TRACE_RETURN();
             return(RC_OUT_OF_MEMORY);
          }
+         memset( target->rt, 0, sizeof(RTARGET) );
          target->num_targets = 1;
          target->rt[0].not_target = (target_types == TARGET_NFIND || target_types == TARGET_NFINDUP)?TRUE:FALSE;
          target->rt[0].negative = (target_types == TARGET_FINDUP || target_types == TARGET_NFINDUP)?TRUE:FALSE;
@@ -305,12 +346,13 @@ bool display_parse_error,allow_error_display,column_target;
                TRACE_RETURN();
                return(RC_OUT_OF_MEMORY);
             }
+            memset( &target->rt[num_targets], 0, sizeof(RTARGET) );
             target->rt[num_targets].not_target = FALSE;
             target->rt[num_targets].boolean = boolean;
             target->rt[num_targets].found = FALSE;
             target->rt[num_targets].length = 0;
             target->rt[num_targets].string = NULL;
-            target->rt[num_targets].negative = FALSE;
+            target->rt[num_targets].negative =  target->rt[0].negative; /* was FALSE; */
             target->rt[num_targets].target_type = TARGET_ERR;
             target->rt[num_targets].numeric_target = 0L;
             target->rt[num_targets].have_compiled_re = FALSE;
@@ -336,12 +378,6 @@ bool display_parse_error,allow_error_display,column_target;
                case '\t':
                   break;
                case '-':
-                  if (target->rt[num_targets].negative)
-                  {
-                     state = STATE_ERROR;
-                     inc = 0;
-                     break;
-                  }
                   target->rt[num_targets].negative = TRUE;
                   state = STATE_NEGATIVE;
                   break;
@@ -362,11 +398,16 @@ bool display_parse_error,allow_error_display,column_target;
                      }
                      if ( toupper(*(ptr+i+k)) == regexp[k] )
                         continue;
-                     if ( *(ptr+(i+k)) == ' '
+                     else if ( *(ptr+(i+k)) == ' '
                      ||   *(ptr+(i+k)) == '\0'
                      ||   *(ptr+(i+k)) == '\t' )
                      {
                         state = STATE_REGEXP_START;
+                        break;
+                     }
+                     else
+                     {
+                        state = STATE_ERROR;
                         break;
                      }
                   }
@@ -478,16 +519,28 @@ bool display_parse_error,allow_error_display,column_target;
                      inc = 0;
                      break;
                   }
-                  if (memcmpi((CHARTYPE *)"all",ptr+i,3) == 0
-                  && (*(ptr+(i+3)) == ' '
-                      || *(ptr+(i+3)) == '\0'
-                      || *(ptr+(i+3)) == '\t'))
+                  /*
+                   * ALL target
+                   */
+                  inc = target_type_match( (CHARTYPE *)ptr+i, (CHARTYPE *)"all", 3 );
+                  if ( inc != 0 )
                   {
                      target->rt[num_targets].target_type = TARGET_ALL;
-                     inc = 3;
                      state = STATE_BOOLEAN;
                      num_targets++;
-                     potential_spare_start = i+3;
+                     potential_spare_start = i+inc;
+                     break;
+                  }
+                  /*
+                   * ALTERED target
+                   */
+                  inc = target_type_match( (CHARTYPE *)ptr+i, (CHARTYPE *)"altered", 3 );
+                  if ( inc != 0 )
+                  {
+                     target->rt[num_targets].target_type = TARGET_ALTERED;
+                     potential_spare_start = i+inc;
+                     state = STATE_BOOLEAN;
+                     num_targets++;
                      break;
                   }
                   state = STATE_ERROR;
@@ -500,12 +553,27 @@ bool display_parse_error,allow_error_display,column_target;
                      inc = 0;
                      break;
                   }
-                  if (memcmpi((CHARTYPE *)"blank",ptr+i,5) == 0
+                  /*
+                   * BLANK target
+                   */
+                  inc = target_type_match( (CHARTYPE *)ptr+i, (CHARTYPE *)"blank", 5 );
+                  if ( inc != 0 )
+                  {
+                     target->rt[num_targets].target_type = TARGET_BLANK;
+                     potential_spare_start = i+inc;
+                     state = STATE_BOOLEAN;
+                     num_targets++;
+                     break;
+                  }
+                  /*
+                   * BLOCK target
+                   */
+                  if (memcmpi((CHARTYPE *)"block",ptr+i,5) == 0
                   && (*(ptr+(i+5)) == ' '
                       || *(ptr+(i+5)) == '\0'
                       || *(ptr+(i+5)) == '\t'))
                   {
-                     target->rt[num_targets].target_type = TARGET_BLANK;
+                     target->rt[num_targets].target_type = TARGET_BLOCK;
                      inc = 5;
                      potential_spare_start = i+5;
                      state = STATE_BOOLEAN;
@@ -519,16 +587,91 @@ bool display_parse_error,allow_error_display,column_target;
                      inc = 0;
                      break;
                   }
-                  if (memcmpi((CHARTYPE *)"block",ptr+i,5) == 0
-                  && (*(ptr+(i+5)) == ' '
-                      || *(ptr+(i+5)) == '\0'
-                      || *(ptr+(i+5)) == '\t'))
+                  state = STATE_ERROR;
+                  inc = 0;
+                  break;
+               case 'n': case 'N':
+                  if (target_length-i < 3)
                   {
-                     target->rt[num_targets].target_type = TARGET_BLOCK;
-                     inc = 5;
-                     potential_spare_start = i+5;
+                     state = STATE_ERROR;
+                     inc = 0;
+                     break;
+                  }
+                  /*
+                   * NEW target
+                   */
+                  inc = target_type_match( (CHARTYPE *)ptr+i, (CHARTYPE *)"new", 3 );
+                  if ( inc != 0 )
+                  {
+                     target->rt[num_targets].target_type = TARGET_NEW;
+                     potential_spare_start = i+inc;
                      state = STATE_BOOLEAN;
                      num_targets++;
+                     break;
+                  }
+                  if (target->rt[num_targets].not_target
+                  ||  target->rt[num_targets].negative)
+                  {
+                     state = STATE_ERROR;
+                     inc = 0;
+                     break;
+                  }
+                  state = STATE_ERROR;
+                  inc = 0;
+                  break;
+               case 'c': case 'C':
+                  if (target_length-i < 3)
+                  {
+                     state = STATE_ERROR;
+                     inc = 0;
+                     break;
+                  }
+                  /*
+                   * CHANGED target
+                   */
+                  inc = target_type_match( (CHARTYPE *)ptr+i, (CHARTYPE *)"changed", 3 );
+                  if ( inc != 0 )
+                  {
+                     target->rt[num_targets].target_type = TARGET_CHANGED;
+                     potential_spare_start = i+inc;
+                     state = STATE_BOOLEAN;
+                     num_targets++;
+                     break;
+                  }
+                  if (target->rt[num_targets].not_target
+                  ||  target->rt[num_targets].negative)
+                  {
+                     state = STATE_ERROR;
+                     inc = 0;
+                     break;
+                  }
+                  state = STATE_ERROR;
+                  inc = 0;
+                  break;
+               case 't': case 'T':
+                  if (target_length-i < 3)
+                  {
+                     state = STATE_ERROR;
+                     inc = 0;
+                     break;
+                  }
+                  /*
+                   * TAGGED target
+                   */
+                  inc = target_type_match( (CHARTYPE *)ptr+i, (CHARTYPE *)"tagged", 3 );
+                  if ( inc != 0 )
+                  {
+                     target->rt[num_targets].target_type = TARGET_TAGGED;
+                     potential_spare_start = i+inc;
+                     state = STATE_BOOLEAN;
+                     num_targets++;
+                     break;
+                  }
+                  if (target->rt[num_targets].not_target
+                  ||  target->rt[num_targets].negative)
+                  {
+                     state = STATE_ERROR;
+                     inc = 0;
                      break;
                   }
                   state = STATE_ERROR;
@@ -789,9 +932,11 @@ bool display_parse_error,allow_error_display,column_target;
                   str_start = i;
                   inc = 0;
                   break;
+               /* following are delimiters; make sure you change the other lists */
                case '/': case '\\': case '@': case '`': case '#': case '$':
                case '%': case '(': case ')': case '{': case '}': case '[': case ']':
-               case '"': case '\'': case '<': case '>':
+               case '"': case '\'': case '<': case '>': case ',': case 255:
+               case '\0':
                   state = STATE_START;
                   inc = 0;
                   break;
@@ -800,6 +945,14 @@ bool display_parse_error,allow_error_display,column_target;
                   inc = 0;
                   break;
                case 'b': case 'B':
+               case 'n': case 'N':
+               case 't': case 'T':
+               case 'c': case 'C':
+               case 'a': case 'A':
+               case 's': case 'S':
+                  /*
+                   * For -BLANK, -NEW, etc
+                   */
                   state = STATE_START;
                   inc = 0;
                   break;
@@ -893,6 +1046,21 @@ bool display_parse_error,allow_error_display,column_target;
     *                  -BLANK
     *                  ~BLANK
     *                  ~-BLANK
+    * TARGET_NEW       (NEW can be upper or lower case)
+    *                  NEW
+    *                  -NEW
+    *                  ~NEW
+    *                  ~-NEW
+    * TARGET_CHANGED   (CHANGED can be upper or lower case)
+    *                  CHANGED
+    *                  -CHANGED
+    *                  ~CHANGED
+    *                  ~-CHANGED
+    * TARGET_TAGGED    (TAGGED can be upper or lower case)
+    *                  TAGGED
+    *                  -TAGGED
+    *                  ~TAGGED
+    *                  ~-TAGGED
     * TARGET_STRING    (various valid delimiters)
     *                  /string/
     *                  -/string/
@@ -1004,7 +1172,7 @@ bool display_parse_error,allow_error_display,column_target;
    if (rc != RC_OK
    && display_parse_error
    && allow_error_display)
-      display_error(1,ptr,FALSE);
+      display_error( 1, ptr, FALSE );
    TRACE_RETURN();
    return(rc);
 }
@@ -1480,8 +1648,7 @@ int search_semantics;
  */
 {
    CHARTYPE *haystack=curr->line;
-   CHARTYPE _THE_FAR temp_str[MAX_COMMAND_LENGTH];
-   CHARTYPE *needle=temp_str;
+   CHARTYPE *needle;
    LENGTHTYPE needle_length=0,haystack_length=0;
    LINETYPE real_start=0,real_end=0;
    bool use_trec=FALSE;
@@ -1491,24 +1658,42 @@ int search_semantics;
 
    TRACE_FUNCTION("target.c:  find_string_target");
    /*
+    * Allocate some termporary space
+    */
+   needle = (CHARTYPE *)alloca( rt->length + 1 );
+   if ( needle == NULL )
+   {
+      display_error( 30, (CHARTYPE *)"", FALSE );
+      TRACE_RETURN();
+      return(RC_OUT_OF_MEMORY);
+   }
+   /*
     * Copy the supplied string target rather than point to it, as we don't
     * want to change the value of the target if it is a HEX string.
     */
-   strcpy((DEFCHAR*)temp_str,(DEFCHAR*)rt->string);
+   strcpy((DEFCHAR*)needle,(DEFCHAR*)rt->string);
    /*
     * If HEX is on, convert the target from a HEX format to CHARTYPE.
     */
    if (CURRENT_VIEW->hex == TRUE)
    {
       rc = convert_hex_strings(needle);
-      if (rc == (-1))
+      switch( rc )
       {
-         display_error(32,needle,FALSE);
-         TRACE_RETURN();
-         return(RC_INVALID_OPERAND);
+         case -1: /* invalid hex value */
+            display_error( 32, needle, FALSE );
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+            break;
+         case -2: /* memory exhausted */
+            display_error( 30, (CHARTYPE *)"", FALSE );
+            TRACE_RETURN();
+            return(RC_OUT_OF_MEMORY);
+            break;
+         default:
+            break;
       }
-      else
-         needle_length = rc;
+      needle_length = rc;
    }
    else
       needle_length = strlen((DEFCHAR *)needle);
@@ -1724,6 +1909,78 @@ LINETYPE *num_lines;
             }
             target_found = is_blank( curr );
             break;
+         case TARGET_NEW:
+            if ( true_line == line_number )
+            {
+               target_found = ((target->rt[i].not_target) ? TRUE : FALSE);
+               break;
+            }
+            if ( target->rt[0].negative )
+            {
+               if ( curr->prev == NULL )
+                  break;
+            }
+            else
+            {
+               if ( curr->next == NULL )
+                  break;
+            }
+            target_found = curr->flags.new_flag;
+            break;
+         case TARGET_CHANGED:
+            if ( true_line == line_number )
+            {
+               target_found = ((target->rt[i].not_target) ? TRUE : FALSE);
+               break;
+            }
+            if ( target->rt[0].negative )
+            {
+               if ( curr->prev == NULL )
+                  break;
+            }
+            else
+            {
+               if ( curr->next == NULL )
+                  break;
+            }
+            target_found = curr->flags.changed_flag;
+            break;
+         case TARGET_ALTERED:
+            if ( true_line == line_number )
+            {
+               target_found = ((target->rt[i].not_target) ? TRUE : FALSE);
+               break;
+            }
+            if ( target->rt[0].negative )
+            {
+               if ( curr->prev == NULL )
+                  break;
+            }
+            else
+            {
+               if ( curr->next == NULL )
+                  break;
+            }
+            target_found = (curr->flags.changed_flag | curr->flags.new_flag);
+            break;
+         case TARGET_TAGGED:
+            if ( true_line == line_number )
+            {
+               target_found = ((target->rt[i].not_target) ? TRUE : FALSE);
+               break;
+            }
+            if ( target->rt[0].negative )
+            {
+               if ( curr->prev == NULL )
+                  break;
+            }
+            else
+            {
+               if ( curr->next == NULL )
+                  break;
+            }
+            target_found = curr->flags.tag_flag;
+            break;
          case TARGET_POINT:
             if ( curr->first_name == NULL )
                break;
@@ -1808,6 +2065,16 @@ LINETYPE *num_lines;
             }
             break;
          case TARGET_RELATIVE:
+            /*
+             * If the command is TAG or ALL then we mark the nth line so a match
+             * here is based on
+             */
+            if ( target->all_tag_command )
+            {
+               if ( *num_lines % target->rt[i].numeric_target == 0 )
+                  target_found = TRUE;
+               break;
+            }
             if ((*num_lines * multiplier) == target->rt[i].numeric_target)
                   target_found = TRUE;
             if (target->rt[0].negative)
@@ -2065,12 +2332,12 @@ short direction;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short validate_target(CHARTYPE *string,TARGET *target,short target_type,LINETYPE true_line,bool display_parse_error,bool allow_error_display)
+short validate_target(CHARTYPE *string,TARGET *target,long target_type,LINETYPE true_line,bool display_parse_error,bool allow_error_display)
 #else
 short validate_target(string,target,target_type,true_line,display_parse_error,allow_error_display)
 CHARTYPE *string;
 TARGET *target;
-short target_type;
+long target_type;
 LINETYPE true_line;
 bool display_parse_error,allow_error_display;
 #endif
@@ -2119,13 +2386,15 @@ LINE *curr;
 #endif
 /***********************************************************************/
 #ifdef HAVE_PROTO
-void calculate_scroll_values(short *number_focus_rows,LINETYPE *new_focus_line,
+void calculate_scroll_values(CHARTYPE curr_screen, VIEW_DETAILS *curr_view, short *number_focus_rows,LINETYPE *new_focus_line,
                              LINETYPE *new_current_line,bool *limit_of_screen,
                              bool *limit_of_file,bool *leave_cursor,
                              short direction)
 #else
-void calculate_scroll_values(number_focus_rows,new_focus_line,new_current_line,
+void calculate_scroll_values(curr_screen,curr_view,number_focus_rows,new_focus_line,new_current_line,
                              limit_of_screen,limit_of_file,leave_cursor,direction)
+CHARTYPE curr_screen;
+VIEW_DETAILS *curr_view;
 short *number_focus_rows;
 LINETYPE *new_focus_line,*new_current_line;
 bool *limit_of_screen,*limit_of_file,*leave_cursor;
@@ -2137,10 +2406,11 @@ short direction;
    unsigned short y=0;
 
    TRACE_FUNCTION("target.c:  calculate_scroll_values");
+
    *limit_of_screen = *limit_of_file = FALSE;
    *number_focus_rows = 0;
    *new_focus_line = (-1L);
-   y = CURRENT_SCREEN.rows[WINDOW_FILEAREA];
+   y = screen[curr_screen].rows[WINDOW_FILEAREA];
    switch(direction)
    {
       case DIRECTION_FORWARD:
@@ -2148,18 +2418,18 @@ short direction;
           * Determine the new focus line and the number of rows to adjust the
           * cursor position.
           */
-         for (i=0;i<CURRENT_SCREEN.rows[WINDOW_FILEAREA];i++)
+         for (i=0;i<screen[curr_screen].rows[WINDOW_FILEAREA];i++)
          {
-            if (CURRENT_SCREEN.sl[i].line_number == CURRENT_VIEW->focus_line)
+            if (screen[curr_screen].sl[i].line_number == curr_view->focus_line)
             {
                y = i;
                continue;
             }
-            if (CURRENT_SCREEN.sl[i].line_number != (-1L)
-            && y != CURRENT_SCREEN.rows[WINDOW_FILEAREA])
+            if (screen[curr_screen].sl[i].line_number != (-1L)
+            && y != screen[curr_screen].rows[WINDOW_FILEAREA])
             {
                *number_focus_rows = i-y;
-               *new_focus_line = CURRENT_SCREEN.sl[i].line_number;
+               *new_focus_line = screen[curr_screen].sl[i].line_number;
                break;
             }
          }
@@ -2171,18 +2441,18 @@ short direction;
           */
          if (*new_focus_line == (-1L))
          {
-            if (CURRENT_VIEW->shadow)
+            if (curr_view->shadow)
             {
-               *new_focus_line = CURRENT_SCREEN.sl[y].line_number +
-                                 ((CURRENT_SCREEN.sl[y].number_lines_excluded == 0) ?
+               *new_focus_line = screen[curr_screen].sl[y].line_number +
+                                 ((screen[curr_screen].sl[y].number_lines_excluded == 0) ?
                                  1L :
-                                 (LINETYPE)CURRENT_SCREEN.sl[y].number_lines_excluded);
+                                 (LINETYPE)screen[curr_screen].sl[y].number_lines_excluded);
             }
             else
             {
-               if (CURRENT_SCREEN.sl[y].current->next != NULL)
-                  *new_focus_line = find_next_in_scope(CURRENT_VIEW,CURRENT_SCREEN.sl[y].current->next,
-                                   CURRENT_SCREEN.sl[y].line_number+1L,direction);
+               if (screen[curr_screen].sl[y].current->next != NULL)
+                  *new_focus_line = find_next_in_scope(curr_view,screen[curr_screen].sl[y].current->next,
+                                   screen[curr_screen].sl[y].line_number+1L,direction);
             }
          }
          /*
@@ -2191,16 +2461,16 @@ short direction;
           */
          *leave_cursor = TRUE;
          *new_current_line = (-1L);
-         for (i=CURRENT_VIEW->current_row+1;i<CURRENT_SCREEN.rows[WINDOW_FILEAREA];i++)
+         for (i=curr_view->current_row+1;i<screen[curr_screen].rows[WINDOW_FILEAREA];i++)
          {
-            if (CURRENT_SCREEN.sl[i].line_type == LINE_LINE
-            ||  CURRENT_SCREEN.sl[i].line_type == LINE_TOF   /* MH12 */
-            ||  CURRENT_SCREEN.sl[i].line_type == LINE_EOF)  /* MH12 */
+            if (screen[curr_screen].sl[i].line_type == LINE_LINE
+            ||  screen[curr_screen].sl[i].line_type == LINE_TOF   /* MH12 */
+            ||  screen[curr_screen].sl[i].line_type == LINE_EOF)  /* MH12 */
             {
-               *new_current_line = CURRENT_SCREEN.sl[i].line_number;
+               *new_current_line = screen[curr_screen].sl[i].line_number;
                break;
             }
-            if (CURRENT_SCREEN.sl[i].line_type == LINE_SHADOW)
+            if (screen[curr_screen].sl[i].line_type == LINE_SHADOW)
                *leave_cursor = FALSE;
          }
          /*
@@ -2211,18 +2481,18 @@ short direction;
           */
          if (*new_current_line == (-1L))
          {
-            if (CURRENT_SCREEN.sl[y].current->next != NULL)
-               *new_current_line = find_next_in_scope(CURRENT_VIEW,CURRENT_SCREEN.sl[y].current->next,
-                                   CURRENT_SCREEN.sl[y].line_number+1L,direction);
+            if (screen[curr_screen].sl[y].current->next != NULL)
+               *new_current_line = find_next_in_scope(curr_view,screen[curr_screen].sl[y].current->next,
+                                   screen[curr_screen].sl[y].line_number+1L,direction);
          }
          /*
           * Set flags for bottom_of_screen and bottom_of_file as appropriate.
           */
          if (*number_focus_rows == 0)
             *limit_of_screen = TRUE;
-/*         if (CURRENT_SCREEN.sl[y].line_type == LINE_TOF_EOF MH12 */
-/*         &&  CURRENT_SCREEN.sl[y].current->next == NULL) MH12 */
-         if (CURRENT_SCREEN.sl[y].line_type == LINE_EOF)
+/*         if (screen[curr_screen].sl[y].line_type == LINE_TOF_EOF MH12 */
+/*         &&  screen[curr_screen].sl[y].current->next == NULL) MH12 */
+         if (screen[curr_screen].sl[y].line_type == LINE_EOF)
             *limit_of_file = TRUE;
          break;
       case DIRECTION_BACKWARD:
@@ -2230,18 +2500,18 @@ short direction;
           * Determine the new focus line and the number of rows to adjust the
           * cursor position.
           */
-         for (i=CURRENT_SCREEN.rows[WINDOW_FILEAREA]-1;i>-1;i--)
+         for (i=screen[curr_screen].rows[WINDOW_FILEAREA]-1;i>-1;i--)
          {
-            if (CURRENT_SCREEN.sl[i].line_number == CURRENT_VIEW->focus_line)
+            if (screen[curr_screen].sl[i].line_number == curr_view->focus_line)
             {
                y = i;
                continue;
             }
-            if (CURRENT_SCREEN.sl[i].line_number != (-1L)
-            && y != CURRENT_SCREEN.rows[WINDOW_FILEAREA])
+            if (screen[curr_screen].sl[i].line_number != (-1L)
+            && y != screen[curr_screen].rows[WINDOW_FILEAREA])
             {
                *number_focus_rows = y-i;
-               *new_focus_line = CURRENT_SCREEN.sl[i].line_number;
+               *new_focus_line = screen[curr_screen].sl[i].line_number;
                break;
             }
          }
@@ -2253,26 +2523,26 @@ short direction;
           */
          if (*new_focus_line == (-1L))
          {
-            if (CURRENT_VIEW->shadow)
+            if (curr_view->shadow)
             {
-               if (CURRENT_SCREEN.sl[y].line_type == LINE_SHADOW)
-                  *new_focus_line = CURRENT_SCREEN.sl[y].line_number - 1L;
+               if (screen[curr_screen].sl[y].line_type == LINE_SHADOW)
+                  *new_focus_line = screen[curr_screen].sl[y].line_number - 1L;
                else
                {
-                  if (CURRENT_SCREEN.sl[y].current->prev != NULL)
+                  if (screen[curr_screen].sl[y].current->prev != NULL)
                   {
-                     *new_focus_line = find_next_in_scope(CURRENT_VIEW,CURRENT_SCREEN.sl[y].current->prev,
-                                       CURRENT_SCREEN.sl[y].line_number-1L,direction);
-                     if (*new_focus_line != CURRENT_SCREEN.sl[y].line_number-1L)
+                     *new_focus_line = find_next_in_scope(curr_view,screen[curr_screen].sl[y].current->prev,
+                                       screen[curr_screen].sl[y].line_number-1L,direction);
+                     if (*new_focus_line != screen[curr_screen].sl[y].line_number-1L)
                         *new_focus_line = *new_focus_line + 1;
                   }
                }
             }
             else
             {
-               if (CURRENT_SCREEN.sl[y].current->prev != NULL)
-                  *new_focus_line = find_next_in_scope(CURRENT_VIEW,CURRENT_SCREEN.sl[y].current->prev,
-                                   CURRENT_SCREEN.sl[y].line_number-1L,direction);
+               if (screen[curr_screen].sl[y].current->prev != NULL)
+                  *new_focus_line = find_next_in_scope(curr_view,screen[curr_screen].sl[y].current->prev,
+                                   screen[curr_screen].sl[y].line_number-1L,direction);
             }
          }
          /*
@@ -2281,16 +2551,16 @@ short direction;
           */
          *leave_cursor = TRUE;
          *new_current_line = (-1L);
-         for (i=CURRENT_VIEW->current_row-1;i>-1;i--)
+         for (i=curr_view->current_row-1;i>-1;i--)
          {
-            if (CURRENT_SCREEN.sl[i].line_type == LINE_LINE
-            ||  CURRENT_SCREEN.sl[i].line_type == LINE_TOF /* MH12 */
-            ||  CURRENT_SCREEN.sl[i].line_type == LINE_EOF) /* MH12 */
+            if (screen[curr_screen].sl[i].line_type == LINE_LINE
+            ||  screen[curr_screen].sl[i].line_type == LINE_TOF /* MH12 */
+            ||  screen[curr_screen].sl[i].line_type == LINE_EOF) /* MH12 */
             {
-               *new_current_line = CURRENT_SCREEN.sl[i].line_number;
+               *new_current_line = screen[curr_screen].sl[i].line_number;
                break;
             }
-            if (CURRENT_SCREEN.sl[i].line_type == LINE_SHADOW)
+            if (screen[curr_screen].sl[i].line_type == LINE_SHADOW)
                *leave_cursor = FALSE;
          }
          /*
@@ -2301,18 +2571,20 @@ short direction;
           */
          if (*new_current_line == (-1L))
          {
-            if (CURRENT_SCREEN.sl[y].current->prev != NULL)
-               *new_current_line = find_next_in_scope(CURRENT_VIEW,CURRENT_SCREEN.sl[y].current->prev,
-                                  CURRENT_SCREEN.sl[y].line_number-1L,direction);
+            if (screen[curr_screen].sl[y].current->prev != NULL)
+               *new_current_line = find_next_in_scope(curr_view,screen[curr_screen].sl[y].current->prev,
+                                  screen[curr_screen].sl[y].line_number-1L,direction);
+            else
+               *new_current_line = *new_focus_line;
          }
          /*
           * Set flags for top_of_screen and top_of_file as appropriate.
           */
          if (*number_focus_rows == 0)
             *limit_of_screen = TRUE;
-/*         if (CURRENT_SCREEN.sl[y].line_type == LINE_TOF_EOF MH12 */
-/*         &&  CURRENT_SCREEN.sl[y].current->prev == NULL) MH12 */
-         if (CURRENT_SCREEN.sl[y].line_type == LINE_TOF)
+/*         if (screen[curr_screen].sl[y].line_type == LINE_TOF_EOF MH12 */
+/*         &&  screen[curr_screen].sl[y].current->prev == NULL) MH12 */
+         if (screen[curr_screen].sl[y].line_type == LINE_TOF)
             *limit_of_file = TRUE;
          break;
    }
@@ -2321,9 +2593,10 @@ short direction;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short find_last_focus_line(unsigned short *newrow)
+short find_last_focus_line( CHARTYPE curr_screen, unsigned short *newrow)
 #else
-short find_last_focus_line(newrow)
+short find_last_focus_line( curr_screen, newrow )
+CHARTYPE curr_screen;
 unsigned short *newrow;
 #endif
 /***********************************************************************/
@@ -2333,24 +2606,25 @@ unsigned short *newrow;
    short rc=RC_OK;
 
    TRACE_FUNCTION("target.c:  find_last_focus_line");
-   for (i=CURRENT_SCREEN.rows[WINDOW_FILEAREA]-1;i>-1;i--)
+   for ( i = screen[curr_screen].rows[WINDOW_FILEAREA]-1; i > -1; i-- )
    {
-      if (CURRENT_SCREEN.sl[i].line_number != (-1L))
+      if ( screen[curr_screen].sl[i].line_number != (-1L) )
       {
          *newrow = row = i;
          break;
       }
    }
-   if (row == (-1))
+   if ( row == (-1) )
       rc = RC_INVALID_OPERAND;
    TRACE_RETURN();
    return(rc);
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short find_first_focus_line(unsigned short *newrow)
+short find_first_focus_line( CHARTYPE curr_screen, unsigned short *newrow )
 #else
-short find_first_focus_line(newrow)
+short find_first_focus_line( curr_screen, newrow )
+CHARTYPE curr_screen;
 unsigned short *newrow;
 #endif
 /***********************************************************************/
@@ -2360,9 +2634,9 @@ unsigned short *newrow;
    short rc=RC_OK;
 
    TRACE_FUNCTION("target.c:  find_first_focus_line");
-   for (i=0;i<CURRENT_SCREEN.rows[WINDOW_FILEAREA];i++)
+   for ( i = 0; i < screen[curr_screen].rows[WINDOW_FILEAREA]; i++ )
    {
-      if (CURRENT_SCREEN.sl[i].line_number != (-1L))
+      if ( screen[curr_screen].sl[i].line_number != (-1L) )
       {
          *newrow = row = i;
          break;

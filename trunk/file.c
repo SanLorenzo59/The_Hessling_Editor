@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: file.c,v 1.14 2005/08/21 07:16:40 mark Exp $";
 
 #include "the.h"
 #include "proto.h"
@@ -399,6 +398,10 @@ CHARTYPE *filename;
       TRACE_RETURN();
       return(RC_OUT_OF_MEMORY);
    }
+   /*
+    * Set readonly to default
+    */
+   CURRENT_FILE->readonly = READONLY_OFF;
    /*
     * Allocate space for file's colour attributes...
     */
@@ -1044,7 +1047,7 @@ bool autosave;
    /*
     * If a new filename is specified, use it as the old filename.
     */
-   (void *)strrmdup(strtrans(new_fname,OSLASH,ISLASH),ISLASH,TRUE);
+   strrmdup(strtrans(new_fname,OSLASH,ISLASH),ISLASH,TRUE);
    if (strcmp((DEFCHAR *)new_fname,"") != 0)       /* new_fname supplied */
    {
       /*
@@ -1174,11 +1177,11 @@ bool autosave;
             }
          }
          /*
-          * Rename the current file to filename.bak.
+          * Rename the current file to filename[BACKUP_SUFFIXx].
           */
-         if (cf->backup != BACKUP_OFF)
+         if ( cf->backup != BACKUP_OFF )
          {
-            if ((bak_filename = (CHARTYPE *)(*the_malloc)(strlen((DEFCHAR *)cf->fpath)+strlen((DEFCHAR *)cf->fname)+5)) == NULL)
+            if ( ( bak_filename = (CHARTYPE *)(*the_malloc)( strlen((DEFCHAR *)cf->fpath )+strlen( (DEFCHAR *)cf->fname )+strlen( (DEFCHAR *)BACKUP_SUFFIXx )+1 ) ) == NULL )
             {
                display_error(30,(CHARTYPE *)"",FALSE);
                if (bak_filename != (CHARTYPE *)NULL)
@@ -1188,17 +1191,17 @@ bool autosave;
                TRACE_RETURN();
                return(RC_OUT_OF_MEMORY);
             }
-            new_filename(cf->fpath,cf->fname,bak_filename,(CHARTYPE *)".bak");
-            if (cf->fp != NULL)
+            new_filename( cf->fpath, cf->fname, bak_filename, BACKUP_SUFFIXx );
+            if ( cf->fp != NULL )
             {
                remove_file(bak_filename);
                if (cf->backup == BACKUP_INPLACE)
                {
                   /*
-                   * Copy the contents of the current file to the .bak file
+                   * Copy the contents of the current file to the BACKUP_SUFFIXx file
                    */
-                  FILE *fp1=fopen((DEFCHAR *)write_fname,"rb");
-                  FILE *fp2=NULL;
+                  FILE *fp1 = fopen( (DEFCHAR *)write_fname, "rb" );
+                  FILE *fp2 = NULL;
                   int num=0;
                   char tmp[5120];
                   if (fp1 == NULL)
@@ -1643,7 +1646,7 @@ bool display_the_screen;
    int scenario=0;
    ROWTYPE save_cmd_line=0;
    CHARTYPE save_prefix=0;
-   short save_gap=0;
+   short save_gap=0,save_prefix_width=0;
 
    TRACE_FUNCTION("file.c:    free_view_memory");
    /*
@@ -1674,6 +1677,7 @@ bool display_the_screen;
     * and/or position of the new view's windows.
     */
    save_prefix = CURRENT_VIEW->prefix;
+   save_prefix_width = CURRENT_VIEW->prefix_width;
    save_gap = CURRENT_VIEW->prefix_gap;
    save_cmd_line = CURRENT_VIEW->cmd_line;
    /*
@@ -1718,6 +1722,7 @@ bool display_the_screen;
           */
          if ((save_prefix&PREFIX_LOCATION_MASK) != (CURRENT_VIEW->prefix&PREFIX_LOCATION_MASK)
          ||  save_gap != CURRENT_VIEW->prefix_gap
+         ||  save_prefix_width != CURRENT_VIEW->prefix_width
          ||  save_cmd_line != CURRENT_VIEW->cmd_line)
          {
             set_screen_defaults();
@@ -1964,6 +1969,7 @@ bool free_file_lines;
       {
          case PSEUDO_DIR:
             dir_first_line = dir_last_line = NULL;
+            dir_number_lines = 0L;
             break;
          case PSEUDO_REXX:
             rexxout_first_line = rexxout_last_line = NULL;
@@ -2034,24 +2040,26 @@ short read_directory()
    VIEW_DETAILS *found_view=NULL;
    short rc=RC_OK;
    LINE *curr=NULL;
+   CHARTYPE tmp[50];
+   int len;
    CHARTYPE _THE_FAR dir_rec[MAX_FILE_NAME+50];
 
-   TRACE_FUNCTION("file.c:    read_directory");
+   TRACE_FUNCTION( "file.c:    read_directory" );
    /*
     * Get all file info for the selected files into structure. If no file
     * name specified, force it to '*'.
     */
-   if (strcmp((DEFCHAR *)sp_fname,"") == 0)
-      rc = getfiles(sp_path,(CHARTYPE *)"*",&dpfirst,&dplast);
+   if ( strcmp( (DEFCHAR *)sp_fname, "" ) == 0 )
+      rc = getfiles( sp_path, (CHARTYPE *)"*", &dpfirst, &dplast );
    else
-      rc = getfiles(sp_path,sp_fname,&dpfirst,&dplast);
-   if (rc != RC_OK)
+      rc = getfiles( sp_path, sp_fname, &dpfirst, &dplast );
+   if ( rc != RC_OK )
    {
       display_error( (unsigned short)((rc==RC_FILE_NOT_FOUND) ? 9 : rc), sp_path, FALSE );
       TRACE_RETURN();
       return(RC_FILE_NOT_FOUND);
    }
-   if (dpfirst == dplast)
+   if ( dpfirst == dplast )
    {
       TRACE_RETURN();
       return(RC_FILE_NOT_FOUND);
@@ -2060,27 +2068,27 @@ short read_directory()
     * dir_path is set up here so that subsequent sos_edit commands can use
     * the directory path as a prefix to the edit files filename.
     */
-   strcpy((DEFCHAR *)dir_path,(DEFCHAR *)sp_path);
-   strcpy((DEFCHAR *)dir_files,(DEFCHAR *)sp_fname);
+   strcpy( (DEFCHAR *)dir_path, (DEFCHAR *)sp_path );
+   strcpy( (DEFCHAR *)dir_files, (DEFCHAR *)sp_fname );
    /*
     * sort the array of file structures.
     */
-   switch(DEFSORTx)
+   switch( DEFSORTx )
    {
       case DIRSORT_DATE:
-         qsort(dpfirst,dplast - dpfirst,sizeof(struct dirfile),date_comp);
+         qsort( dpfirst, dplast - dpfirst, sizeof(struct dirfile), date_comp );
          break;
       case DIRSORT_TIME:
-         qsort(dpfirst,dplast - dpfirst,sizeof(struct dirfile),time_comp);
+         qsort( dpfirst, dplast - dpfirst, sizeof(struct dirfile), time_comp );
          break;
       case DIRSORT_NAME:
          qsort(dpfirst,dplast - dpfirst,sizeof(struct dirfile),name_comp);
          break;
       case DIRSORT_SIZE:
-         qsort(dpfirst,dplast - dpfirst,sizeof(struct dirfile),size_comp);
+         qsort( dpfirst, dplast - dpfirst, sizeof(struct dirfile), size_comp );
          break;
       case DIRSORT_DIR:
-         qsort(dpfirst,dplast - dpfirst,sizeof(struct dirfile),dir_comp);
+         qsort( dpfirst, dplast - dpfirst, sizeof(struct dirfile), dir_comp );
          break;
       default:                              /* DIRSORT_NONE - no sorting */
          break;
@@ -2100,8 +2108,7 @@ short read_directory()
    /*
     * first_line is set to "Top of File"
     */
-   if ((dir_first_line = add_LINE(dir_first_line,NULL,TOP_OF_FILE,
-       strlen((DEFCHAR *)TOP_OF_FILE),0,FALSE)) == NULL)
+   if ( ( dir_first_line = add_LINE( dir_first_line, NULL, TOP_OF_FILE, strlen( (DEFCHAR *)TOP_OF_FILE ), 0, FALSE ) ) == NULL )
    {
      TRACE_RETURN();
      return(RC_OUT_OF_MEMORY);
@@ -2109,8 +2116,7 @@ short read_directory()
    /*
     * last line is set to "Bottom of File"
     */
-   if ((dir_last_line = add_LINE(dir_first_line,dir_first_line,BOTTOM_OF_FILE,
-      strlen((DEFCHAR *)BOTTOM_OF_FILE),0,FALSE)) == NULL)
+   if ( ( dir_last_line = add_LINE( dir_first_line, dir_first_line, BOTTOM_OF_FILE, strlen( (DEFCHAR *)BOTTOM_OF_FILE ), 0, FALSE ) ) == NULL )
    {
       TRACE_RETURN();
       return(RC_OUT_OF_MEMORY);
@@ -2119,24 +2125,33 @@ short read_directory()
    /*
     * write out the formatted contents of the file structures.
     */
-   for (dp=dpfirst;dp<dplast;dp++,dir_number_lines++)
+   for ( dp = dpfirst; dp < dplast; dp++, dir_number_lines++ )
    {
-      if (dp->lname != NULL)
-         sprintf((DEFCHAR *)dir_rec,"%s%8ld %s %s %s -> %s",
-                file_attrs(dp->fattr,str_attr,dp->facl),
-                dp->fsize,
-                file_date(dp,str_date),
-                file_time(dp,str_time),
-                dp->fname,
-                dp->lname);
+      len = sprintf( (DEFCHAR *)tmp, "%ld", dp->fsize );
+      if ( len > 8 )
+      {
+         sprintf( (DEFCHAR *)tmp, "%7ldk", dp->fsize / 1024 );
+      }
+      if ( dp->lname != NULL )
+      {
+         sprintf( (DEFCHAR *)dir_rec, "%s%8s %s %s %s -> %s",
+                  file_attrs( dp->fattr, str_attr, dp->facl ),
+                  tmp,
+                  file_date( dp, str_date ),
+                  file_time( dp, str_time ),
+                  dp->fname,
+                  dp->lname );
+      }
       else
-         sprintf((DEFCHAR *)dir_rec,"%s%8ld %s %s %s",
-                file_attrs(dp->fattr,str_attr,dp->facl),
-                dp->fsize,
-                file_date(dp,str_date),
-                file_time(dp,str_time),
-                dp->fname);
-      if ((curr = add_LINE(dir_first_line,curr,dir_rec,strlen((DEFCHAR *)dir_rec),0,FALSE)) == NULL)
+      {
+         sprintf( (DEFCHAR *)dir_rec, "%s%8s %s %s %s",
+                  file_attrs( dp->fattr, str_attr, dp->facl ),
+                  tmp,
+                  file_date( dp, str_date ),
+                  file_time( dp, str_time ),
+                  dp->fname );
+      }
+      if ( ( curr = add_LINE( dir_first_line, curr, dir_rec, strlen( (DEFCHAR *)dir_rec ), 0, FALSE ) ) == NULL )
       {
          TRACE_RETURN();
          return(RC_OUT_OF_MEMORY);
@@ -2326,7 +2341,7 @@ int *buffer_size;
    TRACE_FUNCTION("file.c:    read_file_into_memory");
 
    if ((stat((DEFCHAR *)filename,&stat_buf) == 0)
-   &&  (stat_buf.st_mode & S_IFMT) == S_IFDIR)
+   &&  (is_a_dir(stat_buf.st_mode)))
    {
       display_error(8,(CHARTYPE *)"specified file is a directory",FALSE);
       TRACE_RETURN();
@@ -2339,7 +2354,7 @@ int *buffer_size;
       return NULL;
    }
    /*
-    * Open the TLD file in text mode, so on DOish systems we don't get
+    * Open the TLD file in text mode, so on DOSish systems we don't get
     * CRLFs.
     */
    fp = fopen((DEFCHAR *)filename,"r");

@@ -12,7 +12,7 @@
 :number
   rexx
 :identifier
-  [a-zA-Z!?_@#$] [a-zA-Z0-9.!?_@#$]
+  [a-zA-Z!?_@#$.] [a-zA-Z0-9.!?_@#$]
 :string
   single
   double
@@ -20,12 +20,13 @@
   paired /* */ nest
   line -- any
 :label
-  delimiter : any
+  delimiter : firstnonblank
 :match
   ( )
   do,select end when,otherwise
 :header
   line #! column 1
+  line :: any
 :keyword
   address type 5
   arg type 7
@@ -99,6 +100,14 @@
   path type 2 alt e
   regina type 2 alt e
   rexx type 2 alt e
+  attribute type 2
+  private type 2
+  .line alt e
+  .mn alt e
+  .rc alt e
+  .result alt e
+  .rs alt e
+  .sigl alt e
 :function
   abbrev
   abs

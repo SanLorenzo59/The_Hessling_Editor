@@ -20,19 +20,21 @@
  *  define c-e macro codecomp.the toggle
  */
 supported_parsers = 'REXX C'
-'extract /coloring'
+'extract /coloring/field'
 If coloring.2 = 'AUTO' Then parser = Translate( coloring.3 )
 Else parser = Translate( coloring.2 )
 Parse Arg param
 Select
    When param = 'toggle' Then Call toggle
-   Otherwise Call Expand
-   If result = 1 Then 'text  '
+   Otherwise
+      Do
+         Call Expand
+         If result = 1 Then 'text  '
+      End
 End
 Exit 0
 
 Expand:
-'extract /field'
 'editv getf codecomp'
 If codecomp \= 'on' | field.4 \= 'TEXT' | coloring.1 = 'OFF' | Wordpos( parser, supported_parsers ) = 0 Then Return 1
 /*

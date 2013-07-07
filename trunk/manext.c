@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * MANEXT - A program to extract manual pages from C source code.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: manext.c,v 1.4 2005/08/22 11:42:18 mark Exp $";
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -79,10 +78,9 @@ CHARTYPE ch;
 #endif
 /***********************************************************************/
 {
-/*--------------------------- local data ------------------------------*/
  register short len=0;
  register short  i = 0;
-/*--------------------------- processing ------------------------------*/
+
  len = strlen(str);
  for (; i<len && str[i]==ch; i++);
  if (i>=len)
@@ -99,9 +97,8 @@ CHARTYPE ch;
 #endif
 /***********************************************************************/
 {
-/*--------------------------- local data ------------------------------*/
  register short len=0;
-/*--------------------------- processing ------------------------------*/
+
  len = strlen(str);
  for (--len; len>=0 && str[len]==ch; len--);
  return(len);
@@ -115,8 +112,6 @@ CHARTYPE *field;
 #endif
 /***********************************************************************/
 {
-/*--------------------------- local data ------------------------------*/
-/*--------------------------- processing ------------------------------*/
  if (strzne(field,' ') == (-1))
     return(TRUE);                /* field is NULL or just contains spaces */
  return(FALSE);
@@ -130,10 +125,9 @@ CHARTYPE *string;
 #endif
 /***********************************************************************/
 {
-/*--------------------------- local data ------------------------------*/
  register short i=0;
  short pos=0;
-/*--------------------------- processing ------------------------------*/
+
  pos = strzrevne(string,' ');
  if (pos == (-1))
     strcpy(string,"");
@@ -141,11 +135,11 @@ CHARTYPE *string;
     *(string+pos+1) = '\0';
  pos = strzne(string,' ');
  if (pos != (-1))
-   {
+ {
     for (i=0;*(string+i+pos)!='\0';i++)
        *(string+i) = *(string+i+pos);
     *(string+i) = '\0';
-   }
+ }
  return(string);
 }
 /***********************************************************************/
@@ -157,15 +151,13 @@ CHARTYPE *string,ch;
 #endif
 /***********************************************************************/
 {
-/*--------------------------- local data ------------------------------*/
  register short i=0;
- short pos=0;
-/*--------------------------- processing ------------------------------*/
+
  for (i=0;i<strlen(string);i++)
-   {
+ {
     if (*(string+i) == ch)
        return(string+i+1);
-   }
+ }
  return(string);
 }
 /***********************************************************************/
@@ -182,8 +174,6 @@ char *argv[];
  char    save_line[MAX_LINE + 1];
  register int     i = 0;
  FILE *fp;
- char c;
- char append=0;
  int format=FORMAT_MANUAL;
  int state=STATE_IGNORE;
  int file_start=1;
@@ -193,33 +183,33 @@ char *argv[];
 #endif
 
  if (strcmp(argv[1],"-h") == 0)
-   {
+ {
     display_info();
     exit(1);
-   }
+ }
  if (strcmp(argv[1],"-q") == 0) /* generate quick reference */
-   {
+ {
     format = FORMAT_QUICK_REF;
     file_start = 2;
-   }
+ }
  for(i=file_start;i<argc;i++)
-    {
+ {
      if ((fp = fopen(argv[i],"r")) == NULL)
-       {
+     {
         fprintf(stderr,"\nCould not open %s\n",argv[i]);
         continue;
-       }
+     }
      while(1)
-       {
+     {
         if (fgets(s, (int)sizeof(s), fp) == NULL)
-          {
+        {
            if (ferror(fp) != 0)
-             {
+           {
               fprintf(stderr, "*** Error reading %s.  Exiting.\n",argv[i]);
               exit(1);
-             }
+           }
            break;
-          }
+        }
 
         /* check for manual entry marker at beginning of line */
         if (strncmp(s, "/*man-start*", 12) != 0)
@@ -228,45 +218,45 @@ char *argv[];
         state = STATE_IGNORE;
         /* inner loop */
         for (;;)
-           {
+        {
             /* read next line of manual entry */
             if (fgets(s, (int)sizeof(s), fp) == NULL)
-              {
+            {
                if (ferror(fp) != 0)
-                 {
+               {
                   fprintf(stderr, "*** Error reading %s.  Exiting.\n",argv[i]);
                   exit(1);
-                 }
-                break;
-              }
+               }
+               break;
+            }
             /* check for end of entry marker */
             if (strncmp(s, "**man-end", 9) == 0)
                break;
             switch(format)
-              {
+            {
                case FORMAT_MANUAL:
                     printf("     %s",s);
                     break;
                case FORMAT_QUICK_REF:
                     s[strlen(s)-1] = '\0';
                     switch(state)
-                      {
+                    {
                        case STATE_IGNORE:
                             if (strncmp(s, "COMMAND", 7) == 0)
-                              {
+                            {
                                state = STATE_COMMAND;
                                break;
-                              }
+                            }
                             if (strncmp(s, "SYNTAX", 6) == 0)
-                              {
+                            {
                                state = STATE_SYNTAX;
                                break;
-                              }
+                            }
                             if (strncmp(s, "DEFAULT", 7) == 0)
-                              {
+                            {
                                state = STATE_DEFAULT;
                                break;
-                              }
+                            }
                             break;
                        case STATE_COMMAND:
                             strcpy(save_line,s);
@@ -274,38 +264,38 @@ char *argv[];
                             break;
                        case STATE_DEFAULT:
                             if (blank_field(s))
-                              {
+                            {
                                state = STATE_IGNORE;
                                break;
-                              }
+                            }
                             printf("       Default: %s\n",strtrunc(s));
                             break;
                        case STATE_SYNTAX:
                             if (blank_field(s))
-                              {
+                            {
                                printf("       %s\n",strtrunc(strtrim(save_line,'-')));
                                state = STATE_IGNORE;
                                break;
-                              }
+                            }
                             printf(" %s\n",strtrunc(s));
                             break;
                        default:
                             break;
-                      }
+                    }
                     break;
                default:
                     break;
-              }
             }
+        }
         if (format == FORMAT_MANUAL)
            printf("\n\n\n     --------------------------------------------------------------------------\n");
 
         /* check if end of file */
         if (feof(fp) != 0)
             break;
-       }
+     }
      fclose(fp);
-    }
+ }
  if (format == FORMAT_MANUAL)
     printf("\n\n\n\n\n");
  return(0);
@@ -318,9 +308,6 @@ void display_info()
 #endif
 /***********************************************************************/
 {
-/*--------------------------- local data ------------------------------*/
-/*--------------------------- processing ------------------------------*/
-
  fprintf(stderr,"\nMANEXT 1.00 Copyright (C) 1991-1999 Mark Hessling\n");
  fprintf(stderr,"All rights reserved.\n");
  fprintf(stderr,"MANEXT is distributed under the terms of the GNU\n");

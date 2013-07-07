@@ -3,7 +3,7 @@
  *
  *
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2002 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: query2.c,v 1.10 2005/12/13 08:57:51 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -294,7 +293,10 @@ LINETYPE arglen;
 #endif
 /***********************************************************************/
 {
-   return set_on_off_value(CURRENT_VIEW->msgmode_status,1);
+   set_on_off_value( CURRENT_VIEW->msgmode_status, 1 );
+   item_values[2].value = (CHARTYPE *)"LONG";
+   item_values[2].len = 4;
+   return number_variables;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
@@ -451,8 +453,6 @@ LINETYPE arglen;
    register int i=0;
    int off=0;
    bool found=FALSE;
-   CHARTYPE save_msgline_base = CURRENT_VIEW->msgline_base;
-   short save_msgline_off = CURRENT_VIEW->msgline_off;
    ROWTYPE save_msgline_rows = CURRENT_VIEW->msgline_rows;
    bool save_msgmode_status = CURRENT_VIEW->msgmode_status;
    CHARTYPE *ptr_filename=NULL;
@@ -465,8 +465,6 @@ LINETYPE arglen;
       if (query_type == QUERY_QUERY)
       {
          for (i=0,curr=first_parser;curr!=NULL;curr=curr->next,i++);
-         CURRENT_VIEW->msgline_base   = POSITION_TOP;
-         CURRENT_VIEW->msgline_off    = 1;
          CURRENT_VIEW->msgline_rows   = min(terminal_lines-1,i);
          CURRENT_VIEW->msgmode_status = TRUE;
       }
@@ -495,8 +493,6 @@ LINETYPE arglen;
    {
       if (query_type == QUERY_QUERY)
       {
-         CURRENT_VIEW->msgline_base   = POSITION_TOP;
-         CURRENT_VIEW->msgline_off    = 1;
          CURRENT_VIEW->msgline_rows   = 1;
          CURRENT_VIEW->msgmode_status = TRUE;
       }
@@ -536,8 +532,6 @@ LINETYPE arglen;
 
    if (query_type == QUERY_QUERY)
    {
-      CURRENT_VIEW->msgline_base   = save_msgline_base;
-      CURRENT_VIEW->msgline_off    = save_msgline_off;
       CURRENT_VIEW->msgline_rows   = save_msgline_rows;
       CURRENT_VIEW->msgmode_status = save_msgmode_status;
       rc = EXTRACT_VARIABLES_SET;
@@ -583,8 +577,9 @@ LINETYPE arglen;
    bool find_oldname=FALSE;
    CHARTYPE *name=NULL;
    THE_PPC *curr_ppc=NULL;
-   LINETYPE first_in_range=1L;
-   LINETYPE last_in_range=CURRENT_FILE->number_lines;
+   LINE *curr;
+   LINETYPE first_in_range=0L;
+   LINETYPE last_in_range=CURRENT_FILE->number_lines+1;
    THE_PPC *found_ppc=NULL;
    short target_type=TARGET_ABSOLUTE|TARGET_RELATIVE;
    TARGET target;
@@ -664,20 +659,34 @@ LINETYPE arglen;
             free_target(&target);
             break;
          case STATE_TARGET2:
-            initialise_target(&target);
-            rc = validate_target(word[i],&target,target_type,first_in_range,FALSE,FALSE);
-            if (rc == RC_OK)
+            if ( equal( (CHARTYPE *)"*", word[i], 1 ) )
             {
-               last_in_range = target.rt[0].numeric_target;
+               /*
+                * If the second target is *, then default last_in_range to be
+                * 1 more than the number of lines in the file; same as if no
+                * second target was specified.
+                */
+               last_in_range = CURRENT_FILE->number_lines + 1;
                i++;
                state = STATE_TARGET2;
             }
             else
             {
-               /* error */
-               number_variables = EXTRACT_ARG_ERROR;
+               initialise_target(&target);
+               rc = validate_target(word[i],&target,target_type,first_in_range,FALSE,FALSE);
+               if (rc == RC_OK)
+               {
+                  last_in_range = target.rt[0].numeric_target;
+                  i++;
+                  state = STATE_TARGET2;
+               }
+               else
+               {
+                  /* error */
+                  number_variables = EXTRACT_ARG_ERROR;
+               }
+               free_target(&target);
             }
-            free_target(&target);
             break;
       }
       if ( number_variables == EXTRACT_ARG_ERROR )
@@ -708,6 +717,27 @@ LINETYPE arglen;
          {
             if (curr_ppc == NULL)
                break;
+            /*
+             * Ignore the pending prefix if we have already processed it
+             */
+            if ( curr_ppc->ppc_processed
+            ||   curr_ppc->ppc_current_command )
+            {
+               curr_ppc = curr_ppc->next;
+               continue;
+            }
+            /*
+             * To imitate XEDIT behaviour, ignore a prefix command if the line on which the prefix command
+             * has been entered is not in scope.
+             */
+            curr = lll_find( CURRENT_FILE->first_line, CURRENT_FILE->last_line, curr_ppc->ppc_line_number, CURRENT_FILE->number_lines );
+            if ( !( IN_SCOPE( CURRENT_VIEW, curr )
+            ||   CURRENT_VIEW->scope_all
+            ||   curr_ppc->ppc_shadow_line ) )
+            {
+               curr_ppc = curr_ppc->next;
+               continue;
+            }
             /*
              * If we want to match on any name...
              */
@@ -756,14 +786,14 @@ LINETYPE arglen;
             /*
              * We want to find a specific command...
              */
-            if (memcmpi(curr_ppc->ppc_command,name,strlen((DEFCHAR *)name)) == 0)
+            if ( my_stricmp( (DEFCHAR *)curr_ppc->ppc_command, (DEFCHAR *)name ) == 0 )
             {
                /*
                 * Are we looking for a specific BLOCK command...
                 */
-               if (find_block)
+               if ( find_block )
                {
-                  if (curr_ppc->ppc_block_command)
+                  if ( curr_ppc->ppc_block_command )
                   {
                      /*
                       * We have found the first specific BLOCK command.
@@ -803,7 +833,7 @@ LINETYPE arglen;
             item_values[2].value = found_ppc->ppc_command;
             item_values[2].len = strlen( (DEFCHAR *)item_values[2].value );
             item_values[3].value = find_prefix_synonym( found_ppc->ppc_command );
-            item_values[3].len = strlen( (DEFCHAR *)item_values[2].value );
+            item_values[3].len = strlen( (DEFCHAR *)item_values[3].value );
             if (found_ppc->ppc_block_command)
                item_values[4].value = (CHARTYPE *)"BLOCK";
             else
@@ -995,6 +1025,52 @@ LINETYPE arglen;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
+short extract_profile(short number_variables,short itemno,CHARTYPE *itemargs,CHARTYPE query_type,LINETYPE argc,CHARTYPE *arg,LINETYPE arglen)
+#else
+short extract_profile(number_variables,itemno,itemargs,query_type,argc,arg,arglen)
+short number_variables,itemno;
+CHARTYPE *itemargs;
+CHARTYPE query_type;
+LINETYPE argc;
+CHARTYPE *arg;
+LINETYPE arglen;
+#endif
+/***********************************************************************/
+{
+   if ( local_prf == NULL )
+   {
+      item_values[1].value = (CHARTYPE *)"";
+      item_values[1].len = 0;
+   }
+   else
+   {
+      item_values[1].value = (CHARTYPE *)local_prf;
+      item_values[1].len = strlen((DEFCHAR *)local_prf);
+   }
+   return number_variables;
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
+short extract_pscreen(short number_variables,short itemno,CHARTYPE *itemargs,CHARTYPE query_type,LINETYPE argc,CHARTYPE *arg,LINETYPE arglen)
+#else
+short extract_pscreen(number_variables,itemno,itemargs,query_type,argc,arg,arglen)
+short number_variables,itemno;
+CHARTYPE *itemargs;
+CHARTYPE query_type;
+LINETYPE argc;
+CHARTYPE *arg;
+LINETYPE arglen;
+#endif
+/***********************************************************************/
+{
+   item_values[1].len = sprintf( (DEFCHAR *)query_num1,"%d",LINES );
+   item_values[1].value = query_num1;
+   item_values[2].len = sprintf( (DEFCHAR *)query_num2,"%d",COLS );
+   item_values[2].value = query_num2;
+   return number_variables;
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
 short extract_reprofile(short number_variables,short itemno,CHARTYPE *itemargs,CHARTYPE query_type,LINETYPE argc,CHARTYPE *arg,LINETYPE arglen)
 #else
 short extract_reprofile(number_variables,itemno,itemargs,query_type,argc,arg,arglen)
@@ -1099,7 +1175,7 @@ LINETYPE arglen;
          (void)THERefresh((CHARTYPE *)"");
       }
 #endif
-      key = my_getch(stdscr);
+      key = my_getch( CURRENT_WINDOW );
 #ifdef CAN_RESIZE
       if (is_termresized())
          continue;
@@ -1107,13 +1183,15 @@ LINETYPE arglen;
 #if defined (PDCURSES_MOUSE_ENABLED) || defined(NCURSES_MOUSE_VERSION)
       if (key == KEY_MOUSE)
       {
+#if 0
          int b,ba,bm,w;
          CHARTYPE scrn;
          if (get_mouse_info(&b,&ba,&bm) != RC_OK)
             continue;
          which_window_is_mouse_in(&scrn,&w);
-         mouse_key = TRUE;
          key = mouse_info_to_key(w,b,ba,bm);
+#endif
+         mouse_key = TRUE;
       }
       else
          mouse_key = FALSE;
@@ -1130,7 +1208,7 @@ LINETYPE arglen;
          current_key++;
    }
    lastkeys[current_key] = key;
-   set_key_values(key,mouse_key);
+   set_key_values( key, mouse_key );
    return number_variables;
 }
 /***********************************************************************/
@@ -1159,64 +1237,72 @@ LINETYPE arglen;
 
    number_variables = 0;
    curr_rsrvd = CURRENT_FILE->first_reserved;
-   strcpy((DEFCHAR *)query_rsrvd,"");
-   while(curr_rsrvd != NULL)
+   strcpy( (DEFCHAR *)query_rsrvd, "" );
+   while( curr_rsrvd != NULL )
    {
-      if (line_numbers_only)
+      if ( line_numbers_only )
       {
-         y = strlen((DEFCHAR *)curr_rsrvd->spec) + 1;
-         if ((x + y) > 80)
+         y = strlen( (DEFCHAR *)curr_rsrvd->spec ) + 1;
+         if ( (x + y) > sizeof( query_rsrvd ) )
             break;
-         strcat((DEFCHAR *)query_rsrvd,(DEFCHAR *)curr_rsrvd->spec);
-         strcat((DEFCHAR *)query_rsrvd," ");
+         strcat( (DEFCHAR *)query_rsrvd, (DEFCHAR *)curr_rsrvd->spec );
+         strcat( (DEFCHAR *)query_rsrvd, " ");
          x += y;
       }
       else
       {
-         attr_string = get_colour_strings(curr_rsrvd->attr);
-         if (attr_string == (CHARTYPE *)NULL)
+         attr_string = get_colour_strings( curr_rsrvd->attr );
+         if ( attr_string == (CHARTYPE *)NULL )
          {
             return(EXTRACT_ARG_ERROR);
          }
-         tmpbuf = (CHARTYPE *)(*the_malloc)(sizeof(CHARTYPE)*(strlen((DEFCHAR *)attr_string)+strlen((DEFCHAR *)curr_rsrvd->line)+strlen((DEFCHAR *)curr_rsrvd->spec)+3));
-         if (tmpbuf == (CHARTYPE *)NULL)
+         tmpbuf = (CHARTYPE *)(*the_malloc)(sizeof(CHARTYPE)*(strlen((DEFCHAR *)attr_string)+strlen((DEFCHAR *)curr_rsrvd->line)+strlen((DEFCHAR *)curr_rsrvd->spec)+13));
+         if ( tmpbuf == (CHARTYPE *)NULL )
          {
-            display_error(30,(CHARTYPE *)"",FALSE);
+            display_error( 30, (CHARTYPE *)"", FALSE );
             return(EXTRACT_ARG_ERROR);
          }
-         strcpy((DEFCHAR *)tmpbuf,(DEFCHAR *)curr_rsrvd->spec);
-         strcat((DEFCHAR *)tmpbuf," ");
-         strcat((DEFCHAR *)tmpbuf,(DEFCHAR *)attr_string);
-         (*the_free)(attr_string);
-         strcat((DEFCHAR *)tmpbuf,(DEFCHAR *)curr_rsrvd->line);
-         rc = set_rexx_variable(query_item[itemno].name,tmpbuf,strlen((DEFCHAR *)tmpbuf),++number_variables);
+         if ( curr_rsrvd->autoscroll )
+         {
+            strcpy( (DEFCHAR *)tmpbuf, "AUTOSCROLL " );
+            strcat( (DEFCHAR *)tmpbuf, (DEFCHAR *)curr_rsrvd->spec );
+         }
+         else
+         {
+            strcpy( (DEFCHAR *)tmpbuf, (DEFCHAR *)curr_rsrvd->spec );
+         }
+         strcat( (DEFCHAR *)tmpbuf, " " );
+         strcat( (DEFCHAR *)tmpbuf, (DEFCHAR *)attr_string );
+         (*the_free)( attr_string );
+         strcat( (DEFCHAR *)tmpbuf, (DEFCHAR *)curr_rsrvd->line );
+         rc = set_rexx_variable( query_item[itemno].name, tmpbuf, strlen((DEFCHAR *)tmpbuf), ++number_variables );
          (*the_free)(tmpbuf);
-         if (rc == RC_SYSTEM_ERROR)
+         if ( rc == RC_SYSTEM_ERROR )
          {
-            display_error(54,(CHARTYPE *)"",FALSE);
+            display_error( 54, (CHARTYPE *)"", FALSE );
             return(EXTRACT_ARG_ERROR);
          }
       }
       curr_rsrvd = curr_rsrvd->next;
    }
-   if (line_numbers_only)
+   if ( line_numbers_only )
    {
-      if (x == 0)
+      if ( x == 0 )
          number_variables = 0;
       else
       {
          number_variables = 1;
          item_values[1].value = query_rsrvd;
-         item_values[1].len = strlen((DEFCHAR *)query_rsrvd);
+         item_values[1].len = strlen( (DEFCHAR *)query_rsrvd );
       }
    }
    else
    {
-      sprintf((DEFCHAR *)query_rsrvd,"%d",number_variables);
-      rc = set_rexx_variable(query_item[itemno].name,query_rsrvd,strlen((DEFCHAR *)query_rsrvd),0);
-      if (rc == RC_SYSTEM_ERROR)
+      sprintf( (DEFCHAR *)query_rsrvd, "%d", number_variables );
+      rc = set_rexx_variable( query_item[itemno].name, query_rsrvd, strlen( (DEFCHAR *)query_rsrvd ), 0 );
+      if ( rc == RC_SYSTEM_ERROR )
       {
-         display_error(54,(CHARTYPE *)"",FALSE);
+         display_error( 54, (CHARTYPE *)"", FALSE );
          number_variables = EXTRACT_ARG_ERROR;
       }
       else
@@ -1240,6 +1326,42 @@ LINETYPE arglen;
 {
    item_values[1].value = get_rexx_interpreter_version(query_rsrvd);
    item_values[1].len = strlen((DEFCHAR *)query_rsrvd);
+   return number_variables;
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
+short extract_rexxhalt(short number_variables,short itemno,CHARTYPE *itemargs,CHARTYPE query_type,LINETYPE argc,CHARTYPE *arg,LINETYPE arglen)
+#else
+short extract_rexxhalt(number_variables,itemno,itemargs,query_type,argc,arg,arglen)
+short number_variables,itemno;
+CHARTYPE *itemargs;
+CHARTYPE query_type;
+LINETYPE argc;
+CHARTYPE *arg;
+LINETYPE arglen;
+#endif
+/***********************************************************************/
+{
+   if ( COMMANDCALLSx == 0 )
+   {
+      item_values[1].value = (CHARTYPE *)"OFF";
+      item_values[1].len = 3;
+   }
+   else
+   {
+      item_values[1].len = sprintf((DEFCHAR *)query_num1,"%d",COMMANDCALLSx);
+      item_values[1].value = query_num1;
+   }
+   if ( FUNCTIONCALLSx == 0 )
+   {
+      item_values[2].value = (CHARTYPE *)"OFF";
+      item_values[2].len = 3;
+   }
+   else
+   {
+      item_values[2].len = sprintf((DEFCHAR *)query_num1,"%d",FUNCTIONCALLSx);
+      item_values[2].value = query_num1;
+   }
    return number_variables;
 }
 /***********************************************************************/
@@ -1318,8 +1440,6 @@ LINETYPE arglen;
    register int i=0,j=0;
    int offset=0,off=0;
    bool view_being_displayed=FALSE;
-   CHARTYPE save_msgline_base = CURRENT_VIEW->msgline_base;
-   short save_msgline_off = CURRENT_VIEW->msgline_off;
    ROWTYPE save_msgline_rows = CURRENT_VIEW->msgline_rows;
    bool save_msgmode_status = CURRENT_VIEW->msgmode_status;
 
@@ -1328,8 +1448,6 @@ LINETYPE arglen;
 
    if (query_type == QUERY_QUERY)
    {
-      CURRENT_VIEW->msgline_base   = POSITION_TOP;
-      CURRENT_VIEW->msgline_off    = 1;
       CURRENT_VIEW->msgline_rows   = min(terminal_lines-1,number_of_files);
       CURRENT_VIEW->msgmode_status = TRUE;
    }
@@ -1400,8 +1518,6 @@ LINETYPE arglen;
 
    if (query_type == QUERY_QUERY)
    {
-      CURRENT_VIEW->msgline_base   = save_msgline_base;
-      CURRENT_VIEW->msgline_off    = save_msgline_off;
       CURRENT_VIEW->msgline_rows   = save_msgline_rows;
       CURRENT_VIEW->msgmode_status = save_msgmode_status;
       number_variables = EXTRACT_VARIABLES_SET;
@@ -1654,6 +1770,116 @@ LINETYPE arglen;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
+short extract_slk( short number_variables, short itemno, CHARTYPE *itemargs, CHARTYPE query_type, LINETYPE argc, CHARTYPE *arg, LINETYPE arglen )
+#else
+short extract_slk( number_variables, itemno, itemargs, query_type, argc, arg, arglen )
+short number_variables;
+short itemno;
+CHARTYPE *itemargs;
+CHARTYPE query_type;
+LINETYPE argc;
+CHARTYPE *arg;
+LINETYPE arglen;
+#endif
+/***********************************************************************/
+{
+   int off=0;
+   int item;
+
+   TRACE_FUNCTION("query.c:   extract_slk");
+#if defined(HAVE_SLK_INIT)
+   if ( blank_field( itemargs ) )
+   {
+      if ( SLKx )
+      {
+         item_values[1].value = (CHARTYPE *)"ON";
+         item_values[1].len = 2;
+         number_variables = 1;
+      }
+      else
+      {
+         item_values[1].value = (CHARTYPE *)"OFF";
+         item_values[1].len = 3;
+         number_variables = 1;
+      }
+      TRACE_RETURN();
+      return( number_variables );
+   }
+   else if ( max_slk_labels == 0 )
+   {
+      display_error( 82, (CHARTYPE*)"- use -k command line switch to enable", FALSE );
+      number_variables = EXTRACT_ARG_ERROR;
+   }
+   else if ( strcmp( (DEFCHAR*)itemargs, "*" ) == 0 )
+   {
+      if (query_type == QUERY_QUERY)
+      {
+         display_error( 1, (CHARTYPE *)itemargs, FALSE );
+         return EXTRACT_ARG_ERROR;
+      }
+      for ( number_variables = 0; number_variables < max_slk_labels;  )
+      {
+         number_variables++;
+         strcpy( (DEFCHAR *)query_rsrvd, slk_label( number_variables ) );
+         item_values[number_variables].len = strlen((DEFCHAR *)query_rsrvd);
+         memcpy((DEFCHAR*)trec+off,(DEFCHAR*)query_rsrvd,(item_values[number_variables].len)+1);
+         item_values[number_variables].value = trec+off;
+         off += (item_values[number_variables].len)+1;
+      }
+   }
+   else
+   {
+      if ( valid_positive_integer( itemargs ) )
+      {
+         /*
+          * Try and find a matching slk
+          */
+         item = atoi( (DEFCHAR *)itemargs );
+         if ( item < 1 )
+         {
+            display_error( 5, (CHARTYPE *)itemargs, FALSE );
+            return EXTRACT_ARG_ERROR;
+         }
+         if ( item > max_slk_labels )
+         {
+            display_error( 6, (CHARTYPE *)itemargs, FALSE );
+            return EXTRACT_ARG_ERROR;
+         }
+
+         if (query_type == QUERY_QUERY)
+         {
+            strcpy( (DEFCHAR *)query_rsrvd, slk_label( item ) );
+            sprintf( (DEFCHAR *)trec, "slk %s", query_rsrvd );
+            display_error( 0, trec, TRUE );
+            number_variables = EXTRACT_VARIABLES_SET;
+         }
+         else
+         {
+            /*
+             * EXTRACT
+             */
+            strcpy( (DEFCHAR *)query_rsrvd, slk_label( item ) );
+            item_values[1].value = query_rsrvd;
+            item_values[1].len = strlen( (DEFCHAR *)query_rsrvd );
+            number_variables = 1;
+         }
+      }
+      else
+      {
+         display_error( 4, (CHARTYPE *)itemargs, FALSE );
+         number_variables = EXTRACT_ARG_ERROR;
+      }
+   }
+#else
+   display_error(82,(CHARTYPE*)"SLK",FALSE);
+   number_variables = EXTRACT_ARG_ERROR;
+#endif
+
+   TRACE_RETURN();
+   return(number_variables);
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
 short extract_spacechar_function(short number_variables,short itemno,CHARTYPE *itemargs,CHARTYPE query_type,LINETYPE argc,CHARTYPE *arg,LINETYPE arglen)
 #else
 short extract_spacechar_function(number_variables,itemno,itemargs,query_type,argc,arg,arglen)
@@ -1680,6 +1906,114 @@ LINETYPE arglen;
    cursor_char = (CHARTYPE)( winch( CURRENT_WINDOW ) & A_CHARTEXT );
 #endif
    return set_boolean_value((bool)(cursor_char == ' '),(short)1);
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
+short extract_statopt(short number_variables,short itemno,CHARTYPE *itemargs,CHARTYPE query_type,LINETYPE argc,CHARTYPE *arg,LINETYPE arglen)
+#else
+short extract_statopt(number_variables,itemno,itemargs,query_type,argc,arg,arglen)
+short number_variables,itemno;
+CHARTYPE *itemargs;
+CHARTYPE query_type;
+LINETYPE argc;
+CHARTYPE *arg;
+LINETYPE arglen;
+#endif
+/***********************************************************************/
+{
+   short rc=RC_OK;
+   register int i=0;
+   int off=0;
+   ROWTYPE save_msgline_rows = CURRENT_VIEW->msgline_rows;
+   bool save_msgmode_status = CURRENT_VIEW->msgmode_status;
+   LINE *curr;
+
+   if ( itemargs == NULL
+   ||   blank_field( itemargs )
+   ||   strcmp( (DEFCHAR*)itemargs, "*" ) == 0 )
+   {
+      if ( query_type == QUERY_QUERY )
+      {
+         for ( i = 0, curr = first_option; curr != NULL; curr = curr->next, i++ );
+         CURRENT_VIEW->msgline_rows   = min( terminal_lines - 1, i );
+         CURRENT_VIEW->msgmode_status = TRUE;
+      }
+      else
+         number_variables = 0;
+      for ( curr = first_option; curr != NULL; curr = curr->next )
+      {
+         sprintf( (DEFCHAR *)query_rsrvd, "%sON %s %d %d %s",
+                  (query_type == QUERY_QUERY) ? (DEFCHAR *)"statopt " : "",
+                  curr->name,
+                  curr->select+1+STATAREA_OFFSET,
+                  curr->save_select,
+                  (DEFCHAR *)((curr->line!=NULL) ? (DEFCHAR *)curr->line : "") );
+
+         if ( query_type == QUERY_QUERY )
+            display_error( 0, query_rsrvd, TRUE );
+         else
+         {
+            number_variables++;
+            item_values[number_variables].len = strlen( (DEFCHAR *)query_rsrvd );
+            memcpy( (DEFCHAR*)trec + off, (DEFCHAR*)query_rsrvd, (item_values[number_variables].len) + 1 );
+            item_values[number_variables].value = trec + off;
+            off += (item_values[number_variables].len) + 1;
+         }
+      }
+   }
+   else
+   {
+      if ( query_type == QUERY_QUERY )
+      {
+         CURRENT_VIEW->msgline_rows   = 1;
+         CURRENT_VIEW->msgmode_status = TRUE;
+      }
+      /*
+       * Find a match for the supplied option
+       */
+      curr = lll_locate( first_option, make_upper( itemargs ) );
+      if ( curr )
+      {
+         /*
+          * We found it
+          */
+         sprintf( (DEFCHAR *)query_rsrvd, "%sON %s %d %d %s",
+                  (query_type == QUERY_QUERY) ? (DEFCHAR *)"statopt " : "",
+                  curr->name,
+                  curr->select,
+                  curr->save_select,
+                  (DEFCHAR *)((curr->line!=NULL) ? (DEFCHAR *)curr->line : "") );
+      }
+      else
+      {
+         /*
+          * We didn't find it
+          */
+         sprintf( (DEFCHAR *)query_rsrvd, "%sOFF %s",
+                  (query_type == QUERY_QUERY) ? (DEFCHAR *)"statopt " : "",
+                  itemargs );
+      }
+      if ( query_type == QUERY_QUERY )
+         display_error( 0, query_rsrvd, TRUE );
+      else
+      {
+         item_values[1].value = query_rsrvd;
+         item_values[1].len = strlen((DEFCHAR *)query_rsrvd);
+         number_variables = 1;
+      }
+   }
+
+   if ( query_type == QUERY_QUERY )
+   {
+      CURRENT_VIEW->msgline_rows   = save_msgline_rows;
+      CURRENT_VIEW->msgmode_status = save_msgmode_status;
+      rc = EXTRACT_VARIABLES_SET;
+   }
+   else
+      rc = number_variables;
+
+   TRACE_RETURN();
+   return rc;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
@@ -1959,13 +2293,8 @@ LINETYPE arglen;
 #endif
 /***********************************************************************/
 {
-   short rc=RC_OK;
-   bool found=FALSE;
-   CHARTYPE save_msgline_base = CURRENT_VIEW->msgline_base;
-   short save_msgline_off = CURRENT_VIEW->msgline_off;
-   ROWTYPE save_msgline_rows = CURRENT_VIEW->msgline_rows;
-   bool save_msgmode_status = CURRENT_VIEW->msgmode_status;
-   CHARTYPE *ptr;
+   int off=0;
+   CHARTYPE *ptr=NULL;
    DEFINE *curr;
 
    TRACE_FUNCTION("query.c:   extract_synonym");
@@ -1986,134 +2315,79 @@ LINETYPE arglen;
       TRACE_RETURN();
       return( number_variables );
    }
-#if 0
    else if ( strcmp( (DEFCHAR*)itemargs, "*" ) == 0 )
    {
       if (query_type == QUERY_QUERY)
       {
-         for (i=0,curr=first_synonym;curr!=NULL;curr=curr->next,i++);
-         CURRENT_VIEW->msgline_base   = POSITION_TOP;
-         CURRENT_VIEW->msgline_off    = 1;
-         CURRENT_VIEW->msgline_rows   = min(terminal_lines-1,i);
-         CURRENT_VIEW->msgmode_status = TRUE;
+         display_error( 1, (CHARTYPE *)itemargs, FALSE );
+         return EXTRACT_ARG_ERROR;
       }
-      for ( curr = first_synonym; curr != NULL; curr = curr->next )
+      for ( number_variables = 0,curr = first_synonym; curr != NULL; curr = curr->next )
       {
-         sprintf((DEFCHAR *)query_rsrvd,"%s%s %1.*s %s%s %s",
-           (query_type == QUERY_QUERY) ? (DEFCHAR *)"synonym " : "",
-           curr->synonym,
-           curr->def_funkey,
-           curr->synonym,
-           (curr->linend) ? (char*)"LINEND" : "",
-           (curr->linend) ? (char*)"?" : "",
-           curr->def_params );
+         strcpy( (DEFCHAR *)query_rsrvd, "" );
+         ptr = build_synonym_definition( curr, curr->synonym, query_rsrvd, TRUE );
 
-         if (query_type == QUERY_QUERY)
-            display_error(0,query_rsrvd,TRUE);
-         else
-         {
-            number_variables++;
-            item_values[number_variables].len = strlen((DEFCHAR *)query_rsrvd);
-            memcpy((DEFCHAR*)trec+off,(DEFCHAR*)query_rsrvd,(item_values[number_variables].len)+1);
-            item_values[number_variables].value = trec+off;
-            off += (item_values[number_variables].len)+1;
-         }
+         number_variables++;
+         item_values[number_variables].len = strlen((DEFCHAR *)query_rsrvd);
+         memcpy((DEFCHAR*)trec+off,(DEFCHAR*)query_rsrvd,(item_values[number_variables].len)+1);
+         item_values[number_variables].value = trec+off;
+         off += (item_values[number_variables].len)+1;
       }
    }
-#endif
    else
    {
-      if (query_type == QUERY_QUERY)
-      {
-         CURRENT_VIEW->msgline_base   = POSITION_TOP;
-         CURRENT_VIEW->msgline_off    = 1;
-         CURRENT_VIEW->msgline_rows   = 1;
-         CURRENT_VIEW->msgmode_status = TRUE;
-      }
       /*
-       * Find a match for the supplied mask or magic number
+       * Try and find a matching synonym
        */
       for ( curr = first_synonym; curr != NULL; curr = curr->next )
       {
          if ( equal( curr->synonym, itemargs, curr->def_funkey ) )
          {
-            found = TRUE;
             break;
          }
       }
-      if (found)
-      {
-         strcpy( (DEFCHAR *)query_rsrvd, "" );
-         ptr = build_synonym_definition( curr->synonym, query_rsrvd, curr );
-      }
-      else
-      {
-         ptr = NULL;
-      }
+
       if (query_type == QUERY_QUERY)
       {
-         if ( found)
-         {
-            sprintf((DEFCHAR *)trec,"%s%s %d %s %c",
-               (query_type == QUERY_QUERY) ? "synonym " : "",
-               itemargs,
-               curr->def_funkey,
-               ptr,
-               curr->linend );
-         }
-         else
-         {
-            sprintf((DEFCHAR *)trec,"%s%s %d %s",
-               (query_type == QUERY_QUERY) ? "synonym " : "",
-               itemargs,
-               (int)strlen( (DEFCHAR *)itemargs),
-               itemargs );
-         }
+         strcpy( (DEFCHAR *)query_rsrvd, "" );
+         ptr = build_synonym_definition( curr, itemargs, query_rsrvd, TRUE );
+         sprintf((DEFCHAR *)trec,"synonym %s", ptr );
          display_error(0,trec,TRUE);
+         number_variables = EXTRACT_VARIABLES_SET;
       }
       else
       {
-         if ( found )
+         /*
+          * EXTRACT
+          */
+         if ( curr )
          {
+            strcpy( (DEFCHAR *)query_rsrvd, "" );
+            ptr = build_synonym_definition( curr, itemargs, query_rsrvd, FALSE );
             item_values[1].value = curr->synonym;
             item_values[1].len = strlen( (DEFCHAR *)curr->synonym );
-            sprintf( (DEFCHAR *)query_num1,"%d", curr->def_funkey );
+            item_values[2].len = sprintf( (DEFCHAR *)query_num1,"%d", curr->def_funkey );
             item_values[2].value = query_num1;
-            item_values[2].len = strlen((DEFCHAR *)query_num1);
             item_values[3].value = ptr;
             item_values[3].len = strlen( (DEFCHAR *)ptr );
-            sprintf( (DEFCHAR *)query_num2,"%c", curr->linend );
+            item_values[4].len = sprintf( (DEFCHAR *)query_num2,"%c", curr->linend );
             item_values[4].value = query_num2;
-            item_values[4].len = strlen( (DEFCHAR *)query_num2 );
-            number_variables = 4;
          }
          else
          {
-            item_values[1].value = itemargs;
-            item_values[1].len = strlen( (DEFCHAR *)itemargs );
-            sprintf( (DEFCHAR *)query_num1,"%ld", item_values[1].len );
+            item_values[1].value = item_values[3].value = itemargs;
+            item_values[1].len = item_values[3].len = strlen( (DEFCHAR *)itemargs );
+            item_values[2].len = sprintf( (DEFCHAR *)query_num1,"%ld", item_values[1].len );
             item_values[2].value = query_num1;
-            item_values[3].value = itemargs;
-            item_values[3].len = strlen( (DEFCHAR *)itemargs );
-            number_variables = 3;
+            item_values[4].value = (CHARTYPE *)"";
+            item_values[4].len = 0;
          }
+         number_variables = 4;
       }
    }
 
-   if (query_type == QUERY_QUERY)
-   {
-      CURRENT_VIEW->msgline_base   = save_msgline_base;
-      CURRENT_VIEW->msgline_off    = save_msgline_off;
-      CURRENT_VIEW->msgline_rows   = save_msgline_rows;
-      CURRENT_VIEW->msgmode_status = save_msgmode_status;
-      rc = EXTRACT_VARIABLES_SET;
-   }
-   else
-      rc = number_variables;
-
-
    TRACE_RETURN();
-   return(rc);
+   return(number_variables);
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
@@ -2457,6 +2731,10 @@ LINETYPE arglen;
          item_values[1].value = (CHARTYPE *)"EMPTY";
          item_values[1].len = 5;
          break;
+      case TRAILING_REMOVE:
+         item_values[1].value = (CHARTYPE *)"REMOVE";
+         item_values[1].len = 6;
+         break;
       default:
          break;
    }
@@ -2477,6 +2755,41 @@ LINETYPE arglen;
 /***********************************************************************/
 {
    return set_on_off_value(TYPEAHEADx,1);
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
+short extract_ui(short number_variables,short itemno,CHARTYPE *itemargs,CHARTYPE query_type,LINETYPE argc,CHARTYPE *arg,LINETYPE arglen)
+#else
+short extract_ui(number_variables,itemno,itemargs,query_type,argc,arg,arglen)
+short number_variables,itemno;
+CHARTYPE *itemargs;
+CHARTYPE query_type;
+LINETYPE argc;
+CHARTYPE *arg;
+LINETYPE arglen;
+#endif
+/***********************************************************************/
+{
+#if defined(USE_XCURSES) || defined(PDCURSES)
+# if defined(HAVE_CURSES_VERSION)
+   sprintf((DEFCHAR *)query_rsrvd,"%s Build: %d", curses_version(), PDC_BUILD);
+# else
+   sprintf((DEFCHAR *)query_rsrvd,"PDCurses Build: %d", PDC_BUILD);
+# endif
+#elif defined(USE_NCURSES)
+# if NCURSES_VERSION_MAJOR > 4
+   sprintf((DEFCHAR *)query_rsrvd,"%s", curses_version());
+# else
+   strcpy((DEFCHAR *)query_rsrvd,NCURSES_VERSION);
+# endif
+#elif defined(USE_EXTCURSES)
+   sprintf((DEFCHAR *)query_rsrvd,"Extended Curses");
+#else
+   sprintf((DEFCHAR *)query_rsrvd,"Standard Curses");
+#endif
+   item_values[1].value = query_rsrvd;
+   item_values[1].len = strlen((DEFCHAR *)query_rsrvd);
+   return number_variables;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
@@ -2509,6 +2822,27 @@ LINETYPE arglen;
 /***********************************************************************/
 {
    return set_on_off_value(UNTAAx,1);
+}
+
+/***********************************************************************/
+#ifdef HAVE_PROTO
+short extract_utf8(short number_variables,short itemno,CHARTYPE *itemargs,CHARTYPE query_type,LINETYPE argc,CHARTYPE *arg,LINETYPE arglen)
+#else
+short extract_utf8(number_variables,itemno,itemargs,query_type,argc,arg,arglen)
+short number_variables,itemno;
+CHARTYPE *itemargs;
+CHARTYPE query_type;
+LINETYPE argc;
+CHARTYPE *arg;
+LINETYPE arglen;
+#endif
+/***********************************************************************/
+{
+#ifdef USE_UTF8
+   return set_on_off_value(1,1);
+#else
+   return set_on_off_value(0,1);
+#endif
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
@@ -2610,14 +2944,17 @@ LINETYPE arglen;
    item_values[3].value = (CHARTYPE *)"UNIX";
 # endif
 #endif
-#if defined(XCURSES)
+#if defined(USE_XCURSES)
    item_values[3].value = (CHARTYPE *)"X11";
 #endif
 #if defined(MSWIN)
    item_values[3].value = (CHARTYPE *)"MS-WINDOWS";
 #endif
-#if defined(WIN32)
+#if defined(_WIN32)
    item_values[3].value = (CHARTYPE *)"WIN32";
+#endif
+#if defined(_WIN64)
+   item_values[3].value = (CHARTYPE *)"WIN64";
 #endif
 #if defined(AMIGA)
    item_values[3].value = (CHARTYPE *)"AMIGA";
@@ -2628,6 +2965,12 @@ LINETYPE arglen;
    item_values[3].len = strlen((DEFCHAR *)item_values[3].value);
    item_values[4].value = (CHARTYPE *)the_release;
    item_values[4].len = strlen((DEFCHAR *)item_values[4].value);
+   item_values[5].value = item_values[3].value;
+   item_values[5].len = item_values[3].len;
+#ifdef MH_KERNEL_NAME
+   item_values[5].value = (CHARTYPE *)MH_KERNEL_NAME;
+   item_values[5].len = strlen( (DEFCHAR *)item_values[5].value );
+#endif
    return number_variables;
 }
 /***********************************************************************/

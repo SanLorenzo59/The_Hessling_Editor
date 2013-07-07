@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,15 +29,14 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: sort.c,v 1.5 2005/06/19 01:23:03 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
 
-#define MAX_SORT_FIELDS 10
+#define MAX_SORT_FIELDS 1000
 
 #define SF_ERROR    0
 #define SF_START    1
@@ -159,7 +158,7 @@ short execute_sort(params)
 {
 #define STATE_REAL   0
 #define STATE_SHADOW 1
-#define SOR_PARAMS  32
+#define SOR_PARAMS  3+(MAX_SORT_FIELDS*3)
    register int i=0;
    CHARTYPE *word[SOR_PARAMS+1];
    CHARTYPE strip[SOR_PARAMS];
@@ -177,9 +176,10 @@ short execute_sort(params)
    LENGTHTYPE left_col=0,right_col=0,max_column_width=0;
    CHARTYPE order='A';
    TARGET target;
-   short target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL|TARGET_SPARE;
+   long target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL|TARGET_SPARE;
    bool lines_based_on_scope=FALSE;
    short state=STATE_REAL;
+   int errornum=1;
 
    TRACE_FUNCTION("sort.c:    execute_sort");
    /*
@@ -277,6 +277,12 @@ short execute_sort(params)
             switch(state)
             {
                case SF_START:
+                  if (num_fields == MAX_SORT_FIELDS)
+                  {
+                     state = SF_ERROR;
+                     errornum = 75;
+                     break;
+                  }
                   if (equal((CHARTYPE *)"ascending",word[i],1)
                   ||  equal((CHARTYPE *)"descending",word[i],1))
                   {
@@ -336,7 +342,15 @@ short execute_sort(params)
              */
             if (state == SF_ERROR)
             {
-               display_error(1,(CHARTYPE *)word[i],FALSE);
+               switch(errornum)
+               {
+                  case 75:
+                     display_error(75,(CHARTYPE *)"",FALSE);
+                     break;
+                  default:
+                     display_error(1,(CHARTYPE *)word[i],FALSE);
+                     break;
+               }
                free_target(&target);
                TRACE_RETURN();
                return(RC_INVALID_OPERAND);
@@ -368,9 +382,10 @@ short execute_sort(params)
    /*
     * Determine the maximum length of a sort field.
     */
-   for (i=0;i<num_fields;i++)
-      max_column_width = max(max_column_width,
-                sort_fields[i].right_col - sort_fields[i].left_col + 1);
+   for ( i = 0; i < num_fields; i++ )
+   {
+      max_column_width = max(max_column_width, sort_fields[i].right_col - sort_fields[i].left_col + 1);
+   }
    /*
     * Allocate memory for each of the temporary sort fields to the length
     * of the maximum field width.

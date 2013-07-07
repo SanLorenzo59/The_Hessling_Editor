@@ -21,7 +21,6 @@ Cambridge, MA 02139, USA.  */
  * that supply their own fnmatch() function.
  */
 
-static char RCSid[] = "$Id: thematch.c,v 1.3 2003/01/22 01:26:54 mark Exp $";
 
 #include <ctype.h>
 #include <errno.h>

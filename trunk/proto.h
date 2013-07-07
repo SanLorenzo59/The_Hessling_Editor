@@ -30,7 +30,7 @@
  */
 
 /*
-$Id: proto.h,v 1.40 2006/01/29 08:03:47 mark Exp $
+$Id: proto.h,v 1.57 2013/06/22 02:01:40 mark Exp $
 */
 
                                                          /* commutil.c */
@@ -39,9 +39,9 @@ CHARTYPE *get_key_definition Args((int,int,bool,bool));
 short function_key Args((int,int,bool));
 bool is_modifier_key Args((int));
 CHARTYPE *build_default_key_definition Args((int, CHARTYPE *));
-CHARTYPE *build_synonym_definition Args(( CHARTYPE *, CHARTYPE *, DEFINE * ));
+CHARTYPE *build_synonym_definition Args(( DEFINE *, CHARTYPE *, CHARTYPE *, bool ));
 short display_all_keys Args((void));
-int set_rexx_variables_for_all_keys Args((int *));
+int set_rexx_variables_for_all_keys Args((int,int *));
 short command_line Args((CHARTYPE *,bool));
 void cleanup_command_line Args((void));
 void split_command Args((CHARTYPE *,CHARTYPE *,CHARTYPE *));
@@ -86,6 +86,8 @@ short validate_n_m Args((CHARTYPE *,short *,short *));
 void ResetOrDeleteCUABlock Args(( int ));
 short execute_locate Args((CHARTYPE *,bool,bool,bool *));
 void adjust_other_screen_shadow_lines Args(( void ));
+int is_file_in_ring Args(( CHARTYPE *fpath, CHARTYPE *fname ));
+int save_lastop Args(( int idx, CHARTYPE *lastop ));
 
                                                             /* print.c */
 #ifdef WIN32
@@ -101,7 +103,7 @@ short setorient Args((char));
 short setpagesize Args((int));
                                                            /* target.c */
 short split_change_params Args((CHARTYPE *,CHARTYPE **,CHARTYPE **,TARGET *,LINETYPE *,LINETYPE *));
-short parse_target Args((CHARTYPE *,LINETYPE,TARGET *,short,bool,bool,bool));
+short parse_target Args((CHARTYPE *,LINETYPE,TARGET *,long,bool,bool,bool));
 void initialise_target Args((TARGET *));
 void free_target Args((TARGET *));
 short find_target Args((TARGET *,LINETYPE,bool,bool));
@@ -113,13 +115,13 @@ short find_rtarget_target Args((LINE *,TARGET *,LINETYPE,LINETYPE,LINETYPE *));
 bool find_rtarget_column_target Args((CHARTYPE *,LENGTHTYPE,TARGET *,LENGTHTYPE,LENGTHTYPE,LINETYPE *));
 LINETYPE find_next_in_scope Args((VIEW_DETAILS *,LINE *,LINETYPE,short));
 LINETYPE find_last_not_in_scope Args((VIEW_DETAILS *,LINE *,LINETYPE,short));
-short validate_target Args((CHARTYPE *,TARGET *,short,LINETYPE,bool,bool));
-void calculate_scroll_values Args((short *,LINETYPE *,LINETYPE *,bool *,bool *,bool *,short));
-short find_first_focus_line Args((unsigned short *));
-short find_last_focus_line Args((unsigned short *));
+short validate_target Args((CHARTYPE *,TARGET *,long,LINETYPE,bool,bool));
+void calculate_scroll_values Args(( CHARTYPE, VIEW_DETAILS *, short *, LINETYPE *, LINETYPE *, bool *, bool *, bool *, short ));
+short find_first_focus_line Args(( CHARTYPE, unsigned short * ));
+short find_last_focus_line Args(( CHARTYPE, unsigned short * ));
 CHARTYPE find_unique_char Args((CHARTYPE *));
                                                          /* reserved.c */
-RESERVED *add_reserved_line Args((CHARTYPE *,CHARTYPE *,short,short,COLOUR_ATTR *));
+RESERVED *add_reserved_line Args((CHARTYPE *,CHARTYPE *,short,short,COLOUR_ATTR *,bool));
 RESERVED *find_reserved_line Args((CHARTYPE,bool,ROWTYPE,short,short));
 short delete_reserved_line Args((short,short));
 #ifdef CTLCHAR
@@ -131,14 +133,14 @@ void box_paste_from_clipboard Args(( LINE *, LINETYPE, LINETYPE ));
                                                           /* execute.c */
 short execute_os_command Args((CHARTYPE *,bool ,bool ));
 short execute_change_command Args((CHARTYPE *,bool ));
-short insert_new_line Args((CHARTYPE *,LENGTHTYPE,LINETYPE,LINETYPE,bool,bool,bool,CHARTYPE,bool,bool));
-short execute_makecurr Args((LINETYPE));
-short execute_shift_command Args((bool,LENGTHTYPE,LINETYPE,LINETYPE,bool,short,bool,bool));
-short execute_set_lineflag Args(( unsigned int, unsigned int, unsigned int, LINETYPE, LINETYPE, bool, short ));
+short insert_new_line Args((CHARTYPE, VIEW_DETAILS *,CHARTYPE *,LENGTHTYPE,LINETYPE,LINETYPE,bool,bool,bool,CHARTYPE,bool,bool));
+short execute_makecurr Args(( CHARTYPE, VIEW_DETAILS *, LINETYPE ));
+short execute_shift_command Args(( CHARTYPE, VIEW_DETAILS *, bool, LENGTHTYPE, LINETYPE, LINETYPE, bool, long, bool, bool ));
+short execute_set_lineflag Args(( unsigned int, unsigned int, unsigned int, LINETYPE, LINETYPE, bool, long ));
 short do_actual_change_case Args((LINETYPE, LINETYPE,CHARTYPE,bool,short,LENGTHTYPE,LENGTHTYPE));
 short execute_change_case Args((CHARTYPE *,CHARTYPE));
 short rearrange_line_blocks Args((CHARTYPE,CHARTYPE,LINETYPE,LINETYPE,LINETYPE,short,VIEW_DETAILS*,VIEW_DETAILS*,bool,LINETYPE *));
-short execute_set_point Args((CHARTYPE *,LINETYPE ,bool));
+short execute_set_point Args(( CHARTYPE, VIEW_DETAILS *, CHARTYPE *, LINETYPE, bool ));
 short execute_wrap_word Args((LENGTHTYPE));
 short execute_split_join Args((short,bool,bool));
 short execute_put Args((CHARTYPE *,bool));
@@ -149,15 +151,15 @@ short execute_set_row_position Args((CHARTYPE *,short *,short *));
 short processable_line Args((VIEW_DETAILS *,LINETYPE,LINE *));
 short execute_expand_compress Args((CHARTYPE *,bool,bool,bool,bool));
 short execute_select Args((CHARTYPE *,bool,short));
-short execute_move_cursor Args((LENGTHTYPE));
-short execute_find_command Args((CHARTYPE *,short));
+short execute_move_cursor Args(( CHARTYPE, VIEW_DETAILS *, LENGTHTYPE ));
+short execute_find_command Args((CHARTYPE *,long));
 short execute_modify_command Args((CHARTYPE *));
-LENGTHTYPE calculate_rec_len Args((short,LENGTHTYPE,LENGTHTYPE,LINETYPE));
+LENGTHTYPE calculate_rec_len Args((short,CHARTYPE*,LENGTHTYPE,LENGTHTYPE,LINETYPE,short));
 short execute_editv Args((short,bool,CHARTYPE *));
-short prepare_dialog Args((CHARTYPE *,bool,CHARTYPE *,bool));
-short execute_dialog Args((CHARTYPE *,CHARTYPE *,CHARTYPE *,bool,short,short,CHARTYPE *,short,bool,bool));
+short prepare_dialog Args((CHARTYPE *,bool,CHARTYPE *));
+short execute_dialog Args((CHARTYPE *,CHARTYPE *,CHARTYPE *,bool,short,short,CHARTYPE *,short,bool));
 short prepare_popup Args((CHARTYPE *));
-short execute_popup Args((int, int, int, int , int , int , int , int , CHARTYPE **));
+short execute_popup Args((int, int, int, int , int , int , int , int , CHARTYPE **, int));
 short execute_preserve Args((PRESERVED_VIEW_DETAILS **, PRESERVED_FILE_DETAILS **));
 short execute_restore Args((PRESERVED_VIEW_DETAILS **, PRESERVED_FILE_DETAILS **));
                                                           /* default.c */
@@ -171,7 +173,6 @@ short defaults_for_first_file Args((void));
 short defaults_for_other_files Args((VIEW_DETAILS *));
 short default_file_attributes Args((FILE_DETAILS *));
 void set_screen_defaults Args((void));
-void set_defaults Args((void));
 short set_THE_key_defaults Args((int,int));
 short set_XEDIT_key_defaults Args((int,int));
 short set_ISPF_key_defaults Args((int,int));
@@ -185,10 +186,10 @@ void editor Args((void));
 int process_key Args((int,bool));
 short EditFile Args((CHARTYPE *,bool));
                                                             /* error.c */
-void display_error Args((unsigned short ,CHARTYPE *,bool));
+int display_error Args((unsigned short ,CHARTYPE *,bool));
 void clear_msgline Args((int));
 void display_prompt Args((CHARTYPE *));
-void expose_msgline Args((void));
+int expose_msgline Args((void));
                                                              /* file.c */
 short get_file Args((CHARTYPE *));
 LINE *read_file Args((FILE *,LINE *,CHARTYPE *,LINETYPE,LINETYPE,bool));
@@ -223,6 +224,8 @@ bool IsPathAndFilenameValid Args((CHARTYPE *));
 #endif
 LINE *getclipboard Args((LINE *, int));
 short setclipboard Args((FILE_DETAILS *,CHARTYPE *,bool,LINETYPE,LINETYPE,LINETYPE,LINETYPE *,bool,LENGTHTYPE,LENGTHTYPE,bool,bool,int));
+void draw_cursor Args((bool));
+int is_a_dir Args((ATTR_TYPE));
                                                            /* parser.c */
 short parse_line Args((CHARTYPE,FILE_DETAILS *,SHOW_LINE *,short));
 short parse_paired_comments Args((CHARTYPE,FILE_DETAILS *));
@@ -233,21 +236,23 @@ PARSER_DETAILS *find_auto_parser Args((FILE_DETAILS *));
 short parse_reserved_line Args((RESERVED *));
                                                            /* prefix.c */
 short execute_prefix_commands Args((void));
-void clear_pending_prefix_command Args((THE_PPC *,LINE *));
+void clear_pending_prefix_command Args((THE_PPC *,FILE_DETAILS *,LINE *));
 THE_PPC *delete_pending_prefix_command Args((THE_PPC *,FILE_DETAILS *,LINE *));
-void add_prefix_command Args((LINE *,LINETYPE,bool,bool));
+void add_prefix_command Args((CHARTYPE, VIEW_DETAILS *,LINE *,LINETYPE,bool,bool));
 short add_prefix_synonym Args((CHARTYPE *,CHARTYPE *));
 CHARTYPE *find_prefix_synonym Args((CHARTYPE *));
 CHARTYPE *find_prefix_oldname Args((CHARTYPE *));
 CHARTYPE *get_prefix_command Args((LINETYPE));
 CHARTYPE get_syntax_element Args((CHARTYPE, int, int));
                                                              /* show.c */
+void prepare_idline Args((CHARTYPE));
 void show_heading Args((CHARTYPE));
 void show_statarea Args((void));
 void clear_statarea Args((void));
 void display_filetabs Args((VIEW_DETAILS *));
 void build_screen Args((CHARTYPE));
 void display_screen Args((CHARTYPE));
+void display_cmdline Args(( CHARTYPE, VIEW_DETAILS * ));
 void show_marked_block Args((void));
 void redraw_window Args((WINDOW *));
 void repaint_screen Args((void));
@@ -261,14 +266,14 @@ short get_row_for_focus_line Args((CHARTYPE,LINETYPE,short));
 LINETYPE get_focus_line_in_view Args(( CHARTYPE, LINETYPE, ROWTYPE));
 LINETYPE calculate_focus_line Args((LINETYPE,LINETYPE));
 char *get_current_position Args((CHARTYPE,LINETYPE *,LENGTHTYPE *));
-void calculate_new_column Args((COLTYPE,LENGTHTYPE,LENGTHTYPE,COLTYPE *,LENGTHTYPE *));
+void calculate_new_column Args(( CHARTYPE, VIEW_DETAILS *, COLTYPE, LENGTHTYPE, LENGTHTYPE, COLTYPE *, LENGTHTYPE * ));
 short prepare_view Args((CHARTYPE));
 short advance_view Args((VIEW_DETAILS *,short));
 short force_curses_background Args((void));
 short THE_Resize Args((int,int));
                                                            /* scroll.c */
 short scroll_page Args((short,LINETYPE,bool));
-short scroll_line Args((short,LINETYPE,bool,short));
+short scroll_line Args(( CHARTYPE, VIEW_DETAILS *, short, LINETYPE, bool, short ));
                                                               /* the.c */
 void init_colour_pairs Args((void));
 int setup_profile_files Args((CHARTYPE *));
@@ -299,7 +304,6 @@ CHARTYPE *MyStrip Args((CHARTYPE *, char, char));
 LENGTHTYPE memfind Args((CHARTYPE *, CHARTYPE *, LENGTHTYPE, LENGTHTYPE, bool, bool, CHARTYPE, CHARTYPE, LENGTHTYPE *));
 void memrev Args((CHARTYPE *, CHARTYPE *, LENGTHTYPE));
 LENGTHTYPE memcmpi Args((CHARTYPE *, CHARTYPE *, LENGTHTYPE));
-/*LENGTHTYPE my_stricmp Args((char *, char *));*/
 CHARTYPE *make_upper Args((CHARTYPE *));
 bool equal Args((CHARTYPE *,CHARTYPE *,LENGTHTYPE));
 bool valid_integer Args((CHARTYPE *));
@@ -307,9 +311,9 @@ bool valid_positive_integer Args((CHARTYPE *));
 short valid_positive_integer_against_maximum Args(( CHARTYPE *, LENGTHTYPE ));
 LENGTHTYPE strzeq Args((CHARTYPE *,CHARTYPE));
 CHARTYPE *strtrans Args((CHARTYPE *,CHARTYPE,CHARTYPE));
-LINE *add_LINE Args((LINE *, LINE *, CHARTYPE *, LENGTHTYPE, SELECTTYPE, bool));
+LINE *add_LINE Args(( LINE *, LINE *, CHARTYPE *, LENGTHTYPE, SELECTTYPE, bool ));
 LINE *append_LINE Args((LINE *, CHARTYPE *, LENGTHTYPE));
-LINE *delete_LINE Args((LINE *, LINE *, LINE *, short, bool));
+LINE *delete_LINE Args((LINE **, LINE **, LINE *, short, bool));
 void put_string Args((WINDOW *, ROWTYPE, COLTYPE, CHARTYPE *, LENGTHTYPE));
 void put_char Args((WINDOW *, chtype, CHARTYPE));
 short set_up_windows Args((short));
@@ -339,7 +343,6 @@ VIEW_DETAILS *find_next_file Args((VIEW_DETAILS *,short));
 WINDOW *adjust_window Args((WINDOW *,short ,short ,short ,short ));
 #endif
 
-void draw_cursor Args((bool));
 short my_wclrtoeol Args((WINDOW *));
 short my_wdelch Args((WINDOW *));
 short get_word Args((CHARTYPE *, LENGTHTYPE, LENGTHTYPE, LENGTHTYPE *, LENGTHTYPE *));
@@ -359,7 +362,7 @@ VIEW_DETAILS *vll_del Args((VIEW_DETAILS **,VIEW_DETAILS **,VIEW_DETAILS *,short
 DEFINE *dll_add Args((DEFINE *,DEFINE *,unsigned short ));
 DEFINE *dll_del Args((DEFINE **,DEFINE **,DEFINE *,short ));
 DEFINE *dll_free Args((DEFINE *));
-THE_PPC *pll_add Args((THE_PPC *,THE_PPC *,unsigned short ));
+THE_PPC *pll_add Args((THE_PPC **,unsigned short, LINETYPE ));
 THE_PPC *pll_del Args((THE_PPC **,THE_PPC **,THE_PPC *,short ));
 THE_PPC *pll_free Args((THE_PPC *));
 THE_PPC *pll_find Args((THE_PPC *,LINETYPE));
@@ -390,6 +393,9 @@ PARSE_COMMENTS *parse_commentsll_find Args((PARSE_COMMENTS *,CHARTYPE *));
 PARSE_POSTCOMPARE *parse_postcomparell_add Args((PARSE_POSTCOMPARE *,PARSE_POSTCOMPARE *,unsigned short ));
 PARSE_POSTCOMPARE *parse_postcomparell_del Args((PARSE_POSTCOMPARE **,PARSE_POSTCOMPARE **,PARSE_POSTCOMPARE *,short ));
 PARSE_POSTCOMPARE *parse_postcomparell_free Args((PARSE_POSTCOMPARE *));
+PARSE_EXTENSION *parse_extensionll_add Args((PARSE_EXTENSION *,PARSE_EXTENSION *,unsigned short ));
+PARSE_EXTENSION *parse_extensionll_del Args((PARSE_EXTENSION **,PARSE_EXTENSION **,PARSE_EXTENSION *,short ));
+PARSE_EXTENSION *parse_extensionll_free Args((PARSE_EXTENSION *));
                                                              /* rexx.c */
 unsigned long MyRexxRegisterFunctionExe Args((CHARTYPE *));
 unsigned long MyRexxDeregisterFunction Args((CHARTYPE *));
@@ -423,15 +429,15 @@ int thematch Args((char *,char *,int));
                                                              /* sort.c */
 short execute_sort Args((CHARTYPE *));
                                                            /* cursor.c */
-short THEcursor_cmdline Args((short));
+short THEcursor_cmdline Args(( CHARTYPE, VIEW_DETAILS *, short ));
 short THEcursor_column Args((void));
-short THEcursor_down Args((short));
+short THEcursor_down Args(( CHARTYPE, VIEW_DETAILS *, short ));
 short THEcursor_file Args((bool,LINETYPE,LENGTHTYPE));
-short THEcursor_home Args((bool));
+short THEcursor_home Args(( CHARTYPE, VIEW_DETAILS *, bool ));
 short THEcursor_left Args((short,bool));
 short THEcursor_right Args((short,bool));
 short THEcursor_up Args((short));
-short THEcursor_move Args((bool,bool,short,short));
+short THEcursor_move Args(( CHARTYPE, VIEW_DETAILS *, bool, bool, short, short ));
 short THEcursor_goto Args((LINETYPE,LENGTHTYPE));
 short THEcursor_mouse Args((void));
 long where_now Args((void));
@@ -445,7 +451,7 @@ void get_cursor_position Args((LINETYPE *, LENGTHTYPE *, LINETYPE *, LENGTHTYPE 
 short advance_focus_line Args((LINETYPE));
 short advance_current_line Args((LINETYPE));
 short advance_current_or_focus_line Args((LINETYPE));
-void resolve_current_and_focus_lines Args((VIEW_DETAILS *, LINETYPE, LINETYPE , short, bool , bool));
+void resolve_current_and_focus_lines Args(( CHARTYPE, VIEW_DETAILS *, LINETYPE, LINETYPE , short, bool , bool ));
                                                            /* colour.c */
 short parse_colours Args((CHARTYPE *,COLOUR_ATTR *,CHARTYPE **,bool,bool*));
 short parse_modifiers Args((CHARTYPE *,COLOUR_ATTR *));
@@ -453,6 +459,7 @@ chtype merge_curline_colour Args((COLOUR_ATTR *, COLOUR_ATTR *));
 void set_up_default_colours Args((FILE_DETAILS *,COLOUR_ATTR *,int));
 void set_up_default_ecolours Args((FILE_DETAILS *));
 CHARTYPE *get_colour_strings Args((COLOUR_ATTR *));
+int is_valid_colour Args(( CHARTYPE *colour ));
                                                            /* column.c */
 short column_command Args((CHARTYPE *,int));
                                                             /* mouse.c */
@@ -466,8 +473,9 @@ void reset_saved_mouse_pos Args((void));
 void get_saved_mouse_pos Args((int *, int *));
 void initialise_mouse_commands Args((void));
 int mouse_info_to_key Args((int,int,int,int));
-CHARTYPE *mouse_key_number_to_name Args((int,CHARTYPE *));
-int find_mouse_key_value Args((CHARTYPE *,CHARTYPE *));
+CHARTYPE *mouse_key_number_to_name Args((int,CHARTYPE *,int *));
+int find_mouse_key_value Args((CHARTYPE *));
+int find_mouse_key_value_in_window Args((CHARTYPE *,CHARTYPE *));
 short ScrollbarHorz Args((CHARTYPE *));
 short ScrollbarVert Args((CHARTYPE *));
                                                            /* memory.c */
@@ -540,6 +548,7 @@ short THEEditv Args((CHARTYPE *));
 short Enter Args((CHARTYPE *));
 short Eolout Args((CHARTYPE *));
 short Equivchar Args((CHARTYPE *));
+short Erroroutput Args((CHARTYPE *));
 short Etmode Args((CHARTYPE *));
 short Expand Args((CHARTYPE *));
 short Extract Args((CHARTYPE *));
@@ -637,6 +646,7 @@ short Reserved Args((CHARTYPE *));
 short Reset Args((CHARTYPE *));
 short Restore Args((CHARTYPE *));
 short Retrieve Args((CHARTYPE *));
+short Rexxhalt Args((CHARTYPE *));
 short Rexxoutput Args((CHARTYPE *));
 short THERexx Args((CHARTYPE *));
 short Rgtleft Args((CHARTYPE *));
@@ -662,6 +672,7 @@ short Sos_bottomedge Args((CHARTYPE *));
 short Sos_cuadelback Args((CHARTYPE *));
 short Sos_cuadelchar Args((CHARTYPE *));
 short Sos_current Args((CHARTYPE *));
+short do_Sos_current Args(( CHARTYPE *, CHARTYPE, VIEW_DETAILS * ));
 short Sos_cursoradj Args((CHARTYPE *));
 short Sos_cursorshift Args((CHARTYPE *));
 short Sos_delback Args((CHARTYPE *));
@@ -684,6 +695,7 @@ short Sos_marginr Args((CHARTYPE *));
 short Sos_pastecmdline Args((CHARTYPE *));
 short Sos_parindent Args((CHARTYPE *));
 short Sos_prefix Args((CHARTYPE *));
+short do_Sos_prefix Args(( CHARTYPE *, CHARTYPE, VIEW_DETAILS * ));
 short Sos_qcmnd Args((CHARTYPE *));
 short Sos_rightedge Args((CHARTYPE *));
 short Sos_settab Args((CHARTYPE *));
@@ -737,4 +749,3 @@ short Wrap Args((CHARTYPE *));
 short Xedit Args((CHARTYPE *));
 short Xterminal Args((CHARTYPE *));
 short Zone Args((CHARTYPE *));
-short Birthday Args((CHARTYPE *));

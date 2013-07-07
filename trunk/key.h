@@ -30,7 +30,7 @@
  */
 
 /*
-$Id: key.h,v 1.4 2001/12/18 08:23:27 mark Exp $
+$Id: key.h,v 1.7 2010/04/05 23:00:56 mark Exp $
 */
 
 #if defined(USE_EXTCURSES)
@@ -220,7 +220,7 @@ KEYS key_table[] =
   {(CHARTYPE *)"NUM8"     ,KEY_A2,0},
   {(CHARTYPE *)"NUM9"     ,KEY_A3,0},
 
-#if defined(DOS) || defined(OS2) || defined(XCURSES) || defined(WIN32)
+#if defined(DOS) || defined(OS2) || defined(USE_XCURSES) || defined(WIN32)
 /* normal characters */
   {(CHARTYPE *)"CURU",KEY_CURU,0},
   {(CHARTYPE *)"CURD",KEY_CURD,0},
@@ -269,7 +269,7 @@ KEYS key_table[] =
   {(CHARTYPE *)"S-STAR",SHF_PADSTAR,SHIFT_SHIFT},
   {(CHARTYPE *)"S-NUMENTER",SHF_PADENTER,SHIFT_SHIFT},
 /* control characters */
-  {(CHARTYPE *)"C-2",KEY_C_2,SHIFT_CTRL},
+/*  {(CHARTYPE *)"C-2",KEY_C_2,SHIFT_CTRL},*/
   {(CHARTYPE *)"C-6",KEY_C_6,SHIFT_CTRL},
   {(CHARTYPE *)"C--",KEY_C_MINUS,SHIFT_CTRL},
   {(CHARTYPE *)"C-[",KEY_C_LBRACKET,SHIFT_CTRL},
@@ -384,7 +384,7 @@ KEYS key_table[] =
   {(CHARTYPE *)"A-NUM7",ALT_PAD7,SHIFT_ALT},
   {(CHARTYPE *)"A-NUM8",ALT_PAD8,SHIFT_ALT},
   {(CHARTYPE *)"A-NUM9",ALT_PAD9,SHIFT_ALT},
-# if defined(XCURSES)
+# if defined(USE_XCURSES)
   {(CHARTYPE *)"S-TAB",KEY_BTAB,SHIFT_SHIFT},
   {(CHARTYPE *)"S-INS",KEY_SIC,SHIFT_SHIFT},
   {(CHARTYPE *)"S-DEL",KEY_SDC,SHIFT_SHIFT},
@@ -426,6 +426,9 @@ KEYS key_table[] =
 # endif
 # ifdef KEY_ALT_R
   {(CHARTYPE *)"ALT-R",KEY_ALT_R,SHIFT_MODIFIER_ONLY},
+# endif
+# ifdef KEY_EXIT
+  {(CHARTYPE *)"EXIT"     ,KEY_EXIT,0},
 # endif
 #else
   {(CHARTYPE *)"CURD"     ,KEY_DOWN ,0},

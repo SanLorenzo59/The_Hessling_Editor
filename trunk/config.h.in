@@ -142,8 +142,11 @@
 /* Define if linking with Extended Curses.  */
 #undef USE_EXTCURSES
 
-/* Define if linking with nurses.  */
+/* Define if linking with ncurses.  */
 #undef USE_NCURSES
+
+/* Define if linking with ncursesw.  */
+#undef USE_NCURSESW
 
 /* Define if linking with Regina REXX.  */
 #undef USE_REGINA
@@ -160,6 +163,12 @@
 /* Define if linking with Object Rexx.  */
 #undef USE_OREXX
 
+/* Define if linking with Open Object Rexx 4.0.  */
+#undef OOREXX_40
+
+/* Define if linking with Open Object Rexx.  */
+#undef USE_OOREXX
+
 /* Define if linking with uni-REXX.  */
 #undef USE_UNIREXX
 
@@ -168,6 +177,9 @@
 
 /* Define if linking with XCurses.  */
 #undef USE_XCURSES
+
+/* Define if linking with PDCurses built with SDL.  */
+#undef USE_SDLCURSES
 
 /* Define if linking with PDCurses.  */
 #undef USE_PDCURSES
@@ -180,6 +192,12 @@
 
 /* Define if you have this function */
 #undef HAVE_GETACL
+
+/* Define if you have this function */
+#undef HAVE_REALPATH
+
+/* Define if you have this function */
+#undef HAVE_SETLOCALE
 
 /* Define if you have the siginterrupt function.  */
 #undef HAVE_SIGINTERRUPT
@@ -214,6 +232,9 @@
 /* Define if you have the <ctype.h> header file.  */
 #undef HAVE_CTYPE_H
 
+/* Define if you have the <wctype.h> header file.  */
+#undef HAVE_WCTYPE_H
+
 /* Define if you have the <errno.h> header file.  */
 #undef HAVE_ERRNO_H
 
@@ -226,6 +247,9 @@
 /* Define if you have the <fcntl.h> header file.  */
 #undef HAVE_FCNTL_H
 
+/* Define if you have the <locale.h> header file.  */
+#undef HAVE_LOCALE_H
+
 /* Define if you have the <memory.h> header file.  */
 #undef HAVE_MEMORY_H
 
@@ -237,6 +261,12 @@
 
 /* Define if you have the <stdlib.h> header file.  */
 #undef HAVE_STDLIB_H
+
+/* Define if you have the <stdint.h> header file.  */
+#undef HAVE_STDINT_H
+
+/* Define if you have the <inttypes.h> header file.  */
+#undef HAVE_INTTYPES_H
 
 /* Define if you have the <string.h> header file.  */
 #undef HAVE_STRING_H
@@ -297,3 +327,12 @@
 
 /* Define if g++ can't compile <string.h> */
 #undef HAVE_BROKEN_CXX_WITH_STRING_H
+
+/* Define if you have curses_version() */
+#undef HAVE_CURSES_VERSION
+
+/* Defines the kernel name */
+#undef MH_KERNEL_NAME
+
+/* Defines a global profile name */
+#undef THE_GLOBAL_PROFILE

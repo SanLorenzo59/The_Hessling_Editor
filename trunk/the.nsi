@@ -8,7 +8,14 @@
 
 !define LONGNAME "The Hessling Editor"  ;Long Name (for descriptions)
 !define SHORTNAME "THE" ;Short name (no slash) of package
-
+;
+; Following !defines required for uninstaller.nsh
+!define SFGROUP     "29648"
+!define SFHOME      "http://hessling-editor.sourceforge.net"
+!define DISPLAYICON "$INSTDIR\${SHORTNAME}.exe,0"
+!define UNINSTALLER "${SHORTNAME}un.exe"
+!define KEYFILE     "${SHORTNAME}.exe"
+;
 Name "${LONGNAME} ${VERSION}"
 
 !define MUI_ICON "${SRCDIR}\thewin.ico"
@@ -33,7 +40,7 @@ Var ALREADY_INSTALLED
 ;Configuration
 
   ;General
-  OutFile "${SHORTNAME}${NODOTVER}.exe"
+  OutFile "${SHORTNAME}${NODOTVER}${ARCH}_${INTERPRETER}.exe"
   ShowInstdetails show
   SetOverwrite on
 
@@ -60,7 +67,12 @@ Var ALREADY_INSTALLED
 
 ;--------------------------------
 ;Language
-!insertmacro MUI_LANGUAGE "English"
+  !insertmacro MUI_LANGUAGE "English"
+
+;================
+;Variables
+  Var IsAdminUser
+
 
 ;========================================================================
 ;Installer Sections
@@ -79,43 +91,53 @@ Section "${LONGNAME} Core (required)" SecMain
   IfFileExists "$INSTDIR\the.exe" 0 new_installation
     StrCpy $ALREADY_INSTALLED 1
   new_installation:
-  !insertmacro InstallLib DLL $ALREADY_INSTALLED REBOOT_NOTPROTECTED rexxtrans.dll $SYSDIR\rexxtrans.dll $SYSDIR
+  !if ${INTERPRETER} == "RexxTrans"
+     !insertmacro InstallLib DLL $ALREADY_INSTALLED REBOOT_NOTPROTECTED rexxtrans.dll $SYSDIR\rexxtrans.dll $SYSDIR
+     File rexxtrans.dll
+  !endif
   ; Distribution files...
   File the.exe
-  File rexxtrans.dll
+  File thec.exe
+  File theg.exe
   !ifdef CURSESDLL
-  File curses.dll
+  File pdcurses.dll
   !endif
   File COPYING
   File HISTORY
   File THE_Help.txt
-  CreateDirectory "$SMPROGRAMS\${SHORTNAME}"
-  CreateShortCut "$SMPROGRAMS\${SHORTNAME}\Uninstall.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
-  CreateShortCut "$SMPROGRAMS\${SHORTNAME}\HISTORY.lnk" "$INSTDIR\the.exe" "$INSTDIR\HISTORY" "$INSTDIR\the.exe"
-  CreateShortCut "$SMPROGRAMS\${SHORTNAME}\LICENSE.lnk" "$INSTDIR\the.exe" "$INSTDIR\LICENSE" "$INSTDIR\the.exe"
+  CreateDirectory "$SMPROGRAMS\${LONGNAME}"
+  CreateShortCut "$SMPROGRAMS\${LONGNAME}\The Hessling Editor.lnk" "$INSTDIR\the.exe" "" "$INSTDIR\the.exe"
+  CreateShortCut "$SMPROGRAMS\${LONGNAME}\Set GUI Default.lnk" "$INSTDIR\the.exe" "--gui-default" "$INSTDIR\the.exe"
+  CreateShortCut "$SMPROGRAMS\${LONGNAME}\Set Console Default.lnk" "$INSTDIR\the.exe" "--console-default" "$INSTDIR\the.exe"
+  CreateShortCut "$SMPROGRAMS\${LONGNAME}\Uninstall.lnk" "$INSTDIR\${UNINSTALLER}" "" "$INSTDIR\${UNINSTALLER}" 0
+  CreateShortCut "$SMPROGRAMS\${LONGNAME}\HISTORY.lnk" "$INSTDIR\the.exe" "$INSTDIR\HISTORY" "$INSTDIR\the.exe"
+  CreateShortCut "$SMPROGRAMS\${LONGNAME}\LICENSE.lnk" "$INSTDIR\the.exe" "$INSTDIR\LICENSE" "$INSTDIR\the.exe"
   ; Can't use CreateShortcut for URLs
-  WriteINIStr "$SMPROGRAMS\${SHORTNAME}\THE Home Page.url" "InternetShortcut" "URL" "http://hessling-editor.sourceforge.net"
-  ; Write the uninstall keys for Windows
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${SHORTNAME}" "DisplayName" "${LONGNAME} (remove only)"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${SHORTNAME}" "UninstallString" '"$INSTDIR\uninstall.exe"'
-  WriteUninstaller "$INSTDIR\uninstall.exe"
+  WriteINIStr "$SMPROGRAMS\${LONGNAME}\THE Home Page.url" "InternetShortcut" "URL" "http://hessling-editor.sourceforge.net"
+  ; Write the uninstall keys
+!include "${SRCDIR}\common\uninstaller.nsh"
   ; add install directory to PATH
-  DetailPrint "Adding $INSTDIR to PATH"
   Push "$INSTDIR"
-  Push "false"
+  Push $IsAdminUser ; "true" or "false"
+  Push "PATH"
   Call AddToPath
   ; set env variables
   DetailPrint "Setting THE_HOME_DIR to $INSTDIR"
   Push "THE_HOME_DIR"
   Push "$INSTDIR"
+  Push $IsAdminUser ; "true" or "false"
   Call WriteEnvStr
+
   DetailPrint "Setting THE_MACRO_PATH to $INSTDIR\extras"
   Push "THE_MACRO_PATH"
   Push "$INSTDIR\extras"
+  Push $IsAdminUser ; "true" or "false"
   Call WriteEnvStr
+
   DetailPrint "Setting THE_HELP_FILE to $INSTDIR\THE_Help.txt"
   Push "THE_HELP_FILE"
   Push "$INSTDIR\THE_Help.txt"
+  Push $IsAdminUser ; "true" or "false"
   Call WriteEnvStr
 SectionEnd
 
@@ -132,13 +154,14 @@ SectionEnd
 ; Sample Macros
 
 Section "${LONGNAME} Sample Macros" SecDev
-  CreateDirectory "$SMPROGRAMS\${SHORTNAME}\Sample Profiles"
+  CreateDirectory "$SMPROGRAMS\${LONGNAME}\Sample Profiles"
   ; Set output path to the installation directory.
   SetOutPath $INSTDIR\extras
   ; Distribution files...
   File append.the
   File build.the
   File codecomp.the
+  File complete.the
   File comm.the
   File compile.the
   File config.the
@@ -151,16 +174,21 @@ Section "${LONGNAME} Sample Macros" SecDev
   File nl.the
   File rm.the
   File spell.the
+  File syntax.the
   File tags.the
   File total.the
   File uncomm.the
   File words.the
   File xeditprf.the
   File demo.txt
-  CreateShortCut "$SMPROGRAMS\${SHORTNAME}\Sample Profiles\XEDIT Profile.lnk" "$INSTDIR\the.exe" '-p "$INSTDIR\extras\xeditprf.the" "$INSTDIR\extras\xeditprf.the"' "$INSTDIR\the.exe"
-  CreateShortCut "$SMPROGRAMS\${SHORTNAME}\Sample Profiles\CUA Profile.lnk" "$INSTDIR\the.exe" '-p "$INSTDIR\extras\cua.the" "$INSTDIR\extras\cua.the"' "$INSTDIR\the.exe"
-  CreateShortCut "$SMPROGRAMS\${SHORTNAME}\Sample Profiles\Authors Profile.lnk" "$INSTDIR\the.exe" '-p "$INSTDIR\extras\mhprf.the" "$INSTDIR\extras\mhprf.the"' "$INSTDIR\the.exe"
-  CreateShortCut "$SMPROGRAMS\${SHORTNAME}\Sample Profiles\THE Demo.lnk" "$INSTDIR\the.exe" '-p "$INSTDIR\extras\demo.the" "$INSTDIR\extras\demo.txt"' "$INSTDIR\the.exe"
+  File rexx.syntax
+  File rexxdw.syntax
+  File rexxeec.syntax
+  File rexxutil.syntax
+  CreateShortCut "$SMPROGRAMS\${LONGNAME}\Sample Profiles\XEDIT Profile.lnk" "$INSTDIR\the.exe" '-p "$INSTDIR\extras\xeditprf.the" "$INSTDIR\extras\xeditprf.the"' "$INSTDIR\the.exe"
+  CreateShortCut "$SMPROGRAMS\${LONGNAME}\Sample Profiles\CUA Profile.lnk" "$INSTDIR\the.exe" '-p "$INSTDIR\extras\cua.the" "$INSTDIR\extras\cua.the"' "$INSTDIR\the.exe"
+  CreateShortCut "$SMPROGRAMS\${LONGNAME}\Sample Profiles\Authors Profile.lnk" "$INSTDIR\the.exe" '-p "$INSTDIR\extras\mhprf.the" "$INSTDIR\extras\mhprf.the"' "$INSTDIR\the.exe"
+  CreateShortCut "$SMPROGRAMS\${LONGNAME}\Sample Profiles\THE Demo.lnk" "$INSTDIR\the.exe" '-p "$INSTDIR\extras\demo.the" "$INSTDIR\extras\demo.txt"' "$INSTDIR\the.exe"
 SectionEnd
 
 ;------------------------------------------------------------------------
@@ -172,8 +200,19 @@ Section "${LONGNAME} Documentation" SecDoc
   File THE.pdf
 ;  File ..\doc\*.html
 ;  File ..\doc\logo1.jpg
-  CreateShortCut "$SMPROGRAMS\${SHORTNAME}\${SHORTNAME} PDF Documentation.lnk" "$INSTDIR\doc\THE.pdf" "" "$INSTDIR\doc\THE.pdf" 0
+  CreateShortCut "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} PDF Documentation.lnk" "$INSTDIR\doc\THE.pdf" "" "$INSTDIR\doc\THE.pdf" 0
 SectionEnd
+
+;------------------------------------------------------------------------
+; Regina
+
+!if ${INTERPRETER} == "Regina"
+Section "Regina Rexx Interpreter" SecRegina
+  ; Set output path to the installation directory.
+  SetOutPath $INSTDIR
+  File regina.dll
+SectionEnd
+  !endif
 
 
 Section ""
@@ -186,6 +225,10 @@ SectionEnd
 ;========================================================================
 ;Installer Functions
 
+Function .onInit
+!include "${SRCDIR}\common\oninit.nsh"
+FunctionEnd
+
 Function .onMouseOverSection
 
   !insertmacro MUI_DESCRIPTION_BEGIN
@@ -194,6 +237,9 @@ Function .onMouseOverSection
     !insertmacro MUI_DESCRIPTION_TEXT ${SecDemo} "Installs extra language definition files."
     !insertmacro MUI_DESCRIPTION_TEXT ${SecDev} "Install sample ${LONGNAME} macros."
     !insertmacro MUI_DESCRIPTION_TEXT ${SecDoc} "Install ${LONGNAME} documentation."
+    !if ${INTERPRETER} == "Regina"
+       !insertmacro MUI_DESCRIPTION_TEXT ${SecRegina} "Install Regina Rexx Interpreter."
+    !endif
 
  !insertmacro MUI_DESCRIPTION_END
 
@@ -203,18 +249,26 @@ FunctionEnd
 ;Uninstaller Section
 
 Section "Uninstall"
+  ; remove directory from PATH
   Push $INSTDIR
-  Push "false"
+  Push $IsAdminUser ; pushes "true" or "false"
+  Push "PATH"
   Call un.RemoveFromPath
   DeleteRegKey HKCR "${SHORTNAME}"
-  ; deincrement rexxtrans.dll and delete if necessary
-  !insertmacro UnInstallLib DLL SHARED REBOOT_NOTPROTECTED $SYSDIR\rexxtrans.dll
+  !if ${INTERPRETER} == "RexxTrans"
+     !insertmacro UnInstallLib DLL SHARED REBOOT_NOTPROTECTED $SYSDIR\rexxtrans.dll
+  !endif
   ; remove environment variables
   Push "THE_MACRO_PATH"
+  Push $IsAdminUser ; "true" or "false"
   Call un.DeleteEnvStr
+
   Push "THE_HELP_FILE"
+  Push $IsAdminUser ; "true" or "false"
   Call un.DeleteEnvStr
+
   Push "THE_HOME_DIR"
+  Push $IsAdminUser ; "true" or "false"
   Call un.DeleteEnvStr
 
   RMDir /r "$INSTDIR"
@@ -224,7 +278,7 @@ Section "Uninstall"
   DeleteRegKey HKLM "SOFTWARE\${LONGNAME}"
 
   ; remove shortcuts directory and everything in it
-  RMDir /r "$SMPROGRAMS\${SHORTNAME}"
+  RMDir /r "$SMPROGRAMS\${LONGNAME}"
 
 ; !insertmacro MUI_UNFINISHHEADER
 
@@ -233,6 +287,11 @@ SectionEnd
 ;========================================================================
 ;Uninstaller Functions
 
+Function un.onInit
+!include "${SRCDIR}\common\unoninit.nsh"
+FunctionEnd
+
+!include "${SRCDIR}\common\admin.nsh"
 !include "${SRCDIR}\common\isnt.nsh"
 !include "${SRCDIR}\common\path.nsh"
 !include "${SRCDIR}\common\WriteEnv.nsh"

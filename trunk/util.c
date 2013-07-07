@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,13 +29,12 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: util.c,v 1.20 2005/09/01 10:30:36 mark Exp $";
 
-#include <the.h>
-#include <proto.h>
+#include "the.h"
+#include "proto.h"
 
 #ifdef my_stricmp
 # undef my_stricmp
@@ -416,7 +415,7 @@ CHARTYPE chr;
 #endif
 {
    LENGTHTYPE i=0,j=0;
-   LENGTHTYPE len=strlen((DEFCHAR *)buffer);
+   LENGTHTYPE len=strlen( (DEFCHAR *)buffer );
 
    for( i = 0; i < len; i++ )
    {
@@ -567,7 +566,7 @@ CHARTYPE ch;
    LENGTHTYPE len=0;
    LENGTHTYPE i = 0;
 
-   len = strlen((DEFCHAR *)str);
+   len = strlen( (DEFCHAR *)str );
    for (; i<len && str[i]==ch; i++);
    if (i>=len)
       i = (-1);
@@ -598,10 +597,10 @@ CHARTYPE *str;
    LENGTHTYPE len=0;
    CHARTYPE *tmp=NULL;
 
-   len = strlen((DEFCHAR *)str);
+   len = strlen( (DEFCHAR *)str );
    if ((tmp = (CHARTYPE *)(*the_malloc)((len+1)*sizeof(CHARTYPE))) == (CHARTYPE *)NULL)
       return((CHARTYPE *)NULL);
-   strcpy((DEFCHAR *)tmp,(DEFCHAR *)str);
+   strcpy( (DEFCHAR *)tmp, (DEFCHAR *)str );
    return(tmp);
 }
 /*man***************************************************************************
@@ -675,7 +674,7 @@ CHARTYPE ch;
 {
    LENGTHTYPE len=0;
 
-   len = strlen((DEFCHAR *)str);
+   len = strlen( (DEFCHAR *)str );
    for (--len; len>=0 && str[len]==ch; len--);
    return(len);
 }
@@ -709,7 +708,7 @@ CHARTYPE *str,ch;
 {
    LENGTHTYPE len=0;
 
-   len = strlen((DEFCHAR *)str);
+   len = strlen( (DEFCHAR *)str );
    for (--len; len>=0 && str[len]!=ch; len--);
    return(len);
 }
@@ -788,11 +787,11 @@ char option,ch;
    LENGTHTYPE i=0;
    LENGTHTYPE pos=0;
 
-   if (strlen((DEFCHAR *)string) == 0)
+   if ( strlen( (DEFCHAR *)string ) == 0 )
       return(string);
    if (option & STRIP_TRAILING)
    {
-      pos = strzrevne(string,ch);
+      pos = strzrevne( string, ch );
       if (pos == (-1))
          *(string) = '\0';
       else
@@ -800,7 +799,7 @@ char option,ch;
    }
    if (option & STRIP_LEADING)
    {
-      pos = strzne(string,ch);
+      pos = strzne( string, ch );
       if (pos == (-1))
          *(string) = '\0';
       else
@@ -1058,7 +1057,8 @@ DEFCHAR *str1,*str2;
 /*             >0 if str1 > str2,                                      */
 /***********************************************************************/
 {
-   LENGTHTYPE i,len,len1=strlen(str1),len2=strlen(str2);
+   LENGTHTYPE len1=strlen((DEFCHAR *)str1),len2=strlen((DEFCHAR *)str2);
+   LENGTHTYPE i,len;
    DEFCHAR c1,c2;
 
    len = min( len1, len2 );
@@ -1266,8 +1266,8 @@ LENGTHTYPE maximum;
    sprintf( (DEFCHAR *)buf, "%ld", maximum );
    if ( *str == '+' )
       str++;
-   len_str = strlen( (DEFCHAR *)str );
    len_max = strlen( (DEFCHAR *)buf );
+   len_str = strlen( (DEFCHAR *)str );
    if ( len_str > len_max )
    {
       TRACE_RETURN();
@@ -1313,8 +1313,8 @@ CHARTYPE ch;
    LENGTHTYPE i = 0;
 
    len = strlen( (DEFCHAR *)str );
-   for (; i < len && str[i] != ch; i++ );
-   if ( i>=len )
+   for ( ; i < len && str[i] != ch; i++ );
+   if ( i >= len )
       i = (-1L);
    return(i);
 }
@@ -1368,6 +1368,14 @@ bool new_flag;
 /***********************************************************************/
 {
    TRACE_FUNCTION("util.c:    add_LINE");
+   /*
+    * Validate that the line being added is shorter than the maximum line length
+    */
+   if ( len > max_line_length )
+   {
+      display_error( 0, (CHARTYPE*)"Truncated", FALSE );
+      len = max_line_length;
+   }
    next_line = lll_add( first, curr, sizeof(LINE) );
    if ( next_line == NULL )
    {
@@ -1436,10 +1444,10 @@ LENGTHTYPE len;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-LINE *delete_LINE( LINE *first, LINE *last, LINE *curr, short direction, bool delete_names )
+LINE *delete_LINE( LINE **first, LINE **last, LINE *curr, short direction, bool delete_names )
 #else
 LINE *delete_LINE( first, last, curr, direction, delete_names )
-LINE *first,*last,*curr;
+LINE **first,**last,*curr;
 short direction;
 bool delete_names;
 #endif
@@ -1455,15 +1463,25 @@ bool delete_names;
 /***********************************************************************/
 {
    TRACE_FUNCTION("util.c:    delete_LINE");
-   if ( delete_names
-   &&  ( curr->first_name != (THELIST *)NULL ) )
+   if ( delete_names )
    {
-      (*the_free)( curr->name );
-      ll_free( curr->first_name, the_free );
-      curr->first_name = NULL;
+      if ( curr->first_name != (THELIST *)NULL )
+      {
+         ll_free( curr->first_name, the_free );
+         curr->first_name = NULL;
+      }
+      if ( curr->name )
+      {
+         (*the_free)( curr->name );
+         curr->name = NULL;
+      }
    }
-   (*the_free)(curr->line);
-   curr = lll_del( &first, &last, curr, direction );
+   if ( curr->line )
+   {
+      (*the_free)(curr->line);
+      curr->line = NULL;
+   }
+   curr = lll_del( first, last, curr, direction );
    TRACE_RETURN();
    return( curr );
 }
@@ -1484,10 +1502,10 @@ LENGTHTYPE len;
    LENGTHTYPE i=0;
 
    TRACE_FUNCTION("util.c:    put_string");
-   wmove(win,row,col);
-   for (i=0;i<len;i++)
+   wmove( win, row, col );
+   for ( i = 0; i < len; i++ )
    {
-      waddch(win,etmode_table[*(string+i)]);
+      waddch( win, etmode_table[*(string+i)] );
    }
    TRACE_RETURN();
    return;
@@ -1515,9 +1533,9 @@ CHARTYPE add_ins;
 #endif
 
    if (add_ins == ADDCHAR)
-      waddch(win,ch);
+      waddch( win, ch );
    else
-      winsch(win,ch);
+      winsch( win, ch );
    TRACE_RETURN();
    return;
 }
@@ -1589,6 +1607,9 @@ short scrn;
             TRACE_RETURN();
             return(RC_OUT_OF_MEMORY);
          }
+#ifdef HAVE_KEYPAD
+         keypad( screen[scrn].win[i], TRUE );
+#endif
 #if !defined(PDCURSES)
          touchwin( screen[scrn].win[i] );
 #endif
@@ -1596,10 +1617,6 @@ short scrn;
       }
    }
    wattrset( screen[scrn].win[WINDOW_FILEAREA], set_colour( fp.attr+ATTR_FILEAREA ) );
-
-   create_statusline_window();
-
-   create_filetabs_window();
 
    if ( screen[scrn].win[WINDOW_ARROW] != (WINDOW *)NULL )
    {
@@ -1626,10 +1643,19 @@ short scrn;
    if ( screen[scrn].win[WINDOW_COMMAND] != (WINDOW *)NULL )
    {
       wattrset( screen[scrn].win[WINDOW_COMMAND], set_colour( fp.attr+ATTR_CMDLINE ) );
+      getyx( screen[scrn].win[WINDOW_COMMAND], y, x );
       wmove( screen[scrn].win[WINDOW_COMMAND], 0, 0 );
       my_wclrtoeol( screen[scrn].win[WINDOW_COMMAND] );
       wnoutrefresh( screen[scrn].win[WINDOW_COMMAND] );
-      wmove( screen[scrn].win[WINDOW_COMMAND], 0, 0 );
+      wmove( screen[scrn].win[WINDOW_COMMAND], y, x );
+   }
+   /*
+    * Delete divider window.
+    */
+   if ( divider != (WINDOW *)NULL )
+   {
+      delwin( divider );
+      divider = NULL;
    }
    /*
     * Set up divider window...
@@ -1637,8 +1663,6 @@ short scrn;
    if ( display_screens > 1
    &&   !horizontal)
    {
-      if ( divider != (WINDOW *)NULL )
-         delwin( divider );
       divider = newwin( screen[1].screen_rows, 2, screen[1].screen_start_row,
                         screen[1].screen_start_col-2 );
       if ( divider == (WINDOW *)NULL )
@@ -1647,6 +1671,9 @@ short scrn;
          TRACE_RETURN();
          return(RC_OUT_OF_MEMORY);
       }
+#ifdef HAVE_KEYPAD
+      keypad( divider, TRUE );
+#endif
 
 #if 0
 # if defined(A_ALTCHARSET) && !defined(USE_NCURSES)
@@ -1716,32 +1743,38 @@ short create_statusline_window()
 {
    COLOUR_ATTR attr;
 
-   TRACE_FUNCTION("util.c:    create_statusline_window");
-   if (!curses_started)
+   TRACE_FUNCTION( "util.c:    create_statusline_window" );
+   if ( !curses_started )
    {
       TRACE_RETURN();
       return(RC_OK);
    }
-   if (CURRENT_VIEW == NULL
-   ||  CURRENT_FILE == NULL)
-      set_up_default_colours((FILE_DETAILS *)NULL,&attr,ATTR_STATAREA);
+   if ( CURRENT_VIEW == NULL
+   ||   CURRENT_FILE == NULL )
+      set_up_default_colours( (FILE_DETAILS *)NULL, &attr, ATTR_STATAREA );
    else
-      memcpy(&attr,CURRENT_FILE->attr+ATTR_STATAREA,sizeof(COLOUR_ATTR));
-   if (statarea != (WINDOW *)NULL)
+      memcpy( &attr, CURRENT_FILE->attr+ATTR_STATAREA, sizeof(COLOUR_ATTR) );
+   if ( statarea != (WINDOW *)NULL )
    {
-      delwin(statarea);
+      delwin( statarea );
       statarea = (WINDOW *)NULL;
    }
-   switch(STATUSLINEx)
+   switch( STATUSLINEx )
    {
       case 'B':
-         statarea = newwin(1,COLS,terminal_lines-1,0);
-         wattrset(statarea,set_colour(&attr));
+         statarea = newwin( 1, COLS, terminal_lines-1, 0 );
+#ifdef HAVE_KEYPAD
+         keypad( statarea, TRUE );
+#endif
+         wattrset( statarea, set_colour( &attr ) );
          clear_statarea();
          break;
       case 'T':
-         statarea = newwin(1,COLS,0,0);
-         wattrset(statarea,set_colour(&attr));
+         statarea = newwin( 1, COLS, (FILETABSx) ? 1 : 0, 0 );
+#ifdef HAVE_KEYPAD
+         keypad( statarea, TRUE );
+#endif
+         wattrset( statarea, set_colour( &attr ) );
          clear_statarea();
          break;
       default:
@@ -1771,8 +1804,15 @@ short create_filetabs_window()
    }
    if ( FILETABSx )
    {
-      filetabs = newwin( 1, COLS, ( STATUSLINEx == 'T' ) ? 1:0 , 0 );
+      filetabs = newwin( 1, COLS, 0 , 0 );
+#ifdef HAVE_KEYPAD
+      keypad( filetabs, TRUE );
+#endif
       display_filetabs( NULL );
+      /*
+       * If STATUSLINE is TOP, then we need to recreate it
+       */
+      create_statusline_window();
    }
    TRACE_RETURN();
    return(RC_OK);
@@ -1796,17 +1836,16 @@ LINE *known_curr;
     * supplied line_number.
     */
    if (curr == (LINE *)NULL)
-      curr = lll_find(the_view->file_for_view->first_line,the_view->file_for_view->last_line,
-                 line_number,the_view->file_for_view->number_lines);
-   memset(rec,' ',max_line_length);
-   memcpy(rec,curr->line,curr->length);
+      curr = lll_find( the_view->file_for_view->first_line, the_view->file_for_view->last_line, line_number, the_view->file_for_view->number_lines );
+   memset( rec, ' ', max_line_length );
+   memcpy( rec, curr->line, curr->length );
    rec_len = curr->length;
    /*
     * Now set up the prefix command from the linked list...
     */
    if (curr->pre == NULL)
    {
-      memset(pre_rec,' ',MAX_PREFIX_WIDTH);
+      memset( pre_rec, ' ', MAX_PREFIX_WIDTH );
       pre_rec_len = 0;
    }
    else
@@ -1849,19 +1888,19 @@ bool set_alt;
     * supplied line_number.
     */
    if (curr == (LINE *)NULL)
-      curr = lll_find(the_view->file_for_view->first_line,the_view->file_for_view->last_line,
-                 line_number,the_view->file_for_view->number_lines);
+      curr = lll_find( the_view->file_for_view->first_line, the_view->file_for_view->last_line, line_number, the_view->file_for_view->number_lines );
    /*
     * First copy the pending prefix command to the linked list.
     * Only do it if the prefix command has a value or there is already a
     * pending prefix command for that line.
     */
    if ( prefix_changed )
-      add_prefix_command( curr, line_number, FALSE, FALSE );
+      add_prefix_command( current_screen, CURRENT_VIEW, curr, line_number, FALSE, FALSE );
    /*
     * If the line hasn't changed, return.
     */
-   if (rec_len == curr->length && (memcmp(rec,curr->line,curr->length) == 0))
+   if ( rec_len == curr->length
+   && ( memcmp( rec, curr->line, curr->length) == 0 ) )
    {
       TRACE_RETURN();
       return(RC_NO_LINES_CHANGED);
@@ -1896,7 +1935,7 @@ bool set_alt;
    /*
     * Copy the contents of rec into the line.
     */
-   memcpy(curr->line,rec,rec_len);
+   memcpy( curr->line, rec, rec_len );
    curr->length = rec_len;
    *(curr->line+rec_len) = '\0';
    /*
@@ -1921,10 +1960,15 @@ CHARTYPE *field;
 /***********************************************************************/
 {
    TRACE_FUNCTION("util.c:    blank_field");
-   if (strzne(field,' ') == (-1))
+   if ( field == NULL )
    {
       TRACE_RETURN();
-      return(TRUE);                /* field is NULL or just contains spaces */
+      return(TRUE);                /* field is NULL */
+   }
+   if ( strzne( field, ' ' ) == (-1) )
+   {
+      TRACE_RETURN();
+      return(TRUE);                /* field just contains spaces */
    }
    TRACE_RETURN();
    return(FALSE);
@@ -1940,6 +1984,7 @@ LINETYPE num_lines;
 #endif
 /***********************************************************************/
 {
+   int iinsert_line=binsert_line;
 /*
  * When lines are deleted, the base line is the first line in the file
  * irrespective of the direction that the delete is done.
@@ -1953,7 +1998,7 @@ LINETYPE num_lines;
       TRACE_RETURN();
       return;
    }
-   switch(binsert_line)
+   switch(iinsert_line)
    {
       case TRUE:/* INSERT */
          if (base_line < CURRENT_VIEW->mark_start_line)
@@ -1995,9 +2040,7 @@ LINETYPE num_lines;
          if (base_line < CURRENT_VIEW->mark_start_line)
          {
             CURRENT_VIEW->mark_start_line = base_line;
-            CURRENT_VIEW->mark_end_line = base_line +
-                                         (CURRENT_VIEW->mark_end_line -
-                                          (base_line + num_lines));
+            CURRENT_VIEW->mark_end_line = base_line + (CURRENT_VIEW->mark_end_line - (base_line + num_lines));
             break;
          }
          CURRENT_VIEW->mark_end_line -= num_lines;
@@ -2018,6 +2061,7 @@ LINETYPE num_lines;
 #endif
 /***********************************************************************/
 {
+   int iinsert_line=binsert_line;
    /*
     * When lines are deleted, the base line is the first line in the file
     * irrespective of the direction that the delete is done.
@@ -2036,7 +2080,7 @@ LINETYPE num_lines;
    curr_ppc = view->file_for_view->first_ppc;
    while (curr_ppc != NULL)
    {
-      switch( binsert_line )
+      switch( iinsert_line )
       {
          case TRUE:/* INSERT */
             if (base_line < curr_ppc->ppc_line_number)
@@ -2056,7 +2100,7 @@ LINETYPE num_lines;
 #if OLD_CLEAR
             (void)delete_pending_prefix_command(curr_ppc,view->file_for_view,(LINE *)NULL);
 #else
-            clear_pending_prefix_command(curr_ppc,(LINE *)NULL);
+            clear_pending_prefix_command( curr_ppc, view->file_for_view, (LINE *)NULL );
 #endif
             break;
       }
@@ -2182,7 +2226,7 @@ short num;
     */
    if (retr_rcvry == (-1))
    {
-      display_error(0,(CHARTYPE *)"0 line(s) recovered",TRUE);
+      display_error( 0, (CHARTYPE *)"0 line(s) recovered", TRUE );
       TRACE_RETURN();
       return;
    }
@@ -2194,7 +2238,7 @@ short num;
    {
       if (rcvry[retr_rcvry] != NULL)
       {
-         insert_new_line(rcvry[retr_rcvry],rcvry_len[retr_rcvry],1L,get_true_line(TRUE),TRUE,FALSE,FALSE,CURRENT_VIEW->display_low,TRUE,FALSE);
+         insert_new_line( current_screen, CURRENT_VIEW, rcvry[retr_rcvry], rcvry_len[retr_rcvry], 1L, get_true_line(TRUE), TRUE, FALSE, FALSE, CURRENT_VIEW->display_low, TRUE, FALSE );
          retr_rcvry = (--retr_rcvry < 0) ? num_rcvry-1 : retr_rcvry;
       }
    }
@@ -2249,71 +2293,48 @@ short cols;
 #endif
 /***********************************************************************/
 {
-/*--------------------------- local data ------------------------------*/
- WINDOW *neww=NULL;
- short begy=0,begx=0,maxy=0,maxx=0,y=0,x=0;
- short rc=RC_OK;
-/*--------------------------- processing ------------------------------*/
- TRACE_FUNCTION("util.c:    adjust_window");
-/*---------------------------------------------------------------------*/
-/* Get existing details about the current window.                      */
-/*---------------------------------------------------------------------*/
- getbegyx(win,begy,begx);
- getmaxyx(win,maxy,maxx);
- if (maxy == lines && maxx == cols)  /* same size */
+   WINDOW *neww=NULL;
+   short begy=0,begx=0,maxy=0,maxx=0,y=0,x=0;
+   short rc=RC_OK;
+
+   TRACE_FUNCTION("util.c:    adjust_window");
+   /*
+    * Get existing details about the current window.
+    */
+   getbegyx(win,begy,begx);
+   getmaxyx(win,maxy,maxx);
+   if (maxy == lines && maxx == cols)  /* same size */
    {
-    if (begy == tr && begx == tc)   /* same position */
+      if (begy == tr && begx == tc)   /* same position */
       {
-       TRACE_RETURN();
-       return(win); /* nothing to do, return same window */
+         TRACE_RETURN();
+         return(win); /* nothing to do, return same window */
       }
-    else /* need to move window */
+      else /* need to move window */
       {
-       rc = mvwin(win,tr,tc);
-       TRACE_RETURN();
-       return(win);
+         rc = mvwin(win,tr,tc);
+         TRACE_RETURN();
+         return(win);
       }
    }
-/*---------------------------------------------------------------------*/
-/* To get here the window needs to be resized.                         */
-/*---------------------------------------------------------------------*/
- getyx(win,y,x);
- delwin(win);
- neww = newwin(lines,cols,tr,tc);
- if (neww != (WINDOW *)NULL)
-    wmove(neww,y,x);
- TRACE_RETURN();
- return(neww);
+   /*
+    * To get here the window needs to be resized.
+    */
+   getyx(win,y,x);
+   delwin(win);
+   neww = newwin(lines,cols,tr,tc);
+   if (neww != (WINDOW *)NULL)
+   {
+      wmove(neww,y,x);
+#ifdef HAVE_KEYPAD
+      keypad( neww, TRUE );
+#endif
+   }
+   TRACE_RETURN();
+   return(neww);
 }
 #endif
 
-/***********************************************************************/
-#ifdef HAVE_PROTO
-void draw_cursor(bool visible)
-#else
-void draw_cursor(visible)
-bool visible;
-#endif
-/***********************************************************************/
-{
-   TRACE_FUNCTION("util.c:    draw_cursor");
-#ifdef HAVE_CURS_SET
-   if (visible)
-   {
-      if (INSERTMODEx)
-      {
-         curs_set(1);   /* First set to displayed... */
-         curs_set(2);   /* ...then try to make it more visible */
-      }
-      else
-         curs_set(1);   /* underline cursor */
-   }
-   else
-      curs_set(0);      /* cursor off */
-#endif
-   TRACE_RETURN();
-   return;
-}
 /***********************************************************************/
 #ifdef HAVE_PROTO
 short my_wclrtoeol(WINDOW *win)
@@ -2555,15 +2576,19 @@ LENGTHTYPE *first_col,*last_col;
  *    abc def
  *       ^      cursor location
  *   "abc"      "word" obtained
+ *
  *    abc   def
  *        ^     cursor location
  *   "abc"      "word" obtained
+ *
  *    abc   def
  *         ^    cursor location
  *   "def"      "word" obtained
+ *
  *    abc def
  *        ^     cursor location
  *   "def"      "word" obtained
+ *
  *    abc def
  *           ^  cursor location
  *   "def"      "word" obtained

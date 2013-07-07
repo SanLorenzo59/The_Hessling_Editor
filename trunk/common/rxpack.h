@@ -150,8 +150,18 @@
 
 #define REXX_FAIL      1
 
-#define RXSTRCAT(dst,dstlen,src,srclen) (memcpy((dst)+(dstlen),(src),(srclen)),(dstlen)+=(srclen),*((dst)+(dstlen))='\0')
-#define RXSTRCPY(dst,dstlen,src,srclen) (memcpy((dst),(src),(srclen)),(dstlen)=(srclen),*((dst)+(dstlen))='\0')
+#define RXSTRCAT(dst,dstlen,src,srclen)   \
+{                                         \
+   memcpy((dst)+(dstlen),(src),(srclen)); \
+   (dstlen)+=(srclen);                    \
+   *((dst)+(dstlen))='\0';                \
+}
+#define RXSTRCPY(dst,dstlen,src,srclen)   \
+{                                         \
+   memcpy((dst),(src),(srclen));          \
+   (dstlen)=(srclen);                     \
+   *((dst)+(dstlen))='\0';                \
+}
 
 #if !defined(max)
 # define max(a,b)        (((a) > (b)) ? (a) : (b))
@@ -254,7 +264,7 @@ typedef int PackageTerminator( RxPackageGlobalDataDef * );
 # define Args(a) ()
 #endif
 
-RxPackageGlobalDataDef *FunctionPrologue Args(( RxPackageGlobalDataDef *, PackageInitialiser *, char *, ULONG, RXSTRING * ));
+RxPackageGlobalDataDef *FunctionPrologue Args(( RxPackageGlobalDataDef *, PackageInitialiser *, char *, ULONG, RFH_ARG2_TYPE ));
 void FunctionTrace Args(( RxPackageGlobalDataDef *, char *, ... ));
 long FunctionEpilogue Args(( RxPackageGlobalDataDef *, char *, long ));
 void InternalTrace Args(( RxPackageGlobalDataDef *, char *, ... ));
@@ -286,6 +296,7 @@ int RxGetRunFlags Args(( RxPackageGlobalDataDef * ));
 int RxReturn Args(( RxPackageGlobalDataDef *, RXSTRING * ));
 int RxReturnString Args(( RxPackageGlobalDataDef *, RXSTRING *, char * ));
 int RxReturnStringAndFree Args(( RxPackageGlobalDataDef *, RXSTRING *, char *, int ));
+int RxReturnDataAndFree Args(( RxPackageGlobalDataDef *RxPackageGlobalData, RXSTRING *retstr, void *str, long len, int freeit ));
 int RxReturnNumber Args(( RxPackageGlobalDataDef *, RXSTRING *, long ));
 int RxReturnUnsignedNumber Args(( RxPackageGlobalDataDef *, RXSTRING *, ULONG ));
 int RxReturnDouble Args(( RxPackageGlobalDataDef *, RXSTRING *, double ));

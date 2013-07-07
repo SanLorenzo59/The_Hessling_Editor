@@ -8,10 +8,12 @@ files = 'app1 app2 app3 app4 app5 comm commset commsos glossary history index ov
 /*
  * If this is the PDF title page, change the version number and that's it!
  */
+thisyear = Left( Date( 'S' ), 4 )
 If fname.1() = 'title' Then
    Do
       'top'
       'c/VERDOT/'verdot'/ * *'
+      'c/THISYEAR/'thisyear'/ * *'
       'ffile' fpath.1 || filename.1 || '.new'
       Return 0
    End

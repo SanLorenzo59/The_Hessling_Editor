@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,19 +29,18 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: default.c,v 1.34 2005/12/13 08:53:21 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
 
 /*--------------------------- global data -----------------------------*/
 /*#define DEBUG 1*/
- bool BIRTHDAYx=TRUE;
  bool BEEPx;
  bool CAPREXXOUTx;
+ bool ERROROUTPUTx;
  LINETYPE CAPREXXMAXx;
  bool CLEARSCREENx;
  int  CLEARERRORKEYx;
@@ -73,16 +72,21 @@ static char RCSid[] = "$Id: default.c,v 1.34 2005/12/13 08:53:21 mark Exp $";
  int DEFSORTx=DIRSORT_NAME;                       /* sort on file attr */
  int DIRORDERx=DIRSORT_ASC;                          /* sort ascending */
  int popup_escape_key=-1;
+ int popup_escape_keys[MAXIMUM_POPUP_KEYS];
  PARSER_DETAILS *first_parser=NULL,*last_parser=NULL;
  PARSER_MAPPING *first_parser_mapping=NULL,*last_parser_mapping=NULL;
  bool CTLCHARx=FALSE;
  CHARTYPE ctlchar_escape=0;
  COLOUR_ATTR ctlchar_attr[MAX_CTLCHARS];  /* colour attributes for ctlchar */
  CHARTYPE ctlchar_char[MAX_CTLCHARS];      /* escape chars for ctlchar */
+ bool ctlchar_protect[MAX_CTLCHARS];              /* protected ctlchar */
  CHARTYPE INTERFACEx=INTERFACE_CLASSIC;       /* behavioural interface */
  int TARGETSAVEx=TARGET_ALL;
  int REGEXPx=0;           /* default regular expression syntax - EMACS */
-
+ bool save_for_repeat=1;
+ CHARTYPE BACKUP_SUFFIXx[101];
+ int COMMANDCALLSx=0;
+ int FUNCTIONCALLSx=0;
 
 /*--------------------------- regular expression syntaxes -------------*/
 struct regexp_syntax _THE_FAR regexp_syntaxes[] =
@@ -113,9 +117,9 @@ DEFAULT_PARSERS _THE_FAR default_parsers[] =
 {
    { (CHARTYPE *)"*REXX.TLD",
      (CHARTYPE *)"REXX",
-     (CHARTYPE *)"* REXX\n:case\nignore\n:option\nrexx\nfunction ( noblank\n:number\nrexx\n:identifier\n[a-zA-Z!?_@#$] [a-zA-Z0-9.!?_@#$]\n" \
+     (CHARTYPE *)"* REXX\n:case\nignore\n:option\nrexx\nfunction ( noblank\n:number\nrexx\n:identifier\n[a-zA-Z!?_@#$.] [a-zA-Z0-9.!?_@#$]\n" \
          ":string\nsingle\ndouble\n:comment\npaired /* */ nest\nline -- any\n"                                           \
-         ":label\ndelimiter : any\n:match\n( )\ndo,select end when,otherwise\n:header\nline #! column 1\n"               \
+         ":label\ndelimiter : firstnonblank\n:match\n( )\ndo,select end when,otherwise\n:header\nline #! column 1\n"               \
          ":keyword\naddress type 5\narg type 7\nby type 2\ncall type 5\ncaseless type 2\ndigits type 2\ndo type 5\ndrop type 1\n"         \
          "else type 1\nend type 1\nengineering type 2\nexit type 1\nexpose type 2\nfor type 2\nforever type 2\n"         \
          "form type 2\nfuzz type 2\nhalt\nif type 1\ninterpret type 1\niterate type 1\nleave type 1\nlower type 2\nname type 2\nnop type 1\n"  \
@@ -126,6 +130,7 @@ DEFAULT_PARSERS _THE_FAR default_parsers[] =
          "error type 2\nappend type 2\nreplace type 2\nnormal type 2\nstream type 2\ndefault type 1\n"                   \
          "command type 2 alt e\nsystem type 2 alt e\nos2environment type 2 alt e\nenvironment type 2 alt e\n"            \
          "cmd type 2 alt e\npath type 2 alt e\nregina type 2 alt e\nrexx type 2 alt e\n"                                 \
+         ".line alt e\n.mn alt e\n.rc alt e\n.result alt e\n.rs alt e\n.sigl alt e\n"                                    \
          ":function\n"                                                                                                   \
          "abbrev\ncenter\ncentre\nchangestr\ncompare\ncopies\ncountstr\ndatatype\ndelstr\ndelword\nbeep\ndirectory\n"            \
          "insert\nlastpos\nleft\nlength\nlower\noverlay\npos\nreverse\nright\nspace\nstrip\nsubstr\n"                           \
@@ -168,36 +173,27 @@ DEFAULT_PARSERS _THE_FAR default_parsers[] =
          ":case\nignore\n" \
          ":identifier\n[a-zA-Z] [a-zA-Z0-9]\n" \
          ":string\ndouble\n" \
-         ":comment\npaired <! > nonest\n" \
+         ":comment\npaired <!-- --> nonest\n" \
          ":markup\ntag < >\nreference & ;\n"
    },
    { (CHARTYPE *)"*DIR.TLD",
      (CHARTYPE *)"DIR",
      (CHARTYPE *)"* DIR\n" \
-         ":comment\nline d column 1\n" \
-         ":postcompare\nclass ^lr.*$ alt x\n" \
-         ":postcompare\nclass ^....(dir).*$ alt a\n" \
-         "class .*\\.bak$ alt 8\n" \
-         "class .*Makefile alt 4\n" \
-         "class .*makefile.*$ alt 4\n" \
-         "class .*\\.mak$ alt 4\n" \
-         "class .*\\.exe$ alt 6\n" \
-         "class .*\\.dll$ alt 6\n" \
-         "class .*\\.c$ alt 2\n" \
-         "class .*\\.cpp$ alt 2\n" \
-         "class .*\\.cc$ alt 2\n" \
-         "class .*\\.h$ alt 2\n" \
-         "class .*\\.the$ alt 1\n" \
-         "class .*\\.rexx$ alt 3\n" \
-         "class .*\\.rex$ alt 3\n" \
-         "class .*\\.cmd$ alt 3\n" \
-         "class .*\\.zip$ alt w\n" \
-         "class .*\\.Z$ alt w\n"   \
-         "class .*\\.gz$ alt w\n"  \
-         "class .*\\.tgz$ alt w\n"
+         ":case\nignore\n" \
+         ":directory\n" \
+         "directory alt a\n" \
+         "executable\n" \
+         "link\n" \
+         "extensions .bak alt 8\n" \
+         "extensions .the alt 1\n" \
+         "extensions .c .cc .cpp .h .hpp alt 2\n" \
+         "extensions .rex .rexx .cmd alt 3\n" \
+         "extensions .exe .dll alt 6\n" \
+         "extensions .zip .Z .gz .tgz alt w\n" \
+         "extensions Makefile .mak alt 4\n"
    },
    {
-     NULL, NULL
+     NULL, NULL, NULL
    }
 };
 
@@ -247,15 +243,15 @@ void set_global_defaults()
 #endif
 /***********************************************************************/
 {
-/*--------------------------- local data ------------------------------*/
    int i;
-/*--------------------------- processing ------------------------------*/
+
    TRACE_FUNCTION("default.c: set_global_defaults");
    /*
     * Set defaults for all environments first...
     */
    BEEPx = FALSE;
    CAPREXXOUTx = FALSE;
+   ERROROUTPUTx = FALSE;
    CAPREXXMAXx = 1000L;
    INSERTMODEx = FALSE;
    CLEARERRORKEYx = -1;
@@ -291,6 +287,7 @@ void set_global_defaults()
    {
       memset((CHARTYPE *)&ctlchar_attr[i],0,sizeof(COLOUR_ATTR));
       ctlchar_char[i] = 0;
+      ctlchar_protect[i] = FALSE;
    }
    /*
     * If STATUSLINE is OFF before we come here, leave it OFF.
@@ -300,6 +297,7 @@ void set_global_defaults()
    TYPEAHEADx = FALSE;
    scroll_cursor_stay = TRUE;
    prefix_width = DEFAULT_PREFIX_WIDTH;
+   strcpy( (DEFCHAR *)BACKUP_SUFFIXx, ".bak" );
    /*
     * Set defaults for individual environments next...
     */
@@ -398,53 +396,51 @@ FILE_DETAILS *filep;
 #endif
 /***********************************************************************/
 {
-/*--------------------------- local data ------------------------------*/
-/*--------------------------- processing ------------------------------*/
- TRACE_FUNCTION("default.c: set_file_defaults");
-/*---------------------------------------------------------------------*/
-/* Set defaults for all environments first...                          */
-/*---------------------------------------------------------------------*/
- filep->autosave = 0;
- filep->autosave_alt = 0;
- filep->save_alt = 0;
- filep->tabsout_on = FALSE;
- filep->display_actual_filename = TRUE;
- filep->tabsout_num =  8;
- filep->eolout = EOLx;
- filep->timecheck = TRUE;
- filep->undoing = TRUE;
- filep->autocolour = TRUE;
- set_up_default_colours(filep,(COLOUR_ATTR *)NULL,ATTR_MAX);
- set_up_default_ecolours(filep);
- filep->trailing = TRAILING_ON;
-/*---------------------------------------------------------------------*/
-/* Set defaults for individual environments next...                    */
-/*---------------------------------------------------------------------*/
- switch(compatible_feel)
+   TRACE_FUNCTION("default.c: set_file_defaults");
+   /*
+    * Set defaults for all environments first...
+    */
+   filep->autosave = 0;
+   filep->autosave_alt = 0;
+   filep->save_alt = 0;
+   filep->tabsout_on = FALSE;
+   filep->display_actual_filename = TRUE;
+   filep->tabsout_num =  8;
+   filep->eolout = EOLx;
+   filep->timecheck = TRUE;
+   filep->undoing = TRUE;
+   filep->autocolour = TRUE;
+   set_up_default_colours( filep, (COLOUR_ATTR *)NULL, ATTR_MAX );
+   set_up_default_ecolours( filep );
+   filep->trailing = TRAILING_ON;
+   /*
+    * Set defaults for individual environments next...
+    */
+   switch(compatible_feel)
    {
-    case COMPAT_THE:
+      case COMPAT_THE:
          filep->colouring = TRUE;
          filep->backup = BACKUP_KEEP;
          break;
-    case COMPAT_XEDIT:
+      case COMPAT_XEDIT:
          filep->colouring = TRUE;
          filep->backup = BACKUP_OFF;
          break;
-    case COMPAT_ISPF:
+      case COMPAT_ISPF:
          filep->colouring = TRUE;
          filep->backup = BACKUP_OFF;
          break;
-    case COMPAT_KEDITW:
+      case COMPAT_KEDITW:
          filep->colouring = TRUE;
          filep->backup = BACKUP_OFF;
          break;
-    case COMPAT_KEDIT:
+      case COMPAT_KEDIT:
          filep->colouring = FALSE;
          filep->backup = BACKUP_OFF;
          break;
    }
- TRACE_RETURN();
- return;
+   TRACE_RETURN();
+   return;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
@@ -503,6 +499,7 @@ VIEW_DETAILS *viewp;
    viewp->verify_start = 1;
    viewp->verify_col = 1;
    viewp->verify_end = max_line_length;
+   viewp->verify_end_max = TRUE;
    viewp->hexshow_on = FALSE;
    viewp->hexshow_base = POSITION_TOP;
    viewp->hexshow_off = 7;
@@ -512,6 +509,7 @@ VIEW_DETAILS *viewp;
    viewp->zone_start = 1;
    viewp->synonym = TRUE;
    viewp->zone_end = max_line_length;
+   viewp->zone_end_max = TRUE;
    viewp->autoscroll = (-1);  /* scroll half */
    viewp->boundmark = BOUNDMARK_OFF; /* normal default is BOUNDMARK_ZONE */
    viewp->syntax_headers = HEADER_ALL; /* ALL headers applied */
@@ -697,7 +695,6 @@ CHARTYPE *prf_file,*prf_arg;
    }
    in_macro = save_in_macro;
    TRACE_RETURN();
-/* return(rc);*/
    return(RC_OK);
 }
 /***********************************************************************/
@@ -807,8 +804,10 @@ VIEW_DETAILS *base_view;
       CURRENT_VIEW->verify_start =    base_view->verify_start;
       CURRENT_VIEW->verify_col =      base_view->verify_col;
       CURRENT_VIEW->verify_end =      base_view->verify_end;
+      CURRENT_VIEW->verify_end_max =  base_view->verify_end_max;
       CURRENT_VIEW->zone_start =      base_view->zone_start;
       CURRENT_VIEW->zone_end =        base_view->zone_end;
+      CURRENT_VIEW->zone_end_max =    base_view->zone_end_max;
       CURRENT_VIEW->autoscroll =      base_view->autoscroll;
       CURRENT_VIEW->boundmark =       base_view->boundmark;
       CURRENT_VIEW->syntax_headers =  base_view->syntax_headers;
@@ -1013,12 +1012,12 @@ FILE_DETAILS *fd;
        * If in XEDIT compatibility mode, don't copy reserved lines to the
        * new file.
        */
-      if (compatible_feel != COMPAT_XEDIT)
+      if ( compatible_feel != COMPAT_XEDIT )
       {
          curr = fd->first_reserved;
-         while(curr!=NULL)
+         while( curr != NULL )
          {
-            if (add_reserved_line(curr->spec,curr->line,curr->base,curr->off, curr->attr) == NULL)
+            if ( add_reserved_line( curr->spec, curr->line, curr->base, curr->off, curr->attr, curr->autoscroll ) == NULL )
             {
                rc = RC_OUT_OF_MEMORY;
                break;
@@ -1047,6 +1046,42 @@ void set_screen_defaults()
    bool my_arrow=TRUE;
 
    TRACE_FUNCTION( "default.c: set_screen_defaults" );
+   /*
+    * Before doing any resizing, free up any memory associated with previous
+    * screens.
+    */
+   if ( screen[0].sl != NULL )
+   {
+      /*
+       * Free up allocated pointers for each SHOW_LINE
+       */
+      for ( i = 0; i < screen[0].rows[WINDOW_FILEAREA]; i++ )
+      {
+         if ( screen[0].sl[i].highlight_type )
+         {
+            (*the_free)( (void *)screen[0].sl[i].highlight_type );
+            screen[0].sl[i].highlight_type = NULL;
+         }
+      }
+      (*the_free)( screen[0].sl );
+      screen[0].sl = NULL;
+   }
+   if ( screen[1].sl != NULL )
+   {
+      /*
+       * Free up allocated pointers for each SHOW_LINE
+       */
+      for ( i = 0; i < screen[1].rows[WINDOW_FILEAREA]; i++ )
+      {
+         if ( screen[1].sl[i].highlight_type )
+         {
+            (*the_free)( (void *)screen[1].sl[i].highlight_type );
+            screen[1].sl[i].highlight_type = NULL;
+         }
+      }
+      (*the_free)( screen[1].sl );
+      screen[1].sl = NULL;
+   }
    /*
     * Set values that affect the placement of each screen depending on
     * the position of the status line...
@@ -1106,8 +1141,11 @@ void set_screen_defaults()
    }
    else
    {
+      if ( screen_cols[0] == 0 )
+         screen[0].screen_cols = (terminal_cols / display_screens)-((display_screens == 1) ? 0 : 1);
+      else
+         screen[0].screen_cols = screen_cols[0];
       screen[0].screen_rows = terminal_lines - number_rows_less;
-      screen[0].screen_cols = (terminal_cols / display_screens)-((display_screens == 1) ? 0 : 1);
       screen[0].screen_start_row = start_row;
       screen[0].screen_start_col = 0;
       if (display_screens == 1)
@@ -1239,22 +1277,14 @@ void set_screen_defaults()
     * We now have the size of each screen, so we can allocate the display
     * line arrays.
     */
-   if ( screen[0].sl != NULL )
-   {
-      (*the_free)( screen[0].sl );
-      screen[0].sl = NULL;
-   }
-   if ( screen[1].sl != NULL )
-   {
-      (*the_free)( screen[1].sl );
-      screen[1].sl = NULL;
-   }
+
    if ( ( screen[0].sl = (SHOW_LINE *)(*the_malloc)( screen[0].rows[WINDOW_FILEAREA]*sizeof(SHOW_LINE) ) ) == NULL )
    {
       cleanup();
       display_error( 30, (CHARTYPE *)"", FALSE );
       exit(1);
    }
+   memset( screen[0].sl, 0, screen[0].rows[WINDOW_FILEAREA]*sizeof(SHOW_LINE) );
    if ( display_screens > 1 )
    {
       if ( ( screen[1].sl = (SHOW_LINE *)(*the_malloc)( screen[1].rows[WINDOW_FILEAREA]*sizeof(SHOW_LINE) ) ) == NULL )
@@ -1263,39 +1293,10 @@ void set_screen_defaults()
          display_error( 30, (CHARTYPE *)"", FALSE );
          exit(1);
       }
+      memset( screen[1].sl, 0, screen[1].rows[WINDOW_FILEAREA]*sizeof(SHOW_LINE) );
    }
    TRACE_RETURN();
    return;
-}
-/***********************************************************************/
-#ifdef HAVE_PROTO
-void set_defaults(void)
-#else
-void set_defaults()
-#endif
-/***********************************************************************/
-{
-  TRACE_FUNCTION("default.c: set_defaults");
-  /*
-   * Set up screen default sizes.
-   */
-  set_screen_defaults();
-  /*
-   * Allocate memory to cmd_rec and set it to blanks.
-   */
-  if (cmd_rec != NULL)
-     (*the_free)(cmd_rec);
-  if ((cmd_rec = (CHARTYPE *)(*the_malloc)((COLS+1)*sizeof(CHARTYPE))) == NULL)
-  {
-     cleanup();
-     display_error(30,(CHARTYPE *)"",FALSE);
-     exit(1);
-  }
-  memset(cmd_rec,' ',max_line_length);
-  cmd_rec_len = 0;
-
-  TRACE_RETURN();
-  return;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
@@ -1495,9 +1496,9 @@ short construct_default_parsers()
    CHARTYPE tmp[20];
 
    TRACE_FUNCTION("default.c: construct_default_parsers");
-   for (i=0;;i++)
+   for ( i = 0; ; i++ )
    {
-      if (default_parsers[i].contents == NULL)
+      if ( default_parsers[i].contents == NULL )
          break;
       rc = construct_parser(default_parsers[i].contents,
                             strlen((DEFCHAR *)default_parsers[i].contents),

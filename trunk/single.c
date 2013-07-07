@@ -3,7 +3,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,10 +29,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: single.c,v 1.11 2005/08/22 11:42:18 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -430,6 +429,7 @@ void close_fifo( void )
    shmptr = NULL;
    shm = NULL;
    TRACE_RETURN();
+   return;
 }
 
 #elif defined(HAVE_SELECT) && defined(HAVE_MKFIFO)
@@ -592,7 +592,7 @@ int key;
        *
        * Add curses input and the input fifo
        */
-#ifdef XCURSES
+#ifdef USE_XCURSES
       curses_fd = PDC_get_input_fd();
 #else
       curses_fd = fileno( stdin );
@@ -661,6 +661,7 @@ void close_fifo( )
    close( fifo_fd );
    remove_file( fifo_name );
    TRACE_RETURN();
+   return;
 }
 #endif
 

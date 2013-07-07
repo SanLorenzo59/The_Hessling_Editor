@@ -5,7 +5,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -31,10 +31,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: comm5.c,v 1.18 2005/09/01 10:29:20 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -252,16 +251,16 @@ COMMAND
      tag - displays lines matching target in different colour
 
 SYNTAX
-     TAG [More|Less] [rtarget]
+     TAG [More|Less] [rtarget|Focus]
 
 DESCRIPTION
      The TAG command is similar to the <ALL> command, in that it allows
      lines that match the specified target to be displayed.  Where it
-     differs to <ALL> is that the lines that don't match are still
+     differs from <ALL> is that the lines that don't match are still
      displayed, but the lines that do match are displayed in the colour
      specified by <SET COLOUR> HIGHLIGHT.
      This target consists of any number of individual targets
-     seperated by '&' (logical and) or '|' (logical or).
+     separated by '&' (logical and) or '|' (logical or).
 
      For example, to display all lines in a file that contain the
      strings 'ball' and 'cat' on the same line or the named lines
@@ -283,9 +282,13 @@ DESCRIPTION
      the 'rtarget' and are currently highlighted have their highlighting
      removed.
 
+     If 'FOCUS' is specified in place of 'rtarget', the <focus line> is
+     tagged.
+
 COMPATIBILITY
      XEDIT: N/A
      KEDIT: Compatible.
+        FOCUS is a THE enhancement.
 
 SEE ALSO
      <ALL>, <SET HIGHLIGHT>, <SET COLOUR>
@@ -301,6 +304,10 @@ CHARTYPE *params;
 #endif
 /***********************************************************************/
 {
+#define TAG_RTARGET 0
+#define TAG_FOCUS   1
+#define TAG_BLOCK   2
+
 #define TAG_REPLACE 0
 #define TAG_MORE    1
 #define TAG_LESS    2
@@ -311,18 +318,30 @@ CHARTYPE *params;
    LINE *curr=NULL;
    bool target_found=FALSE;
    short status=RC_OK;
-   short target_type=TARGET_NORMAL;
+   long target_type=TARGET_NORMAL;
    TARGET target;
    LINETYPE line_number=0L;
+   LINETYPE true_line;
    bool save_scope=FALSE;
+   int tag_target=TAG_RTARGET;
    LINETYPE num_lines=0L;
    int relative = TAG_REPLACE;
    unsigned short num_params=0;
+   CHARTYPE *save_params=NULL;
 
    TRACE_FUNCTION("comm1.c:   Tag");
 
    strip[0] = STRIP_BOTH;
    strip[1] = STRIP_LEADING;
+   /*
+    * Get a copy of the parameters, because we want to manipulate them,
+    */
+   if ( ( save_params = (CHARTYPE *)my_strdup( params ) ) == NULL )
+   {
+      display_error( 30, (CHARTYPE *)"", FALSE );
+      TRACE_RETURN();
+      return(RC_OUT_OF_MEMORY);
+   }
    num_params = param_split( params, word, TAG_PARAMS, WORD_DELIMS, TEMP_PARAM, strip, FALSE );
    if (num_params == 0)
    {
@@ -356,10 +375,13 @@ CHARTYPE *params;
       if ( equal( (CHARTYPE *)"more", word[0], 1 )
       ||   equal( (CHARTYPE *)"less", word[0], 1 ) )
       {
+         if ( save_params )
+            (*the_free)( save_params );
          display_error(3,(CHARTYPE *)"",FALSE);
          TRACE_RETURN();
          return(RC_INVALID_OPERAND);
       }
+      params = save_params;
    }
    else
    {
@@ -373,18 +395,35 @@ CHARTYPE *params;
          relative = TAG_LESS;
       }
       else
-         params = word[0];
+         params = save_params;
    }
+   true_line = get_true_line( TRUE );
    /*
-    * Validate the parameters as valid targets...
+    * Check parameter
     */
-   initialise_target(&target);
-   rc = parse_target(params,get_true_line(TRUE),&target,target_type,TRUE,TRUE,FALSE);
-   if (rc != RC_OK)
+   if ( equal( (CHARTYPE *)"focus", params, 1 ) )
    {
-      free_target(&target);
-      TRACE_RETURN();
-      return(RC_INVALID_OPERAND);
+      tag_target = TAG_FOCUS;
+   }
+   else if ( equal( (CHARTYPE *)"block", params, 1 ) )
+   {
+      tag_target = TAG_BLOCK;
+   }
+   else
+   {
+      /*
+       * Validate the parameters as valid targets...
+       */
+      initialise_target( &target );
+      rc = parse_target( params, true_line, &target, target_type, TRUE, TRUE, FALSE );
+      if ( rc != RC_OK )
+      {
+         free_target(&target);
+         if ( save_params )
+            (*the_free)( save_params );
+         TRACE_RETURN();
+         return(RC_INVALID_OPERAND);
+      }
    }
    /*
     * Save the select levels for all lines in case no target is found.
@@ -400,35 +439,54 @@ CHARTYPE *params;
    /*
     * Find all lines for the supplied target...
     */
-   curr = CURRENT_FILE->first_line;
-   status = FALSE;
-   save_scope = CURRENT_VIEW->scope_all;
-   CURRENT_VIEW->scope_all = TRUE;
-   for (line_number=0L;curr->next != NULL;line_number++)
+   switch( tag_target )
    {
-      status = find_rtarget_target(curr,&target,0L,line_number,&num_lines);
-      if (status == RC_OK) /* target found */
-      {
-         target_found = TRUE;
+      case TAG_FOCUS:
+         curr = lll_find( CURRENT_FILE->first_line, CURRENT_FILE->last_line, true_line, CURRENT_FILE->number_lines );
          if ( relative == TAG_LESS )
             curr->flags.tag_flag = 0;
          else
             curr->flags.tag_flag = 1;
-      }
-      else if (status == RC_TARGET_NOT_FOUND) /* target not found */
-      {
-         if ( relative == TAG_REPLACE )
-            curr->flags.tag_flag = 0;
-      }
-      else  /* error */
+         target_found = TRUE;
          break;
-      curr = curr->next;
+      case TAG_BLOCK:
+         break;
+      default:
+         /*
+          * Tell the target finding stuff we are the TAG command...
+          */
+         target.all_tag_command = TRUE;
+         curr = CURRENT_FILE->first_line;
+         status = FALSE;
+         save_scope = CURRENT_VIEW->scope_all;
+         /*CURRENT_VIEW->scope_all = TRUE;*/
+         for ( line_number = 0L; curr->next != NULL; line_number++ )
+         {
+            status = find_rtarget_target( curr, &target, 0L, line_number, &num_lines );
+            if (status == RC_OK) /* target found */
+            {
+               target_found = TRUE;
+               if ( relative == TAG_LESS )
+                  curr->flags.tag_flag = 0;
+               else
+                  curr->flags.tag_flag = 1;
+            }
+            else if (status == RC_TARGET_NOT_FOUND) /* target not found */
+            {
+               if ( relative == TAG_REPLACE )
+                  curr->flags.tag_flag = 0;
+            }
+            else  /* error */
+               break;
+            curr = curr->next;
+         }
+         break;
    }
    /*
     * If at least one line matches the target, set DISPLAY to 1 1,
     * otherwise reset the select levels as they were before the command.
     */
-   if (target_found)
+   if ( target_found )
    {
       CURRENT_VIEW->highlight = HIGHLIGHT_TAG;
       build_screen(current_screen);
@@ -452,7 +510,10 @@ CHARTYPE *params;
       else
          rc = status;
    }
-   free_target(&target);
+   if ( save_params )
+      (*the_free)( save_params );
+   if ( tag_target == TAG_RTARGET )
+      free_target(&target);
    TRACE_RETURN();
    return(rc);
 }
@@ -503,14 +564,17 @@ CHARTYPE *params;
    LENGTHTYPE new_len;
 
    TRACE_FUNCTION("comm5.c:   Text");
+#ifdef THE_TRACE
+   trace_string( "params: \"%s\"\n", params );
+#endif
    /*
     * If running in read-only mode, do not allow any text to be entered
     * in the main window.
     */
-   if (ISREADONLY(CURRENT_FILE)
-   && CURRENT_VIEW->current_window == WINDOW_FILEAREA)
+   if ( ISREADONLY(CURRENT_FILE)
+   &&   CURRENT_VIEW->current_window == WINDOW_FILEAREA )
    {
-      display_error(56,(CHARTYPE *)"",FALSE);
+      display_error( 56, (CHARTYPE *)"", FALSE );
       TRACE_RETURN();
       return(RC_INVALID_ENVIRON);
    }
@@ -520,29 +584,39 @@ CHARTYPE *params;
    if ( CURRENT_VIEW->hex
    &&   strlen( (DEFCHAR *)params ) > 3 )
    {
-      if ((len_params = convert_hex_strings(params)) == (-1))
+      len_params = convert_hex_strings( params );
+      switch( len_params )
       {
-         display_error(32,params,FALSE);
-         TRACE_RETURN();
-         return(RC_INVALID_OPERAND);
+         case -1: /* invalid hex value */
+            display_error( 32, params, FALSE );
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+            break;
+         case -2: /* memory exhausted */
+            display_error( 30, (CHARTYPE *)"", FALSE );
+            TRACE_RETURN();
+            return(RC_OUT_OF_MEMORY);
+            break;
+         default:
+            break;
       }
    }
    else
-      len_params = strlen((DEFCHAR *)params);
-   for (i=0;i<len_params;i++)
+      len_params = strlen( (DEFCHAR *)params );
+   for ( i = 0; i < len_params; i++ )
    {
-      real_key = case_translate((CHARTYPE)*(params+i));
+      real_key = case_translate( (CHARTYPE)*(params+i) );
 #ifdef VMS
       chtype_key = (chtype)real_key;
 #else
       chtype_key = (chtype)(real_key & A_CHARTEXT);
 #endif
 
-      getyx(CURRENT_WINDOW,y,x);
+      getyx( CURRENT_WINDOW, y, x );
 
 #if defined(USE_EXTCURSES)
       attr = CURRENT_WINDOW->_a[y][x];
-      wattrset(CURRENT_WINDOW,attr);
+      wattrset( CURRENT_WINDOW, attr );
       attr = 0;
 #elif defined(VMS)
 # ifdef _BSD44_CURSES
@@ -551,13 +625,13 @@ CHARTYPE *params;
       attr = 0;
 # endif
 #else
-      attr = winch(CURRENT_WINDOW) & A_ATTRIBUTES;
+      attr = winch( CURRENT_WINDOW ) & A_ATTRIBUTES;
 #endif
 
-      switch(CURRENT_VIEW->current_window)
+      switch( CURRENT_VIEW->current_window )
       {
          case WINDOW_FILEAREA:
-            if (CURRENT_SCREEN.sl[y].line_type != LINE_LINE)
+            if ( CURRENT_SCREEN.sl[y].line_type != LINE_LINE )
             {
                if ( compatible_feel == COMPAT_ISPF
                && ( CURRENT_SCREEN.sl[y].line_type == LINE_BOUNDS
@@ -573,27 +647,22 @@ CHARTYPE *params;
                }
                break;
             }
-            if ((LENGTHTYPE)(x+CURRENT_VIEW->verify_start) > (LENGTHTYPE)(CURRENT_VIEW->verify_end))
+            if ( (LENGTHTYPE)(x+CURRENT_VIEW->verify_start) > (LENGTHTYPE)(CURRENT_VIEW->verify_end) )
                break;
-            if (INSERTMODEx)
+            if ( INSERTMODEx )
             {
-               rec = meminschr(rec,real_key,CURRENT_VIEW->verify_col-1+x,
-                               max_line_length,rec_len);
-               put_char(CURRENT_WINDOW,chtype_key|attr,INSCHAR);
+               rec = meminschr( rec, real_key, CURRENT_VIEW->verify_col-1+x, max_line_length, rec_len );
+               put_char( CURRENT_WINDOW, chtype_key|attr, INSCHAR );
             }
             else
             {
                rec[CURRENT_VIEW->verify_col-1+x] = real_key;
-               if (x == CURRENT_SCREEN.cols[WINDOW_FILEAREA]-1)
-                  put_char(CURRENT_WINDOW,chtype_key|attr,INSCHAR);
+               if ( x == CURRENT_SCREEN.cols[WINDOW_FILEAREA]-1 )
+                  put_char( CURRENT_WINDOW, chtype_key|attr, INSCHAR );
                else
-                  put_char(CURRENT_WINDOW,chtype_key|attr,ADDCHAR);
+                  put_char( CURRENT_WINDOW, chtype_key|attr, ADDCHAR );
             }
-            new_len = memrevne(rec,' ',max_line_length);
-            if (new_len == (-1))
-               rec_len = 0;
-            else
-               rec_len = new_len + 1;
+            rec_len = calculate_rec_len( (INSERTMODEx)?ADJUST_INSERT:ADJUST_OVERWRITE, rec, rec_len, CURRENT_VIEW->verify_col+x, 1, CURRENT_FILE->trailing );
             /*
              * If THIGHLIGHT on focus line, reset it.
              */
@@ -608,8 +677,8 @@ CHARTYPE *params;
             /* margin when WORDWRAP is ON. If true, then    */
             /* don't execute the THEcursor_right() function, as */
             /* this could cause a window scroll.            */
-            if (CURRENT_VIEW->wordwrap
-            &&  rec_len > CURRENT_VIEW->margin_right)
+            if ( CURRENT_VIEW->wordwrap
+            &&   rec_len > CURRENT_VIEW->margin_right )
                execute_wrap_word( x + CURRENT_VIEW->verify_col );
             else
             {
@@ -617,17 +686,17 @@ CHARTYPE *params;
                /* THEcursor_right() is executed AFTER we get the   */
                /* new length of rec_len.                       */
 #if defined(USE_EXTCURSES)
-               if (x == CURRENT_SCREEN.cols[WINDOW_FILEAREA]-1)
+               if ( x == CURRENT_SCREEN.cols[WINDOW_FILEAREA]-1 )
                {
-                  wmove(CURRENT_WINDOW,y,x);
+                  wmove( CURRENT_WINDOW, y, x );
      /*           wrefresh(CURRENT_WINDOW); */
-                  THEcursor_right(TRUE,FALSE);
+                  THEcursor_right( TRUE, FALSE );
                }
 #else
                if (INSERTMODEx
                || x == CURRENT_SCREEN.cols[WINDOW_FILEAREA]-1)
                {
-                  THEcursor_right(TRUE,FALSE);
+                  THEcursor_right( TRUE, FALSE );
 # if defined(HAVE_BROKEN_COLORS)
                   /*
                    * AIX curses is broken. It moves the cursor down one
@@ -652,30 +721,45 @@ CHARTYPE *params;
          case WINDOW_COMMAND:
             if (INSERTMODEx)
             {
-               cmd_rec = (CHARTYPE *)meminschr( (CHARTYPE *)cmd_rec, real_key, x, COLS, cmd_rec_len );
+               cmd_rec = (CHARTYPE *)meminschr( (CHARTYPE *)cmd_rec, real_key, x+(cmd_verify_col-1), max_line_length, cmd_rec_len );
                put_char( CURRENT_WINDOW, chtype_key, INSCHAR );
+#ifndef OLD_CMD
+               cmd_rec_len = max( x+cmd_verify_col, cmd_rec_len+1); /* GFUC3 */
+#endif
 #if !defined(USE_EXTCURSES)
                THEcursor_right( TRUE, FALSE );
-#endif
-#ifndef OLD_CMD
-               cmd_rec_len = max( x+1, cmd_rec_len+1); /* GFUC3 */
 #endif
             }
             else
             {
-               cmd_rec[x] = real_key;
-               put_char(CURRENT_WINDOW,chtype_key,ADDCHAR);
+               cmd_rec[x+(cmd_verify_col-1)] = real_key;
 #ifndef OLD_CMD
-               cmd_rec_len = max(x+1,cmd_rec_len);
+               cmd_rec_len = max( x+cmd_verify_col, cmd_rec_len );
 #endif
+               if ( x == CURRENT_SCREEN.cols[WINDOW_COMMAND]-1 )
+               {
+                  put_char( CURRENT_WINDOW, chtype_key, INSCHAR );
+#if !defined(USE_EXTCURSES)
+                  THEcursor_right( TRUE, FALSE );
+#endif
+               }
+               else
+                  put_char( CURRENT_WINDOW, chtype_key, ADDCHAR );
             }
 #ifdef OLD_CMD
-            new_len = memrevne(cmd_rec,' ',COLS);
-            if (new_len == (-1))
+            new_len = memrevne( cmd_rec, ' ', max_line_length );
+            if ( new_len == (-1) )
                cmd_rec_len = 0;
             else
-               cmd_rec_len = new_len+1;
+               cmd_rec_len = new_len + 1;
 #endif
+            /*
+             * The cursor is now in the correct column for all cases and apart from
+             * the case where we have just scrolled right, the contents is displayed correctly.
+             * We need to redisplay the cmdline if we just scrolled
+             */
+            if ( x == CURRENT_SCREEN.cols[WINDOW_COMMAND]-1 )
+               display_cmdline( current_screen, CURRENT_VIEW );
             break;
          case WINDOW_PREFIX:
             prefix_changed = TRUE;
@@ -764,8 +848,7 @@ SYNTAX
 DESCRIPTION
      The THE command allows the user to edit another 'file'. The new file
      is placed in the file <ring>. The previous file being edited remains
-     in memory and can be returned to by issuing a THE command without
-     any parameters. Several files can be edited at once, and all files
+     in memory. Several files can be edited at once, and all files
      are arranged in a ring, with subsequent THE commands moving through
      the ring, one file at a time.
 
@@ -812,7 +895,7 @@ CHARTYPE *params;
    LENGTHTYPE start_col=0,end_col=0;
    short rc=RC_OK;
    TARGET target;
-   short target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
+   long target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
    bool lines_based_on_scope=TRUE;
    bool adjust_alt=FALSE;
 
@@ -930,8 +1013,8 @@ CHARTYPE *params;
    /*
     * Display the new screen...
     */
-   pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
-   resolve_current_and_focus_lines(CURRENT_VIEW,true_line,num_file_lines,direction,TRUE,FALSE);
+   pre_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL );
+   resolve_current_and_focus_lines( current_screen, CURRENT_VIEW, true_line, num_file_lines, direction, TRUE, FALSE );
    TRACE_RETURN();
    return(RC_OK);
 }
@@ -1113,8 +1196,7 @@ SYNTAX
 DESCRIPTION
      The XEDIT command allows the user to edit another 'file'. The new file
      is placed in the file <ring>. The previous file being edited remains
-     in memory and can be returned to by issuing an XEDIT command without
-     any parameters. Several files can be edited at once, and all files
+     in memory. Several files can be edited at once, and all files
      are arranged in a ring, with subsequent XEDIT commands moving through
      the ring, one file at a time.
 
@@ -1176,7 +1258,7 @@ DESCRIPTION
      The command; ????? will retrieve the fifth last command entered.
 
 COMPATIBILITY
-     XEDIT: Compatible. Adds extra support for multiple ?s.
+     XEDIT: Compatible. Support for +.
      KEDIT: See below..
      This command is bound to the up and down arrows when on the
      command line depending on the setting of <SET CMDARROWS>.

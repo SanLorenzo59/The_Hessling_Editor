@@ -5,7 +5,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -31,10 +31,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: commsos.c,v 1.10 2005/06/19 00:55:31 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -86,13 +85,13 @@ CHARTYPE *params;
 
    TRACE_FUNCTION("commsos.c: Sos_addline");
    post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
-   insert_new_line((CHARTYPE *)"",0,1,get_true_line(FALSE),FALSE,FALSE,TRUE,CURRENT_VIEW->display_low,TRUE,TRUE);
+   insert_new_line( current_screen, CURRENT_VIEW, (CHARTYPE *)"", 0, 1, get_true_line(FALSE), FALSE, FALSE, TRUE, CURRENT_VIEW->display_low, TRUE, TRUE );
    if (compatible_feel == COMPAT_XEDIT)
       advance_current_line(1L);
    if (curses_started
    && CURRENT_VIEW->current_window == WINDOW_COMMAND)
    {
-      THEcursor_home(FALSE);
+      THEcursor_home( current_screen, CURRENT_VIEW, FALSE );
       rc = Sos_firstcol((CHARTYPE *)"");
    }
    TRACE_RETURN();
@@ -184,7 +183,7 @@ CHARTYPE *params;
     */
    if (MARK_VIEW->mark_type != M_LINE
    &&  CURRENT_VIEW->current_window != WINDOW_COMMAND)
-      execute_move_cursor(col-1);
+      execute_move_cursor(  current_screen, CURRENT_VIEW, col-1 );
    TRACE_RETURN();
    return(rc);
 }
@@ -274,7 +273,7 @@ CHARTYPE *params;
     */
    if (MARK_VIEW->mark_type != M_LINE
    &&  CURRENT_VIEW->current_window != WINDOW_COMMAND)
-      execute_move_cursor(col-1);
+      execute_move_cursor( current_screen, CURRENT_VIEW, col-1 );
    TRACE_RETURN();
    return(rc);
 }
@@ -317,7 +316,7 @@ CHARTYPE *params;
    /*
     * Get the last enterable row. If an error, stay where we are...
     */
-   if (find_last_focus_line(&row) != RC_OK)
+   if ( find_last_focus_line( current_screen, &row ) != RC_OK )
    {
       TRACE_RETURN();
       return(rc);
@@ -453,34 +452,46 @@ CHARTYPE *params;
 #endif
 /***********************************************************************/
 {
+   return do_Sos_current( params, current_screen, CURRENT_VIEW );
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
+short do_Sos_current( CHARTYPE *params, CHARTYPE curr_screen, VIEW_DETAILS *curr_view )
+#else
+short do_Sos_current( params, curr_screen, curr_view )
+CHARTYPE *params;
+CHARTYPE curr_screen;
+VIEW_DETAILS *curr_view;
+#endif
+/***********************************************************************/
+{
    short rc=RC_OK;
    unsigned short x=0,y=0;
    bool same_line=TRUE;
 
    TRACE_FUNCTION("commsos.c: Sos_current");
-   getyx(CURRENT_WINDOW_FILEAREA,y,x);
-   switch (CURRENT_VIEW->current_window)
+   getyx( SCREEN_WINDOW_FILEAREA(curr_screen), y, x );
+   switch ( curr_view->current_window )
    {
       case WINDOW_FILEAREA:
-         if (CURRENT_VIEW->focus_line != CURRENT_VIEW->current_line)
+         if ( curr_view->focus_line != curr_view->current_line )
          {
-            post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
-            CURRENT_VIEW->focus_line = CURRENT_VIEW->current_line;
+            post_process_line( curr_view, curr_view->focus_line, (LINE *)NULL, TRUE );
+            curr_view->focus_line = curr_view->current_line;
             same_line = FALSE;
          }
-         y = get_row_for_focus_line(current_screen,CURRENT_VIEW->focus_line, CURRENT_VIEW->current_row);
-         wmove(CURRENT_WINDOW_FILEAREA,y,x);
-         if (!same_line)
-            pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
+         y = get_row_for_focus_line( curr_screen, curr_view->focus_line, curr_view->current_row );
+         wmove( SCREEN_WINDOW_FILEAREA(curr_screen), y, x );
+         if ( !same_line )
+            pre_process_line( curr_view, curr_view->focus_line, (LINE *)NULL );
          break;
       case WINDOW_PREFIX:
       case WINDOW_COMMAND:
-         CURRENT_VIEW->focus_line = CURRENT_VIEW->current_line;
-         y = get_row_for_focus_line(current_screen,CURRENT_VIEW->focus_line,
-                                    CURRENT_VIEW->current_row);
-         CURRENT_VIEW->current_window = WINDOW_FILEAREA;
-         wmove(CURRENT_WINDOW_FILEAREA,y,x);
-         pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
+         curr_view->focus_line = curr_view->current_line;
+         y = get_row_for_focus_line( curr_screen, curr_view->focus_line, curr_view->current_row );
+         curr_view->current_window = WINDOW_FILEAREA;
+         wmove( SCREEN_WINDOW_FILEAREA(curr_screen), y, x );
+         pre_process_line( curr_view, curr_view->focus_line, (LINE *)NULL );
          break;
       default:
          break;
@@ -522,26 +533,28 @@ CHARTYPE *params;
    unsigned short x=0,y=0;
 
    TRACE_FUNCTION("commsos.c: Sos_cursoradj");
-   getyx(CURRENT_WINDOW,y,x);
-   switch (CURRENT_VIEW->current_window)
+   getyx( CURRENT_WINDOW, y, x );
+   switch ( CURRENT_VIEW->current_window )
    {
       case WINDOW_FILEAREA:
-         if (FOCUS_TOF || FOCUS_BOF)
+         if ( FOCUS_TOF || FOCUS_BOF )
          {
-            display_error(38,(CHARTYPE *)"",FALSE);
+            display_error(38, (CHARTYPE *)"", FALSE );
             TRACE_RETURN();
             return(RC_INVALID_ENVIRON);
          }
          col = x + CURRENT_VIEW->verify_col - 1;
-         first_non_blank_col = strzne(rec,' ');
-         if (first_non_blank_col == (-1))
+         first_non_blank_col = strzne( rec, ' ' );
+         if ( first_non_blank_col == (-1) )
             first_non_blank_col = 0;
          num_cols = first_non_blank_col - col;
-         if (num_cols < 0)
-            rc = execute_shift_command(FALSE,-num_cols,CURRENT_VIEW->focus_line,1,FALSE,TARGET_UNFOUND,TRUE,FALSE);
+         if ( num_cols < 0 )
+            rc = execute_shift_command( current_screen, CURRENT_VIEW, FALSE, -num_cols, CURRENT_VIEW->focus_line, 1, FALSE, TARGET_UNFOUND, TRUE, FALSE );
          else
-            if (num_cols > 0)
-               rc = execute_shift_command(TRUE,num_cols,CURRENT_VIEW->focus_line,1,FALSE,TARGET_UNFOUND,TRUE,FALSE);
+         {
+            if ( num_cols > 0 )
+               rc = execute_shift_command( current_screen, CURRENT_VIEW, TRUE, num_cols, CURRENT_VIEW->focus_line, 1, FALSE, TARGET_UNFOUND, TRUE, FALSE );
+         }
          break;
       default:
          break;
@@ -747,11 +760,15 @@ CHARTYPE *params;
          my_wclrtoeol(CURRENT_WINDOW);
          break;
       case WINDOW_COMMAND:
-         for (i=x;i<COLS;i++)
+         /*
+          * Get a temporary value for position in cmd_rec
+          */
+         col = x + cmd_verify_col - 1;
+         for ( i = col; i < cmd_rec_len; i++ )
             cmd_rec[i] = ' ';
-         if (cmd_rec_len > x)
-            cmd_rec_len = x;
-         my_wclrtoeol(CURRENT_WINDOW);
+         if ( cmd_rec_len > col )
+            cmd_rec_len = col;
+         my_wclrtoeol( CURRENT_WINDOW );
          break;
       case WINDOW_PREFIX:
          if (x < pre_rec_len)
@@ -875,22 +892,21 @@ CHARTYPE *params;
 #endif
 /***********************************************************************/
 {
-   register short i=0;
    short rc=RC_OK;
    LENGTHTYPE first_col=0,last_col=0;
    unsigned short x=0,y=0;
    LENGTHTYPE num_cols=0,left_col=0,temp_rec_len=0;
    CHARTYPE *temp_rec=NULL;
 
-   TRACE_FUNCTION("commsos.c: Sos_delword");
+   TRACE_FUNCTION( "commsos.c: Sos_delword" );
    /*
     * This function is not applicable to the PREFIX window.
     */
-   getyx(CURRENT_WINDOW,y,x);
-   switch(CURRENT_VIEW->current_window)
+   getyx( CURRENT_WINDOW, y, x );
+   switch( CURRENT_VIEW->current_window )
    {
       case WINDOW_PREFIX:
-         display_error(38,(CHARTYPE *)"",FALSE);
+         display_error( 38, (CHARTYPE *)"", FALSE );
          TRACE_RETURN();
          return(RC_INVALID_ENVIRON);
          break;
@@ -899,15 +915,15 @@ CHARTYPE *params;
           * If running in read-only mode and an attempt is made to execute this
           * command in the MAIN window, then error...
           */
-         if (ISREADONLY(CURRENT_FILE))
+         if ( ISREADONLY( CURRENT_FILE ) )
          {
-            display_error(56,(CHARTYPE *)"",FALSE);
+            display_error( 56, (CHARTYPE *)"", FALSE );
             TRACE_RETURN();
             return(RC_INVALID_ENVIRON);
          }
-         if (CURRENT_SCREEN.sl[y].line_type != LINE_LINE)
+         if ( CURRENT_SCREEN.sl[y].line_type != LINE_LINE )
          {
-            display_error(38,(CHARTYPE *)"",FALSE);
+            display_error( 38, (CHARTYPE *)"", FALSE );
             TRACE_RETURN();
             return(RC_INVALID_ENVIRON);
          }
@@ -918,10 +934,10 @@ CHARTYPE *params;
       case WINDOW_COMMAND:
          temp_rec = (CHARTYPE *)cmd_rec;
          temp_rec_len = cmd_rec_len;
-         left_col = 0;
+         left_col = cmd_verify_col;
          break;
    }
-   if (get_word(temp_rec,temp_rec_len,x+left_col,&first_col,&last_col) == 0)
+   if ( get_word( temp_rec, temp_rec_len, x + left_col, &first_col, &last_col ) == 0 )
    {
       TRACE_RETURN();
       return(0);
@@ -930,21 +946,19 @@ CHARTYPE *params;
     * Delete from the field the number of columns calculated above
     * and adjust the appropriate record length.
     */
-   num_cols = last_col-first_col+1;
-   memdeln(temp_rec,first_col,temp_rec_len,num_cols);
-   switch(CURRENT_VIEW->current_window)
+   num_cols = last_col - first_col + 1;
+   memdeln( temp_rec, first_col, temp_rec_len, num_cols );
+   switch( CURRENT_VIEW->current_window )
    {
       case WINDOW_FILEAREA:
          rec_len -= num_cols;
-         rc = execute_move_cursor(first_col);
-         build_screen(current_screen);
-         display_screen(current_screen);
+         rc = execute_move_cursor(  current_screen, CURRENT_VIEW, first_col );
+         build_screen( current_screen );
+         display_screen( current_screen );
          break;
       case WINDOW_COMMAND:
          cmd_rec_len -= num_cols;
-         wmove(CURRENT_WINDOW,y,first_col);
-         for (i=0;i<num_cols;i++)
-            my_wdelch(CURRENT_WINDOW);
+         display_cmdline( current_screen, CURRENT_VIEW );
          break;
    }
    TRACE_RETURN();
@@ -1144,21 +1158,36 @@ CHARTYPE *params;
 {
    short rc=RC_OK;
    unsigned short x=0,y=0;
+   LENGTHTYPE charnum;
 
-   TRACE_FUNCTION("commsos.c: Sos_endchar");
-   getyx(CURRENT_WINDOW,y,x);
-   switch(CURRENT_VIEW->current_window)
+   TRACE_FUNCTION( "commsos.c: Sos_endchar" );
+   getyx( CURRENT_WINDOW, y, x );
+   switch( CURRENT_VIEW->current_window )
    {
       case WINDOW_PREFIX:
-         wmove(CURRENT_WINDOW,y,min(pre_rec_len,CURRENT_VIEW->prefix_width-CURRENT_VIEW->prefix_gap-1));
+#ifdef USE_UTF8
+         charnum = u8_charnum( (char *)pre_rec, pre_rec_len );
+#else
+         charnum = pre_rec_len;
+#endif
+         wmove( CURRENT_WINDOW, y, min( charnum, CURRENT_VIEW->prefix_width - CURRENT_VIEW->prefix_gap - 1 ) );
          rc = RC_OK;
          break;
       case WINDOW_COMMAND:
-         wmove(CURRENT_WINDOW,y,cmd_rec_len);
-         rc = RC_OK;
+#ifdef USE_UTF8
+         charnum = u8_charnum( (char *)cmd_rec, cmd_rec_len );
+#else
+         charnum = cmd_rec_len;
+#endif
+         rc = execute_move_cursor( current_screen, CURRENT_VIEW, charnum );
          break;
       case WINDOW_FILEAREA:
-         rc = execute_move_cursor(rec_len);
+#ifdef USE_UTF8
+         charnum = u8_charnum( (char *)rec, rec_len );
+#else
+         charnum = rec_len;
+#endif
+         rc = execute_move_cursor( current_screen, CURRENT_VIEW, charnum );
          break;
    }
    TRACE_RETURN();
@@ -1196,8 +1225,10 @@ CHARTYPE *params;
 
    TRACE_FUNCTION("commsos.c: Sos_execute");
 
+   save_for_repeat = 1;
+
    if ( CURRENT_VIEW->current_window != WINDOW_COMMAND )
-      rc = THEcursor_cmdline( 1 );
+      rc = THEcursor_cmdline( current_screen, CURRENT_VIEW, 1 );
    if ( rc == RC_OK )
    {
       save_in_macro = in_macro;
@@ -1222,7 +1253,8 @@ SYNTAX
 
 DESCRIPTION
      The SOS FIRSTCHAR command moves the cursor to the first
-     non-blank character of the cursor field
+     non-blank character of the cursor field. For the <prefix area>
+     the cursor moves to the first column.
 
 COMPATIBILITY
      XEDIT: N/A
@@ -1247,26 +1279,31 @@ CHARTYPE *params;
    unsigned short y=0,x=0;
    LINE *curr=NULL;
 
-   TRACE_FUNCTION("commsos.c: Sos_firstchar");
+   TRACE_FUNCTION( "commsos.c: Sos_firstchar" );
    /*
     * For the command line and prefix area, just go to the first column...
     */
-   getyx(CURRENT_WINDOW,y,x);
-   if (CURRENT_VIEW->current_window == WINDOW_COMMAND
-   ||  CURRENT_VIEW->current_window == WINDOW_PREFIX)
+   getyx( CURRENT_WINDOW, y, x );
+   switch( CURRENT_VIEW->current_window )
    {
-      wmove(CURRENT_WINDOW,y,0);
-      TRACE_RETURN();
-      return(rc);
+      case WINDOW_PREFIX:
+         wmove( CURRENT_WINDOW, y, 0 );
+         TRACE_RETURN();
+         return(rc);
+      case WINDOW_COMMAND:
+         new_col = memne( cmd_rec, ' ', cmd_rec_len );
+         break;
+      case WINDOW_FILEAREA:
+         curr = CURRENT_SCREEN.sl[y].current;
+         new_col = memne( curr->line, ' ', curr->length );
+         break;
    }
    /*
-    * For the filearea, we have to do a bit more...
+    * For the filearea and cmdline, move to the first non-blank...
     */
-   curr = CURRENT_SCREEN.sl[y].current;
-   new_col = memne(curr->line,' ',curr->length);
-   if (new_col == (-1))
+   if ( new_col == (-1) )
       new_col = 0;
-   rc = execute_move_cursor(new_col);
+   rc = execute_move_cursor( current_screen, CURRENT_VIEW, new_col );
    TRACE_RETURN();
    return(rc);
 }
@@ -1302,23 +1339,25 @@ CHARTYPE *params;
    short rc=RC_OK;
    unsigned short y=0,x=0;
 
-   TRACE_FUNCTION("commsos.c: Sos_firstcol");
-   getyx(CURRENT_WINDOW,y,x);
-   /*
-    * For the command line, just go to the first column...
-    */
-   switch(CURRENT_VIEW->current_window)
+   TRACE_FUNCTION( "commsos.c: Sos_firstcol" );
+   getyx( CURRENT_WINDOW, y, x );
+   switch( CURRENT_VIEW->current_window )
    {
       case WINDOW_COMMAND:
+         if ( cmd_verify_col != 1 )
+         {
+            cmd_verify_col = 1;
+            display_cmdline( current_screen, CURRENT_VIEW );
+         }
+         break;
       case WINDOW_PREFIX:
-         wmove(CURRENT_WINDOW,y,0);
          break;
       case WINDOW_FILEAREA:
-         if (CURRENT_VIEW->verify_col != 1)
-            rc = execute_move_cursor(0);
-         wmove(CURRENT_WINDOW,y,0);
+         if ( CURRENT_VIEW->verify_col != 1 )
+            rc = execute_move_cursor( current_screen, CURRENT_VIEW, 0 );
          break;
    }
+   wmove( CURRENT_WINDOW, y, 0 );
    TRACE_RETURN();
    return(rc);
 }
@@ -1356,35 +1395,35 @@ CHARTYPE *params;
    LENGTHTYPE col=0,tabcol=0,i;
 
    TRACE_FUNCTION("commsos.c: Sos_instab");
-   if (CURRENT_VIEW->current_window != WINDOW_FILEAREA)
+   if ( CURRENT_VIEW->current_window != WINDOW_FILEAREA )
    {
       TRACE_RETURN();
       return(rc);
    }
-   getyx(CURRENT_WINDOW,y,x);
+   getyx( CURRENT_WINDOW, y, x );
    col = x + CURRENT_VIEW->verify_col;
-   for (i=0;i<CURRENT_VIEW->numtabs;i++)
+   for ( i = 0; i < CURRENT_VIEW->numtabs; i++ )
    {
-      if (col < CURRENT_VIEW->tabs[i])
+      if ( col < CURRENT_VIEW->tabs[i] )
       {
          tabcol = CURRENT_VIEW->tabs[i];
          break;
       }
    }
-   if (tabcol == 0) /* after last tab column or on a tab column */
+   if ( tabcol == 0 ) /* after last tab column or on a tab column */
    {
       TRACE_RETURN();
       return(rc);
    }
-   for (i=0;i<tabcol-col;i++)
+   for ( i = 0; i < tabcol - col; i++ )
    {
-      meminschr(rec,' ',col-1,max_line_length,rec_len++);
+      meminschr( rec, ' ', col - 1, max_line_length, rec_len++ );
    }
-   rec_len = min(max_line_length,rec_len);
+   rec_len = min( max_line_length, rec_len );
 
-   Sos_tabf((CHARTYPE *)"nochar");
-   build_screen(current_screen);
-   display_screen(current_screen);
+   Sos_tabf( (CHARTYPE *)"nochar" );
+   build_screen( current_screen );
+   display_screen( current_screen );
    TRACE_RETURN();
    return(rc);
 }
@@ -1404,7 +1443,7 @@ COMPATIBILITY
      KEDIT: N/A
 
 SEE ALSO
-     <SOS FIRSTCOL>
+     <SOS FIRSTCOL, SOS RIGHTEDGE>
 
 STATUS
      Complete.
@@ -1420,10 +1459,10 @@ CHARTYPE *params;
    short rc=RC_OK;
    unsigned short y=0,x=0;
 
-   TRACE_FUNCTION("commsos.c: Sos_lastcol");
-   getyx(CURRENT_WINDOW,y,x);
-   x = getmaxx(CURRENT_WINDOW)-1;
-   wmove(CURRENT_WINDOW,y,x);
+   TRACE_FUNCTION( "commsos.c: Sos_lastcol" );
+   getyx( CURRENT_WINDOW, y, x );
+   x = getmaxx( CURRENT_WINDOW ) - 1;
+   wmove( CURRENT_WINDOW, y, x );
    TRACE_RETURN();
    return(rc);
 }
@@ -1459,11 +1498,11 @@ CHARTYPE *params;
 {
    unsigned short y=0,x=0;
 
-   TRACE_FUNCTION("commsos.c: Sos_leftedge");
-   getyx(CURRENT_WINDOW,y,x);
-   if (CURRENT_VIEW->current_window == WINDOW_PREFIX)
+   TRACE_FUNCTION( "commsos.c: Sos_leftedge" );
+   getyx( CURRENT_WINDOW, y, x );
+   if ( CURRENT_VIEW->current_window == WINDOW_PREFIX )
       CURRENT_VIEW->current_window = WINDOW_FILEAREA;
-   wmove(CURRENT_WINDOW,y,0);
+   wmove( CURRENT_WINDOW, y, 0 );
    TRACE_RETURN();
    return(RC_OK);
 }
@@ -1538,9 +1577,9 @@ CHARTYPE *params;
 {
    short rc=RC_OK;
 
-   TRACE_FUNCTION("commsos.c: Sos_makecurr");
-   if (CURRENT_VIEW->current_window != WINDOW_COMMAND)
-      rc = execute_makecurr(CURRENT_VIEW->focus_line);
+   TRACE_FUNCTION( "commsos.c: Sos_makecurr" );
+   if ( CURRENT_VIEW->current_window != WINDOW_COMMAND )
+      rc = execute_makecurr( current_screen, CURRENT_VIEW, CURRENT_VIEW->focus_line );
    TRACE_RETURN();
    return(rc);
 }
@@ -1558,8 +1597,6 @@ DESCRIPTION
 COMPATIBILITY
      XEDIT: N/A
      KEDIT: Compatible.
-            Although, when issued from the command line, nothing
-            happens.
 
 SEE ALSO
      <SOS MARGINR>
@@ -1577,9 +1614,9 @@ CHARTYPE *params;
 {
    short rc=RC_OK;
 
-   TRACE_FUNCTION("commsos.c: Sos_marginl");
-   if (Sos_leftedge((CHARTYPE *)"") == RC_OK)
-      rc = execute_move_cursor(CURRENT_VIEW->margin_left-1);
+   TRACE_FUNCTION( "commsos.c: Sos_marginl" );
+   if ( Sos_leftedge( (CHARTYPE *)"" ) == RC_OK )
+      rc = execute_move_cursor( current_screen, CURRENT_VIEW, CURRENT_VIEW->margin_left - 1 );
    TRACE_RETURN();
    return(rc);
 }
@@ -1597,8 +1634,6 @@ DESCRIPTION
 COMPATIBILITY
      XEDIT: N/A
      KEDIT: Compatible.
-            Although, when issued from the command line, nothing
-            happens.
 
 SEE ALSO
      <SOS MARGINL>
@@ -1616,9 +1651,9 @@ CHARTYPE *params;
 {
    short rc=RC_OK;
 
-   TRACE_FUNCTION("commsos.c: Sos_marginr");
-   if (Sos_leftedge((CHARTYPE *)"") == RC_OK)
-      rc = execute_move_cursor(CURRENT_VIEW->margin_right-1);
+   TRACE_FUNCTION( "commsos.c: Sos_marginr" );
+   if ( Sos_leftedge( (CHARTYPE *)"" ) == RC_OK )
+      rc = execute_move_cursor( current_screen, CURRENT_VIEW, CURRENT_VIEW->margin_right - 1 );
    TRACE_RETURN();
    return(rc);
 }
@@ -1659,7 +1694,7 @@ CHARTYPE *params;
    else
       parindent = CURRENT_VIEW->margin_indent - 1;
    if (Sos_leftedge((CHARTYPE *)"") == RC_OK)
-      rc = execute_move_cursor(parindent);
+      rc = execute_move_cursor( current_screen, CURRENT_VIEW, parindent );
    TRACE_RETURN();
    return(rc);
 }
@@ -1695,56 +1730,64 @@ CHARTYPE *params;
    unsigned short x=0,y=0;
    LINE *curr=NULL;
    LENGTHTYPE start_col=0,end_col=0;
+   LENGTHTYPE cursor_location=0;
+   LENGTHTYPE new_verify_col=0;
+   COLTYPE new_screen_col=0;
+   LENGTHTYPE verify_col=0;
 
-   TRACE_FUNCTION("commsos.c: Sos_pastecmdline");
-   if (CURRENT_VIEW->current_window != WINDOW_COMMAND)
+   TRACE_FUNCTION( "commsos.c: Sos_pastecmdline" );
+   if ( CURRENT_VIEW->current_window != WINDOW_COMMAND )
    {
-      display_error(38,(CHARTYPE *)"",FALSE);
+      display_error( 38, (CHARTYPE *)"", FALSE );
       TRACE_RETURN();
       return(RC_INVALID_ENVIRON);
    }
-   if (MARK_VIEW == NULL)
+   if ( MARK_VIEW == NULL )
    {
-      display_error(44,(CHARTYPE *)"",FALSE);
+      display_error( 44, (CHARTYPE *)"", FALSE );
       TRACE_RETURN();
       return(RC_INVALID_ENVIRON);
    }
-   if (MARK_VIEW->mark_start_line != MARK_VIEW->mark_end_line)
+   if ( MARK_VIEW->mark_start_line != MARK_VIEW->mark_end_line )
    {
-      display_error(81,(CHARTYPE *)"",FALSE);
+      display_error( 81, (CHARTYPE *)"", FALSE );
       TRACE_RETURN();
       return(RC_INVALID_ENVIRON);
    }
-   curr = lll_find(MARK_FILE->first_line,MARK_FILE->last_line,MARK_VIEW->mark_start_line,MARK_FILE->number_lines);
-   if (MARK_VIEW->mark_type == M_LINE)
+   curr = lll_find( MARK_FILE->first_line, MARK_FILE->last_line, MARK_VIEW->mark_start_line, MARK_FILE->number_lines );
+   if ( MARK_VIEW->mark_type == M_LINE )
    {
       start_col = 0;
-      end_col = curr->length-1;
+      end_col = curr->length - 1;
    }
    else
    {
-      start_col = MARK_VIEW->mark_start_col-1;
-      end_col = MARK_VIEW->mark_end_col-1;
+      start_col = MARK_VIEW->mark_start_col - 1;
+      end_col = MARK_VIEW->mark_end_col - 1;
    }
-   getyx(CURRENT_WINDOW,y,x);
-   if (INSERTMODEx)
+   getyx( CURRENT_WINDOW, y, x );
+   if ( INSERTMODEx )
    {
-      meminsmem(cmd_rec,curr->line+start_col,end_col-start_col+1,x,max_line_length,cmd_rec_len);
-      cmd_rec_len = max(cmd_rec_len,x)+end_col-start_col+1;
+      meminsmem( cmd_rec, curr->line + start_col, end_col - start_col + 1, x + cmd_verify_col - 1, max_line_length, cmd_rec_len );
+      cmd_rec_len = max( cmd_rec_len, x + cmd_verify_col - 1 ) + end_col - start_col + 1;
    }
    else
    {
-      memcpy(cmd_rec+x,curr->line+start_col,end_col-start_col+1);
-      cmd_rec_len = max(x+end_col-start_col+1,cmd_rec_len);
+      memcpy( cmd_rec + x + cmd_verify_col - 1, curr->line + start_col, end_col - start_col + 1 );
+      cmd_rec_len = max( x + end_col - start_col + 1 + cmd_verify_col - 1, cmd_rec_len );
    }
 
-   if (curses_started
-   &&  CURRENT_WINDOW_COMMAND != (WINDOW *)NULL)
+   if ( curses_started
+   &&   CURRENT_WINDOW_COMMAND != (WINDOW *)NULL )
    {
-      wmove(CURRENT_WINDOW_COMMAND,0,0);
-      my_wclrtoeol(CURRENT_WINDOW_COMMAND);
-      put_string(CURRENT_WINDOW_COMMAND,0,0,cmd_rec,cmd_rec_len);
-      wmove(CURRENT_WINDOW,y,x+end_col-start_col+1);
+      cursor_location = x + cmd_verify_col - 1 + end_col - start_col + 1;
+      calculate_new_column(  current_screen, CURRENT_VIEW, x, cmd_verify_col, cursor_location, &new_screen_col, &new_verify_col );
+      if ( verify_col != new_verify_col )
+      {
+         cmd_verify_col = new_verify_col;
+      }
+      display_cmdline( current_screen, CURRENT_VIEW );
+      wmove( CURRENT_WINDOW, y, new_screen_col );
    }
    TRACE_RETURN();
    return(rc);
@@ -1780,6 +1823,19 @@ CHARTYPE *params;
 #endif
 /***********************************************************************/
 {
+   return do_Sos_prefix( params, current_screen, CURRENT_VIEW );
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
+short do_Sos_prefix( CHARTYPE *params, CHARTYPE curr_screen, VIEW_DETAILS *curr_view )
+#else
+short do_Sos_prefix( params, curr_screen, curr_view )
+CHARTYPE *params;
+CHARTYPE curr_screen;
+VIEW_DETAILS *curr_view;
+#endif
+/***********************************************************************/
+{
    short rc=RC_OK;
    unsigned short y=0,x=0;
 
@@ -1787,18 +1843,18 @@ CHARTYPE *params;
    /*
     * If the cursor is in the command line or there is no prefix on, exit.
     */
-   if (CURRENT_VIEW->current_window == WINDOW_COMMAND
-   ||  !CURRENT_VIEW->prefix)
+   if ( curr_view->current_window == WINDOW_COMMAND
+   ||   !curr_view->prefix )
    {
       TRACE_RETURN();
       return(RC_OK);
    }
-   post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
-   getyx(CURRENT_WINDOW,y,x);
-   if (CURRENT_VIEW->current_window == WINDOW_FILEAREA)
-      CURRENT_VIEW->current_window = WINDOW_PREFIX;
+   post_process_line( curr_view, curr_view->focus_line, (LINE *)NULL, TRUE );
+   getyx( SCREEN_WINDOW(curr_screen), y, x );
+   if (curr_view->current_window == WINDOW_FILEAREA )
+      curr_view->current_window = WINDOW_PREFIX;
    x = 0;
-   wmove(CURRENT_WINDOW,y,x);
+   wmove( SCREEN_WINDOW(curr_screen), y, x );
    TRACE_RETURN();
    return(rc);
 }
@@ -1834,14 +1890,14 @@ CHARTYPE *params;
    short rc=RC_OK;
 
    TRACE_FUNCTION("commsos.c: Sos_qcmnd");
-   if ((rc = THEcursor_cmdline(1)) == RC_OK)
+   if ( ( rc = THEcursor_cmdline( current_screen, CURRENT_VIEW, 1 ) ) == RC_OK )
    {
-      if (CURRENT_WINDOW_COMMAND != (WINDOW *)NULL)
+      if ( CURRENT_WINDOW_COMMAND != (WINDOW *)NULL )
       {
-         wmove(CURRENT_WINDOW_COMMAND,0,0);
-         my_wclrtoeol(CURRENT_WINDOW_COMMAND);
+         wmove( CURRENT_WINDOW_COMMAND, 0, 0 );
+         my_wclrtoeol( CURRENT_WINDOW_COMMAND );
       }
-      memset(cmd_rec,' ',max_line_length);
+      memset( cmd_rec, ' ', max_line_length );
       cmd_rec_len = 0;
    }
    TRACE_RETURN();
@@ -2039,34 +2095,50 @@ CHARTYPE *params;
 #endif
 /***********************************************************************/
 {
- unsigned short x=0,y=0;
- short rc=RC_OK;
+   unsigned short x=0,y=0;
+   short rc=RC_OK;
+   LENGTHTYPE charnum;
 
- TRACE_FUNCTION("commsos.c: Sos_startendchar");
- getyx(CURRENT_WINDOW,y,x);
- switch(CURRENT_VIEW->current_window)
- {
-    case WINDOW_PREFIX:
-       if (x >= pre_rec_len)
-          wmove(CURRENT_WINDOW,y,0);
-       else
-          wmove(CURRENT_WINDOW,y,pre_rec_len);
-       break;
-    case WINDOW_COMMAND:
-       if (x >= cmd_rec_len)
-          wmove(CURRENT_WINDOW,y,0);
-       else
-          wmove(CURRENT_WINDOW,y,cmd_rec_len);
-       break;
-    case WINDOW_FILEAREA:
-       if (x + CURRENT_VIEW->verify_col > min(rec_len,CURRENT_VIEW->verify_end))
-          rc = Sos_firstcol((CHARTYPE *)"");
-       else
-          rc = Sos_endchar((CHARTYPE *)"");
-       break;
- }
- TRACE_RETURN();
- return(rc);
+   TRACE_FUNCTION( "commsos.c: Sos_startendchar" );
+   getyx( CURRENT_WINDOW, y, x );
+   switch( CURRENT_VIEW->current_window )
+   {
+      case WINDOW_PREFIX:
+#ifdef USE_UTF8
+         charnum = u8_charnum( (char *)pre_rec, pre_rec_len );
+#else
+         charnum = pre_rec_len;
+#endif
+         if ( x >= charnum )
+            wmove( CURRENT_WINDOW, y, 0 );
+         else
+            wmove( CURRENT_WINDOW, y, charnum );
+         break;
+      case WINDOW_COMMAND:
+#ifdef USE_UTF8
+         charnum = u8_charnum( (char *)cmd_rec, cmd_rec_len );
+#else
+         charnum = cmd_rec_len;
+#endif
+         if ( x + cmd_verify_col > charnum )
+            rc = Sos_firstcol( (CHARTYPE *)"" );
+         else
+            rc = Sos_endchar( (CHARTYPE *)"" );
+         break;
+      case WINDOW_FILEAREA:
+#ifdef USE_UTF8
+         charnum = u8_charnum( (char *)rec, rec_len );
+#else
+         charnum = rec_len;
+#endif
+         if (x + CURRENT_VIEW->verify_col > min( charnum, CURRENT_VIEW->verify_end ) )
+            rc = Sos_firstcol( (CHARTYPE *)"" );
+         else
+            rc = Sos_endchar( (CHARTYPE *)"" );
+         break;
+   }
+   TRACE_RETURN();
+   return(rc);
 }
 /*man-start*********************************************************************
 COMMAND
@@ -2104,34 +2176,37 @@ CHARTYPE *params;
    LENGTHTYPE prev_tab_col=0,current_col=0;
    COLTYPE new_screen_col=0;
    LENGTHTYPE new_verify_col=0;
+   LENGTHTYPE verify_col=0;
    short rc=RC_OK;
 
-   TRACE_FUNCTION("commsos.c: Sos_tabb");
-   getyx(CURRENT_WINDOW,y,x);
+   TRACE_FUNCTION( "commsos.c: Sos_tabb" );
+   getyx( CURRENT_WINDOW, y, x );
    /*
     * Determine action depending on current window...
     */
-   switch(CURRENT_VIEW->current_window)
+   switch( CURRENT_VIEW->current_window )
    {
       case WINDOW_PREFIX:
          TRACE_RETURN();
          return(RC_OK);
          break;
       case WINDOW_FILEAREA:
-         current_col = x+CURRENT_VIEW->verify_col;
+         current_col = x + CURRENT_VIEW->verify_col;
+         verify_col = CURRENT_VIEW->verify_col;
          break;
       case WINDOW_COMMAND:
-         current_col = x+1;
+         current_col = x + cmd_verify_col;
+         verify_col = cmd_verify_col;
          break;
    }
    /*
     * First determine the next tab stop column...
     */
-   prev_tab_col = find_prev_tab_col(current_col);
+   prev_tab_col = find_prev_tab_col( current_col );
    /*
     * If no prev tab column, stay where we are and return...
     */
-   if (prev_tab_col == 0)
+   if ( prev_tab_col == 0 )
    {
       TRACE_RETURN();
       return(RC_OK);
@@ -2143,17 +2218,25 @@ CHARTYPE *params;
    prev_tab_col--;                               /* zero base the column */
 
 #ifdef VERSHIFT
-   rc = execute_move_cursor(prev_tab_col);
+   rc = execute_move_cursor( current_screen, CURRENT_VIEW, prev_tab_col );
 #else
-   calculate_new_column(x,CURRENT_VIEW->verify_col,prev_tab_col,&new_screen_col,&new_verify_col);
-   if (CURRENT_VIEW->verify_col != new_verify_col
-   &&  CURRENT_VIEW->current_window == WINDOW_FILEAREA)
+   calculate_new_column( current_screen, CURRENT_VIEW, x, verify_col, prev_tab_col, &new_screen_col, &new_verify_col );
+   if ( verify_col != new_verify_col )
    {
-      CURRENT_VIEW->verify_col = new_verify_col;
-      build_screen(current_screen);
-      display_screen(current_screen);
+      switch( CURRENT_VIEW->current_window )
+      {
+         case WINDOW_COMMAND:
+            cmd_verify_col = new_verify_col;
+            display_cmdline( current_screen, CURRENT_VIEW );
+            break;
+         case WINDOW_FILEAREA:
+            CURRENT_VIEW->verify_col = new_verify_col;
+            build_screen( current_screen );
+            display_screen( current_screen );
+            break;
+      }
    }
-   wmove(CURRENT_WINDOW,y,new_screen_col);
+   wmove( CURRENT_WINDOW, y, new_screen_col );
 #endif
 
    TRACE_RETURN();
@@ -2195,9 +2278,10 @@ CHARTYPE *params;
    LENGTHTYPE next_tab_col=0,current_col=0;
    COLTYPE new_screen_col=0;
    LENGTHTYPE new_verify_col=0;
+   LENGTHTYPE verify_col=0;
    short rc=RC_OK;
 
-   TRACE_FUNCTION("commsos.c: Sos_tabf");
+   TRACE_FUNCTION( "commsos.c: Sos_tabf" );
    /*
     * If the actual tab character is to be display then exit so that
     * editor() can process it as a raw key.
@@ -2205,44 +2289,46 @@ CHARTYPE *params;
     * SOS INSTAB is the only way that 'nochar' can be passed; you cannot
     * "DEFINE akey SOS TABF NOCHAR"!!
     */
-   if (strcmp((DEFCHAR*)params,"nochar") != 0)
+   if ( strcmp( (DEFCHAR*)params, "nochar" ) != 0 )
    {
-      if (INSERTMODEx && tabkey_insert == 'C')
+      if ( INSERTMODEx && tabkey_insert == 'C' )
       {
          TRACE_RETURN();
          return(RAW_KEY);
       }
-      if (!INSERTMODEx && tabkey_overwrite == 'C')
+      if ( !INSERTMODEx && tabkey_overwrite == 'C' )
       {
          TRACE_RETURN();
          return(RAW_KEY);
       }
    }
-   getyx(CURRENT_WINDOW,y,x);
+   getyx( CURRENT_WINDOW, y, x );
    /*
     * Determine action depending on current window...
     */
-   switch(CURRENT_VIEW->current_window)
+   switch( CURRENT_VIEW->current_window )
    {
       case WINDOW_PREFIX:
          TRACE_RETURN();
          return(RC_OK);
          break;
       case WINDOW_FILEAREA:
-         current_col = x+CURRENT_VIEW->verify_col;
+         current_col = x + CURRENT_VIEW->verify_col;
+         verify_col = CURRENT_VIEW->verify_col;
          break;
       case WINDOW_COMMAND:
-         current_col = x+1;
+         current_col = x + cmd_verify_col;
+         verify_col = cmd_verify_col;
          break;
    }
    /*
     * First determine the next tab stop column...
     */
-   next_tab_col = find_next_tab_col(current_col);
+   next_tab_col = find_next_tab_col( current_col );
    /*
     * If no next tab column, stay where we are and return...
     */
-   if (next_tab_col == 0)
+   if ( next_tab_col == 0 )
    {
       TRACE_RETURN();
       return(RC_OK);
@@ -2250,7 +2336,7 @@ CHARTYPE *params;
    /*
     * Check for going past end of line - max_line_length
     */
-   if (next_tab_col > max_line_length)
+   if ( next_tab_col > max_line_length )
    {
       TRACE_RETURN();
       return(RC_TRUNCATED);
@@ -2262,17 +2348,25 @@ CHARTYPE *params;
    next_tab_col--;                               /* zero base the column */
 
 #ifdef VERSHIFT
-   rc = execute_move_cursor(next_tab_col);
+   rc = execute_move_cursor( current_screen, CURRENT_VIEW, next_tab_col );
 #else
-   calculate_new_column(x,CURRENT_VIEW->verify_col,next_tab_col,&new_screen_col,&new_verify_col);
-   if (CURRENT_VIEW->verify_col != new_verify_col
-   &&  CURRENT_VIEW->current_window == WINDOW_FILEAREA)
+   calculate_new_column( current_screen, CURRENT_VIEW, x, verify_col, next_tab_col, &new_screen_col, &new_verify_col );
+   if ( verify_col != new_verify_col )
    {
-      CURRENT_VIEW->verify_col = new_verify_col;
-      build_screen(current_screen);
-      display_screen(current_screen);
+      switch( CURRENT_VIEW->current_window )
+      {
+         case WINDOW_COMMAND:
+            cmd_verify_col = new_verify_col;
+            display_cmdline( current_screen, CURRENT_VIEW );
+            break;
+         case WINDOW_FILEAREA:
+            CURRENT_VIEW->verify_col = new_verify_col;
+            build_screen( current_screen );
+            display_screen( current_screen );
+            break;
+      }
    }
-   wmove(CURRENT_WINDOW,y,new_screen_col);
+   wmove( CURRENT_WINDOW, y, new_screen_col );
 #endif
 
    TRACE_RETURN();
@@ -2454,6 +2548,7 @@ CHARTYPE *params;
    LENGTHTYPE i=0;
    bool blank_found=FALSE;
    LENGTHTYPE left_col=0;
+   LENGTHTYPE verify_col=0;
    COLTYPE new_screen_col=0;
    LENGTHTYPE new_verify_col=0;
    short current_char_type=0;
@@ -2464,37 +2559,38 @@ CHARTYPE *params;
    /*
     * This function is not applicable to the PREFIX window.
     */
-   getyx(CURRENT_WINDOW,y,x);
-   switch(CURRENT_VIEW->current_window)
+   getyx( CURRENT_WINDOW, y, x );
+   switch( CURRENT_VIEW->current_window )
    {
       case WINDOW_PREFIX:
-         display_error(38,(CHARTYPE *)"",FALSE);
+         display_error( 38, (CHARTYPE *)"", FALSE );
          TRACE_RETURN();
          return(RC_INVALID_ENVIRON);
          break;
       case WINDOW_FILEAREA:
          temp_rec = rec;
-         left_col = CURRENT_VIEW->verify_col-1;
+         verify_col = CURRENT_VIEW->verify_col;
          break;
       case WINDOW_COMMAND:
          temp_rec = (CHARTYPE *)cmd_rec;
-         left_col = 0;
+         verify_col = cmd_verify_col;
          break;
    }
+   left_col = verify_col - 1;
    /*
     * Determine the start of the prior word, or go to the start of the
     * line if already at or before beginning of prior word.
     */
    word_break = 0;
    start_word_col = (-1);
-   if (CURRENT_VIEW->word == 'N')
+   if ( CURRENT_VIEW->word == 'N' )
    {
       /*
        * Word break is non-blank
        */
-      for (i=left_col+x;i>(-1);i--)
+      for ( i = left_col + x; i > (-1); i-- )
       {
-         switch(word_break)
+         switch( word_break )
          {
             case 0:  /* still in current word */
                if (*(temp_rec+i) == ' ')
@@ -2525,10 +2621,10 @@ CHARTYPE *params;
        */
       word_break = 0;
       this_char = *(temp_rec+left_col+x);
-      current_char_type = my_isalphanum(this_char);
-      for (i=left_col+x;i>(-1);i--)
+      current_char_type = my_isalphanum( this_char );
+      for ( i = left_col + x; i > (-1); i-- )
       {
-         switch(word_break)
+         switch( word_break )
          {
             case 0:  /* still in current word or blank */
                if (current_char_type == CHAR_SPACE
@@ -2594,17 +2690,25 @@ CHARTYPE *params;
       start_word_col = 0;
 
 #ifdef VERSHIFT
-   rc = execute_move_cursor(start_word_col);
+   rc = execute_move_cursor( current_screen, CURRENT_VIEW, start_word_col );
 #else
-   calculate_new_column(x,CURRENT_VIEW->verify_col,start_word_col,&new_screen_col,&new_verify_col);
-   if (CURRENT_VIEW->verify_col != new_verify_col
-   &&  CURRENT_VIEW->current_window == WINDOW_FILEAREA)
+   calculate_new_column( current_screen, CURRENT_VIEW, x, verify_col, start_word_col, &new_screen_col, &new_verify_col );
+   if ( verify_col != new_verify_col )
    {
-      CURRENT_VIEW->verify_col = new_verify_col;
-      build_screen(current_screen);
-      display_screen(current_screen);
+      switch( CURRENT_VIEW->current_window )
+      {
+         case WINDOW_COMMAND:
+            cmd_verify_col = new_verify_col;
+            display_cmdline( current_screen, CURRENT_VIEW );
+            break;
+         case WINDOW_FILEAREA:
+            CURRENT_VIEW->verify_col = new_verify_col;
+            build_screen( current_screen );
+            display_screen( current_screen );
+            break;
+      }
    }
-   wmove(CURRENT_WINDOW,y,new_screen_col);
+   wmove( CURRENT_WINDOW, y, new_screen_col );
 #endif
 
    TRACE_RETURN();
@@ -2645,6 +2749,7 @@ CHARTYPE *params;
    unsigned short x=0,y=0;
    LENGTHTYPE temp_rec_len=0;
    LENGTHTYPE start_word_col=0,left_col=0;
+   LENGTHTYPE verify_col=0;
    bool word_break=FALSE;
    short current_char_type=0;
    CHARTYPE *temp_rec=NULL;
@@ -2669,14 +2774,15 @@ CHARTYPE *params;
       case WINDOW_FILEAREA:
          temp_rec = rec;
          temp_rec_len = rec_len;
-         left_col = CURRENT_VIEW->verify_col-1;
+         verify_col = CURRENT_VIEW->verify_col;
          break;
       case WINDOW_COMMAND:
          temp_rec = (CHARTYPE *)cmd_rec;
          temp_rec_len = cmd_rec_len;
-         left_col = 0;
+         verify_col = cmd_verify_col;
          break;
    }
+   left_col = verify_col - 1;
    /*
     * If we are after the last column of the line, then just ignore the
     * command and leave the cursor where it is.
@@ -2755,17 +2861,25 @@ CHARTYPE *params;
       start_word_col = temp_rec_len;
 
 #ifdef VERSHIFT
-   rc = execute_move_cursor(start_word_col);
+   rc = execute_move_cursor( current_screen, CURRENT_VIEW, start_word_col );
 #else
-   calculate_new_column(x,CURRENT_VIEW->verify_col,start_word_col,&new_screen_col,&new_verify_col);
-   if (CURRENT_VIEW->verify_col != new_verify_col
-   &&  CURRENT_VIEW->current_window == WINDOW_FILEAREA)
+   calculate_new_column( current_screen, CURRENT_VIEW, x, verify_col, start_word_col, &new_screen_col, &new_verify_col );
+   if ( verify_col != new_verify_col )
    {
-      CURRENT_VIEW->verify_col = new_verify_col;
-      build_screen(current_screen);
-      display_screen(current_screen);
+      switch( CURRENT_VIEW->current_window )
+      {
+         case WINDOW_COMMAND:
+            cmd_verify_col = new_verify_col;
+            display_cmdline( current_screen, CURRENT_VIEW );
+            break;
+         case WINDOW_FILEAREA:
+            CURRENT_VIEW->verify_col = new_verify_col;
+            build_screen( current_screen );
+            display_screen( current_screen );
+            break;
+      }
    }
-   wmove(CURRENT_WINDOW,y,new_screen_col);
+   wmove( CURRENT_WINDOW, y, new_screen_col );
 #endif
 
    TRACE_RETURN();
@@ -2802,45 +2916,45 @@ CHARTYPE *params;
 #endif
 /***********************************************************************/
 {
- short rc=RC_OK;
- unsigned short y=0,x=0,row=0;
+  short rc=RC_OK;
+  unsigned short y=0,x=0,row=0;
 
- TRACE_FUNCTION("commsos.c: Sos_topedge");
- getyx(CURRENT_WINDOW,y,x);
- /*
-  * Get the last enterable row. If an error, stay where we are...
-  */
- if (find_first_focus_line(&row) != RC_OK)
- {
-    TRACE_RETURN();
-    return(rc);
- }
- /*
-  * For each window determine what needs to be done...
-  */
- switch(CURRENT_VIEW->current_window)
- {
-    case WINDOW_COMMAND:
-       if ((CURRENT_VIEW->prefix&PREFIX_LOCATION_MASK) != PREFIX_LEFT)
-          x += CURRENT_VIEW->prefix_width;
-       CURRENT_VIEW->focus_line = CURRENT_SCREEN.sl[row].line_number;
-       pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
-       CURRENT_VIEW->current_window = WINDOW_FILEAREA;
-       wmove(CURRENT_WINDOW,row,x);
-       break;
-    case WINDOW_FILEAREA:
-    case WINDOW_PREFIX:
-       if (row != y)                            /* different rows */
-       {
-          post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
-          CURRENT_VIEW->focus_line = CURRENT_SCREEN.sl[row].line_number;
-          pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
-          wmove(CURRENT_WINDOW,row,x);
-       }
-       break;
- }
- TRACE_RETURN();
- return(rc);
+  TRACE_FUNCTION("commsos.c: Sos_topedge");
+  getyx(CURRENT_WINDOW,y,x);
+  /*
+   * Get the last enterable row. If an error, stay where we are...
+   */
+  if ( find_first_focus_line( current_screen, &row ) != RC_OK )
+  {
+     TRACE_RETURN();
+     return(rc);
+  }
+  /*
+   * For each window determine what needs to be done...
+   */
+  switch(CURRENT_VIEW->current_window)
+  {
+     case WINDOW_COMMAND:
+        if ((CURRENT_VIEW->prefix&PREFIX_LOCATION_MASK) != PREFIX_LEFT)
+           x += CURRENT_VIEW->prefix_width;
+        CURRENT_VIEW->focus_line = CURRENT_SCREEN.sl[row].line_number;
+        pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
+        CURRENT_VIEW->current_window = WINDOW_FILEAREA;
+        wmove(CURRENT_WINDOW,row,x);
+        break;
+     case WINDOW_FILEAREA:
+     case WINDOW_PREFIX:
+        if (row != y)                            /* different rows */
+        {
+           post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
+           CURRENT_VIEW->focus_line = CURRENT_SCREEN.sl[row].line_number;
+           pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
+           wmove(CURRENT_WINDOW,row,x);
+        }
+        break;
+  }
+  TRACE_RETURN();
+  return(rc);
 }
 /*man-start*********************************************************************
 COMMAND
@@ -2932,45 +3046,74 @@ bool cua;
           */
          if ( ISREADONLY(CURRENT_FILE) )
          {
-            display_error(56,(CHARTYPE *)"",FALSE);
+            display_error( 56, (CHARTYPE *)"", FALSE );
             TRACE_RETURN();
             return(RC_INVALID_ENVIRON);
          }
-         if (CURRENT_SCREEN.sl[y].line_type != LINE_LINE)
+         if ( CURRENT_SCREEN.sl[y].line_type != LINE_LINE )
          {
-            display_error(38,(CHARTYPE *)"",FALSE);
+            display_error( 38, (CHARTYPE *)"", FALSE );
             TRACE_RETURN();
             return(RC_INVALID_ENVIRON);
          }
          break;
       case WINDOW_COMMAND:
-         if (x == 0)
+         if ( x == 0
+         &&   cmd_verify_col == 1 )
          {
+            /*
+             * We are at the first position of the cmdline
+             */
             TRACE_RETURN();
             return(RC_OK);
          }
-         wmove(CURRENT_WINDOW,y,x-1);
-         my_wdelch(CURRENT_WINDOW);
-         if (x <= cmd_rec_len)
+         if ( x == 0 )
          {
-            memdeln(cmd_rec,x-1,cmd_rec_len,1);
-            cmd_rec_len--;
+            /*
+             * We are at the left edge of the CMDLINE with the CMDLINE scrolled
+             * so we will need to move the cursor somewhere to the right and
+             * scroll the CMDLINE to the left.
+             */
+            COLTYPE new_screen_col=0;
+            LENGTHTYPE new_verify_col=0;
+            if ( x + cmd_verify_col - 1 <= cmd_rec_len )
+            {
+               memdeln( cmd_rec, x - 1 + cmd_verify_col - 1, cmd_rec_len, 1 );
+               cmd_rec_len--;
+            }
+            calculate_new_column( current_screen, CURRENT_VIEW, x, cmd_verify_col, x + cmd_verify_col -2, &new_screen_col, &new_verify_col );
+            if ( cmd_verify_col != new_verify_col )
+            {
+               cmd_verify_col = new_verify_col;
+               display_cmdline( current_screen, CURRENT_VIEW );
+               wmove( CURRENT_WINDOW, y, new_screen_col );
+            }
+         }
+         else
+         {
+            wmove( CURRENT_WINDOW, y, x - 1 );
+            if ( x + cmd_verify_col - 1 <= cmd_rec_len )
+            {
+               memdeln( cmd_rec, x - 1 + cmd_verify_col - 1, cmd_rec_len, 1 );
+               cmd_rec_len--;
+            }
+            display_cmdline( current_screen, CURRENT_VIEW );
          }
          TRACE_RETURN();
          return(RC_OK);
          break;
       case WINDOW_PREFIX:
-         if (x == 0)
+         if ( x == 0 )
          {
             TRACE_RETURN();
             return(RC_OK);
          }
-         wmove(CURRENT_WINDOW,y,x-1);
-         if ((x) <= pre_rec_len)
+         wmove( CURRENT_WINDOW, y, x - 1 );
+         if ( x <= pre_rec_len )
          {
             prefix_changed = TRUE;
-            my_wdelch(CURRENT_WINDOW);
-            memdeln(pre_rec,x-1,pre_rec_len,1);
+            my_wdelch( CURRENT_WINDOW );
+            memdeln( pre_rec, x - 1, pre_rec_len, 1 );
             pre_rec_len --;
          }
          TRACE_RETURN();
@@ -2990,8 +3133,8 @@ bool cua;
     * to move the cursor left.
     */
    if ( INTERFACEx == INTERFACE_CUA
-   &&  MARK_VIEW == CURRENT_VIEW
-   &&  MARK_VIEW->mark_type == M_CUA )
+   &&   MARK_VIEW == CURRENT_VIEW
+   &&   MARK_VIEW->mark_type == M_CUA )
    {
       ResetOrDeleteCUABlock( CUA_DELETE_BLOCK );
       TRACE_RETURN();
@@ -3002,7 +3145,7 @@ bool cua;
     * If we are in the first column of the file...
     */
    if ( x == 0
-   && CURRENT_VIEW->verify_start == CURRENT_VIEW->verify_col )
+   &&   CURRENT_VIEW->verify_start == CURRENT_VIEW->verify_col )
    {
       /*
        * Check if we have been passed "cua" as an optional parameter.
@@ -3020,7 +3163,7 @@ bool cua;
           */
          if ( 1 )
          {
-            advance_focus_line(-1);
+            advance_focus_line( -1 );
             Sos_endchar( (CHARTYPE *)"");
             rc = execute_split_join( SPLTJOIN_JOIN, TRUE, TRUE );
             TRACE_RETURN();
@@ -3041,75 +3184,79 @@ bool cua;
          return(RC_OK);
       }
    }
-   THEcursor_left(TRUE,FALSE);
+   THEcursor_left( TRUE, FALSE );
    /*
     * If we are after the last character of the line, exit.
     */
-   if (x+CURRENT_VIEW->verify_col-1 > rec_len)
+   if ( x + CURRENT_VIEW->verify_col - 1 > rec_len )
    {
       TRACE_RETURN();
       return(RC_OK);
    }
 
-   getyx(CURRENT_WINDOW,y,x);
-   my_wdelch(CURRENT_WINDOW);
+   getyx( CURRENT_WINDOW, y, x );
+   my_wdelch( CURRENT_WINDOW );
 
-   memdeln(rec,CURRENT_VIEW->verify_col-1+x,rec_len,1);
+   memdeln( rec, CURRENT_VIEW->verify_col - 1 + x, rec_len, 1 );
    rec_len--;
    /*
     * If there is a character off the right edge of the screen, display it
     * in the last character of the main window.
     */
-   if (CURRENT_VIEW->verify_col-1+CURRENT_SCREEN.cols[WINDOW_FILEAREA]-1 < rec_len)
+   if ( CURRENT_VIEW->verify_col - 1 + CURRENT_SCREEN.cols[WINDOW_FILEAREA] - 1 < rec_len )
    {
-      wmove(CURRENT_WINDOW,y,CURRENT_SCREEN.cols[WINDOW_FILEAREA]-1);
-      put_char(CURRENT_WINDOW,rec[CURRENT_VIEW->verify_col-1+CURRENT_SCREEN.cols[WINDOW_FILEAREA]-1],ADDCHAR);
-      wmove(CURRENT_WINDOW,y,x);
+      wmove( CURRENT_WINDOW, y, CURRENT_SCREEN.cols[WINDOW_FILEAREA] - 1 );
+      put_char( CURRENT_WINDOW, rec[CURRENT_VIEW->verify_col - 1 + CURRENT_SCREEN.cols[WINDOW_FILEAREA] - 1], ADDCHAR );
+      wmove( CURRENT_WINDOW, y, x );
    }
    /*
     * If the character being deleted is on a line which is in the marked
     * block, redisplay the window.
     */
-   if ((CURRENT_VIEW == MARK_VIEW
+   if ( ( CURRENT_VIEW == MARK_VIEW
       &&  CURRENT_VIEW->focus_line >= MARK_VIEW->mark_start_line
-      &&  CURRENT_VIEW->focus_line <= MARK_VIEW->mark_end_line)
-   || (CURRENT_FILE->colouring && CURRENT_FILE->parser) )
+      &&  CURRENT_VIEW->focus_line <= MARK_VIEW->mark_end_line )
+   || ( CURRENT_FILE->colouring && CURRENT_FILE->parser ) )
    {
-      build_screen(current_screen);
-      display_screen(current_screen);
+      build_screen( current_screen );
+      display_screen( current_screen );
    }
    return rc;
 }
 
+/***********************************************************************/
 #ifdef HAVE_PROTO
 static short sosdelchar( bool cua )
 #else
 static short sosdelchar( cua )
 bool cua;
+/***********************************************************************/
 #endif
 {
    unsigned short x=0,y=0;
    short rc;
 
-   getyx(CURRENT_WINDOW,y,x);
-   switch (CURRENT_VIEW->current_window)
+   getyx( CURRENT_WINDOW, y, x );
+   switch ( CURRENT_VIEW->current_window )
    {
       case WINDOW_COMMAND:
-         my_wdelch(CURRENT_WINDOW);
-         if (x < cmd_rec_len)
+         my_wdelch( CURRENT_WINDOW );
+         if ( x + cmd_verify_col <= cmd_rec_len )
          {
-            memdeln(cmd_rec,x,cmd_rec_len,1);
+            memdeln( cmd_rec, x + cmd_verify_col - 1, cmd_rec_len, 1 );
             cmd_rec_len--;
+            display_cmdline( current_screen, CURRENT_VIEW );
+            wmove( CURRENT_WINDOW, y, x );
          }
          TRACE_RETURN();
          return(RC_OK);
          break;
       case WINDOW_PREFIX:
-         if (x < pre_rec_len)
+         if ( x < pre_rec_len )
          {
-            my_wdelch(CURRENT_WINDOW);
+            my_wdelch( CURRENT_WINDOW );
             prefix_changed = TRUE;
-            memdeln(pre_rec,x,pre_rec_len,1);
+            memdeln( pre_rec, x, pre_rec_len, 1 );
             pre_rec_len--;
          }
          TRACE_RETURN();
@@ -3122,7 +3269,7 @@ bool cua;
           */
          if ( ISREADONLY(CURRENT_FILE) )
          {
-            display_error(56,(CHARTYPE *)"",FALSE);
+            display_error( 56, (CHARTYPE *)"", FALSE );
             TRACE_RETURN();
             return(RC_INVALID_ENVIRON);
          }
@@ -3130,9 +3277,9 @@ bool cua;
           * Do not allow this command on the top or bottom of file lines or on
           * shadow lines.
           */
-         if (CURRENT_SCREEN.sl[y].line_type != LINE_LINE)
+         if ( CURRENT_SCREEN.sl[y].line_type != LINE_LINE )
          {
-            display_error(38,(CHARTYPE *)"",FALSE);
+            display_error( 38, (CHARTYPE *)"", FALSE );
             TRACE_RETURN();
             return(RC_INVALID_ENVIRON);
          }
@@ -3151,31 +3298,31 @@ bool cua;
     * to move the cursor left.
     */
    if ( INTERFACEx == INTERFACE_CUA
-   &&  MARK_VIEW == CURRENT_VIEW
-   &&  MARK_VIEW->mark_type == M_CUA )
+   &&   MARK_VIEW == CURRENT_VIEW
+   &&   MARK_VIEW->mark_type == M_CUA )
    {
       ResetOrDeleteCUABlock( CUA_DELETE_BLOCK );
       TRACE_RETURN();
       return(RC_OK);
    }
 
-   my_wdelch(CURRENT_WINDOW);
+   my_wdelch( CURRENT_WINDOW );
    /*
     * If we are not after the last character of the line...
     */
-   if (x+CURRENT_VIEW->verify_col <= rec_len)
+   if ( x + CURRENT_VIEW->verify_col <= rec_len )
    {
-      memdeln(rec,CURRENT_VIEW->verify_col-1+x,rec_len,1);
+      memdeln( rec, CURRENT_VIEW->verify_col - 1 + x, rec_len, 1 );
       rec_len--;
       /*
        * If there is a character off the right edge of the screen, display it
        * in the last character of the main window.
        */
-      if (CURRENT_VIEW->verify_col-1+CURRENT_SCREEN.cols[WINDOW_FILEAREA]-1 < rec_len)
+      if ( CURRENT_VIEW->verify_col - 1 + CURRENT_SCREEN.cols[WINDOW_FILEAREA] - 1 < rec_len )
       {
-         wmove(CURRENT_WINDOW,y,CURRENT_SCREEN.cols[WINDOW_FILEAREA]-1);
-         put_char(CURRENT_WINDOW,rec[CURRENT_VIEW->verify_col-1+CURRENT_SCREEN.cols[WINDOW_FILEAREA]-1],ADDCHAR);
-         wmove(CURRENT_WINDOW,y,x);
+         wmove( CURRENT_WINDOW, y, CURRENT_SCREEN.cols[WINDOW_FILEAREA]-1 );
+         put_char( CURRENT_WINDOW, rec[CURRENT_VIEW->verify_col - 1 + CURRENT_SCREEN.cols[WINDOW_FILEAREA] - 1], ADDCHAR );
+         wmove( CURRENT_WINDOW, y, x );
       }
    }
    else
@@ -3196,13 +3343,13 @@ bool cua;
     * If the character being deleted is on a line which is in the marked
     * block...
     */
-   if ((CURRENT_VIEW == MARK_VIEW
-   &&  CURRENT_VIEW->focus_line >= MARK_VIEW->mark_start_line
-   &&  CURRENT_VIEW->focus_line <= MARK_VIEW->mark_end_line)
-   || (CURRENT_FILE->colouring && CURRENT_FILE->parser))
+   if ( ( CURRENT_VIEW == MARK_VIEW
+      &&  CURRENT_VIEW->focus_line >= MARK_VIEW->mark_start_line
+      &&  CURRENT_VIEW->focus_line <= MARK_VIEW->mark_end_line )
+   ||   ( CURRENT_FILE->colouring && CURRENT_FILE->parser ) )
    {
-      build_screen(current_screen);
-      display_screen(current_screen);
+      build_screen( current_screen );
+      display_screen( current_screen );
    }
 
    TRACE_RETURN();

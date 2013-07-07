@@ -1,3 +1,205 @@
+Version 3.3RC4 ??-??-2013
+ --- Bug fixes:
+     o Note all bug numbers now refer to new SF numbering.
+     o Fix for bug 230 and 208: SET PREFIX with width propagates to all files
+     o Fix for bug 254: ALL with long string crashes THE
+     o Fix for bug 256: LASTOP for CLOCATE not set
+     o Fix for bug 257: EXTRACT /LASTKEY n not showing nth key
+     o Fix for bug 258: Too many attempts to open macro files
+ --- Changed commands or behaviour:
+     o CLOCATE now uses last clocate target if no arguments supplied
+     o Removed 150 character limit for commands on command line
+     o SET SLK now has ON option
+ --- New features:
+     o Feature Request 37: Add SLK to EXTRACT/QUERY
+     o Feature Request 54: Document new line flag targets (done in 3.3RC1)
+     o Feature Request 32: Expand EXTRACT DEFINE to limit to key or mouse definitions
+     o Feature Request 59: Add PgUp/PgDn support to POPUP
+
+Version 3.3RC3 22-03-2013 (Mageia only)
+ --- Changed commands or behaviour:
+     o Support multiple paired comment specifications in TLD file
+     o Merged the html.tld and js.tld files
+ --- New features:
+     o Added QUERY UTF8 to indicate if UTF8 support is enabled. Note UTF8 support is incomplete
+       and only available by building THE from source; not from binary packages
+
+Version 3.3RC2 21-Feb-2012 (MacOS X only)
+ --- Bug fixes:
+     o Fix for bug 3363509: SET CTLCHAR would always show an error
+     o Fix for bug 3366183: RC1 on W7 dir C:\Program Files (x86)\ crashes THE
+     o Fix for bug 3367591: RC1 "define S-F1 macro syntax q" crashes THE
+     o Fix for bug 3405498: Editor crashes
+     o Fix for bug 3370863: RC1: cursor fails to position in a macro
+     o Fix for bug 3258779: EXTRACT /SYNONYM */ gives wrong answer
+     o Fix for bug 3407363: THE 3.3 rc1 gc macro fails to function properly
+     o Fix for bug introduced in RC1 where EXTRACT PENDING would not return correct
+       details for a prefix command entered on a shadow line in XEDIT compatibility mode
+     o Fixed a bug where quitting a file from within a prefix macro, and there are still other
+       files in the ring would casue THE to crash.
+ --- Changed commands or behaviour:
+     o On Windows GUI platform, the "key" EXIT (close window button) is assigned
+       to CANCEL by default
+     o The fix for bug 3258779 changes the format of the data returned to be more
+       consistent with XEDIT.
+     o Expand the number of sort fields from 10 to 1000 and check if the limit has been exceeded.
+     o The first non-blank character in CHANGE command taken as delimiter; previously first character
+       (including blank) was used.
+ --- New features:
+     o Added WIDTH option to SET SCREEN to enable width of split screens to be set.
+
+Version 3.3RC1 10-Jul-2011
+ --- Bug fixes:
+     o SET TRAILING now works as advertised.
+     o Fix for bug 2676591: EXTRACT CTLCHAR X will now return correct details
+     o Fix for bug 2929608: SHOWKEY prompt clobbered with CMDLINE TOP
+     o Fix for bug 3056302: Use correct gcc switch for --enable-bounds-checking
+     o Fix for bug 3044075: Handled quoted filenames in various commands correctly
+     o Fix for bug 3041350: Add start menu item for THE on Windows
+     o Fix for bug 3041639: Be consistent in documentation with -u switch
+     o Fix for bug 3313877: Allow prefix macro to be turned off
+     o Fixed crash when HOME environment variable is too long
+     o SET BOUNDMARK OFF now works
+     o When copying text from the clipboard which is longer than the current WIDTH,
+       the text is split at WIDTH as well as line breaks.  This stops THE crashing.
+     o Fix validation errors in DEFINE command
+     o Fix for bug 3191866: :label definition for rexx.tld should be firstnonblank
+     o Fix for SPLIT when changes were made to a line before the split.
+     o Major rewrite of handling of syntax highlighting to fix several bugs.
+     o Fix for EXTRACT CASE.
+ --- Changed commands or behaviour:
+     o Default mapping for mouse buttons that used to be mapped to BUTTON_RELEASE
+       and some mapped to BUTTON_PRESS are now mapped to BUTTON_CLICK.
+     o Prefix command and macro handling changed to be more consistent with XEDIT.
+     o configure --enable-32bit on Mac OSX will produce a binary with only 32bit
+       architectures in the universal binary. Use this switch when building THE
+       to be used with ooRexx versions 3.x.
+     o Documentation for SET CTLCHAR now requires colour specification
+     o Default width of line increased from 512 to 1000
+     o When attempting to JOIN a line and the resulting length of the joined line
+       would exceed WIDTH, issue error 154. Previously this used to truncate the
+       line to WIDTH.
+     o Default mapping of mouse scroll wheel up and down from UP 5 and DOWN 5 to
+       BACKWARD 5 LINES and FORWARD 5 LINES respectively.
+     o SET WIDTH will now adjust ZONE and VERIFY end value if they were specified
+       as '*'
+     o SET MSGMODE now accepts optional second argument of LONG or SHORT.
+     o Extract MSGMODE will now return 2 values; msgmode.2 will always be LONG
+     o Implemented Feature Request 3193579, EXTRACT DIRFILEID returns directory
+       name when on top-of-file or bottom-of-file
+ --- New features:
+     o THE on Windows is now available as a Windows GUI application. It is provided as
+       theg.exe. The original console mode THE is provided as thec.exe.
+     o On platforms that support a text-mode THE and a GUI THE (Windows and X11),
+       a new binary is provided; the or the.exe which is a front-end to either the GUI
+       or text-mode binary.
+     o On the Windows GUI version the close window event (ie clicking the cross in
+       the titlebar) is returned to THE as a key; EXIT. If this key is not assigned to
+       a THE command such as CANCEL, it does nothing.
+     o Added optional PRIORITY to CURSOR command. The priority value is ignored.
+     o Added FIELDWORD.3, VERSION.5 as new values from equivalent EXTRACT command.
+     o Added syntax.the and rexx.syntax files as an example of context-sensitive
+       help for writing Rexx programs.
+     o Added attribute BACKBOLD to COLOR and ECOLOR commands; sets background
+       to be bold. Same as BLINK on most platforms.
+     o Added REMOVE as option for SET TRAILING - combination of ON and OFF.
+     o Added most KEDIT line flag targets; NEW, CHAnged, ALTered and TAGged.
+       LOCATE TAG will locate the first tagged line in the file.
+     o Mac OSX binary distributions now come with natve OSX launcher; THE.app
+       which supports dropping files onto the icon in Finder or the Dock.
+     o Support building directly with ooRexx 4.x
+     o Added configure switch; --with-global-profile to enable specification of
+       the name of a global profile file
+     o Add EXTRACT PROFile to determine which profile file is being used
+     o Added support for Left and Right Mouse Scroll wheels. Defaults to LEFT 5
+       and RIGHT 5 respectively. Only working on X11 port at the moment.
+     o FORWARD and BACKWARD commands now allow HALF and 'n Lines' options.
+     o Added 'File' option to SET READONLY to apply readonly to the current file.
+     o Added SET ERROROUTPUT to enable THE error messages to be echoed to controling
+       terminal window.
+
+Version 3.3B3 24-Mar-2008
+ --- Bug fixes:
+     o Fix for bug 1862911: EXTRACT STATOPT doesn't match SET STATOPT
+     o Fix for bug 1837428: EXTRACT LASTKEY - ALT and SHIFT reversed for MOUSE
+     o Fix for bug 1904356: filestatus.2 wrong when -r specified
+ --- New features:
+     o Feature request: 1613447: ALL/TAG commands wrong
+
+Version 3.3B2 10-Dec-2007 (Not publicly released)
+
+ --- Bug fixes:
+     o Fix for bug 1606033: CANCEL correctly exits from all files without alterations.
+     o Fix bug with PSCREEN
+     o Fix for bug 1622209: EXTRACT PENDING 2nd target with *
+     o Fix for bug 1628039: ALL ignore trailing blanks
+     o Fix for bug 1633254: sigsegv on pageup/pagedown
+     o Warning to address bug 1653479:
+     o Fix for bug 1626396: SET COLOR CURSORLINE not documented
+     o Fix bug with parsing Rexx Call function
+     o Fix for bug 1630872: Fn key crashes THE
+     o Fix for bug 1634242: HTML HREF links broken
+     o Fix for bug 1726194: popup colors don't work
+     o Fix for bug 1576923: various spelling/grammer errors in documentation
+     o Fix for bug 1835547: OFF ctlchar doesn't work with RESERVED
+     o Fix for bug 1825442: FNAME doesn't check same name in ring
+     o Fix for bug 1837428: EXTRACT /LASTKEY/ lastkey.4 shift flags not set for mouse
+     o Fix for bug 676158: autodetect ncurses
+ --- Changed commands or behaviour:
+     o EXTRACT /IDLINE/ supports optional '*' argument which sets idline.2 to the contents of the IDLINE
+     o CMSG now leaves cursor at end of text on command line.
+     o Fixed issues with STATUSLINE TOP and FILETABS ON.
+     o If the configure script is run on a Unix/Linux platform and --with-curses is specified or no
+       switch specified to select the curses library to use will check if the default curses library
+       is ncurses and will configure THE with ncurses support. Requested in bug:????????
+ --- New features:
+     o Feature request: 1609300: Add more settings to PRESERVE/RESTORE: THIGHLIGHT, TOFEOF, WRAP, COLOURING/COLORING, TRAILING
+     o Feature request: 1638036: Interrupt long running macros; SET REXXHALT
+     o Feature request: 1634662: Uppercase EDITV variables
+     o Feature request: 1833896: Enhance EDITV LIST(F) for long data
+     o Feature request: 1838387: Missing QUERY/EXTRACT STATOPT
+     o TAG command now can specify FOCUS instead of target, and focus line will be tagged/untagged
+     o Include dir.tld (default syntax highlighting file for DIR.DIR) in distributions.
+
+Version 3.3B1 27-Nov-2006
+
+ --- Bug fixes:
+     o Fixed crash when issuing PUT <target> CLIP: and where <target> is not a block
+       and there is no marked block.
+     o Fix for TLD COLUMN EXCLUDE; off by one bug.
+     o Fix for bug 1445486: MOVE BLOCK failed to delete the source in some circumstances.
+     o Fix for bug 1521467: DUP at TOF/EOF
+     o Fix for bug 1521986: missing QUERY/EXTRACT for PSCREEN and INTERFACE
+     o Fix for bug 1522193: line labels in prefix area
+     o Fix for bug 1522222: SET POINT name OFF gives extra message
+     o Fix for bug 1526626: SET STATOPT OFF fails
+     o Fix for bug 1526649: SET STATOPT in profile causes mess
+     o Fix for bug 1527981: Multiple negative targets.
+     o Fix for bug 1528044: Prefix macros with arguments.
+     o Fix for bug 1535277: REPEAT repeats wrong thing sometimes
+     o Fix for bug 1549893: dirfileid.2 wrong in large files
+     o Fix for bug 1557180: RIGHT 0 does not restore display
+     o Fix for bug 1562932: command line doesn't shift
+     o Fix for bug 1564654: memory shortage in DIALOG
+     o Fix for bug 1576062: SET SYNONYM error
+     o Fix for bug 1580054: dialog.2 not set
+     o Fix for bug 1580152: SET CASE incorrect
+     o Fix for bug 1583945: parsing of REGEXP /target/ was wrong
+     o Fix for bug 1584383: TAG parses strings with spaces incorrectly
+     o Fix for bug 1588952: EXTRACT /PENDING a/ incorrect
+     o Fix for crash under Win32 and later PDCurses releases.
+ --- Changed commands or behaviour:
+     o SOS FIRSTCHAR on CMDLINE moves to first non-blank, not simply first column.
+     o SOS MARGINL and SOS MARGINR on the CMDLINE now move to the margin columns.
+     o CMSG places the cursor at the start of the line; not the end of line.
+     o CHANGE /from/to/ with COMPAT ISPF will find and change first occurrence; doesn't have
+       to be on current line
+ --- New features:
+     o Feature requests: 1563532: QUERY and MSG displayed in different places
+     o Feature requests: 1580482: SET BACKUP filetype
+     o Feature requests: 1581079: SET RESERVED AUTOSCROLL
+     o Added extra syntax highlighting directives for DIR.DIR to improve performance
+
 Version 3.2 29-Jan-2006
 
  --- Bug fixes:
@@ -89,17 +291,16 @@ Version 3.2b1 8-Jun-2004
      o Added SET LASTOP.
      o Lines can now have multiple names with SET POINT.
 --- Workarounds:
-      o According to Reiner Micke at IBM, there appears to be a problem with Object
-        Rexx and any program that uses the Rexx API to call Object Rexx under Linux.
-        The problem is when an application is built with the gcc compiler.
-        Because Object Rexx is built with g++ compiler, some inconsistencies
-        result which cause THE (or any other application) to crash :-(
-        To build THE with g++, set the environment variable "CC" to "g++", before
-        running "configure --with-rexx=orexx". eg export CC=g++
-        Problems reported related to this problem: 607670
-        - Update as at 28th May 2004. IBM have release 2.3.4.0 of Object Rexx for
-          Linux that fixes this problem, so THE and Object Rexx on Linux now work
-          again.
+     o According to Reiner Micke at IBM, there appears to be a problem with Object
+       Rexx and any program that uses the Rexx API to call Object Rexx under Linux.
+       The problem is when an application is built with the gcc compiler.
+       Because Object Rexx is built with g++ compiler, some inconsistencies
+       result which cause THE (or any other application) to crash :-(
+       To build THE with g++, set the environment variable "CC" to "g++", before
+       running "configure --with-rexx=orexx". eg export CC=g++
+       Problems reported related to this problem: 607670
+     o Update as at 28th May 2004. IBM have release 2.3.4.0 of Object Rexx for
+       Linux that fixes this problem, so THE and Object Rexx on Linux now work again.
 
 Version 3.1 13-Aug-02
 

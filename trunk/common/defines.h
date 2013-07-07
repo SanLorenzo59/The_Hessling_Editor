@@ -46,6 +46,7 @@
 # define HAVE_VSPRINTF        1
 # define TIME_WITH_SYS_TIME   1
 # define HAVE_FCNTL_H         1
+# define SIZEOF_LONG          4
 #endif
 
 #if (defined(OS2) || defined(__OS2__)) && defined(__EMX__)
@@ -75,6 +76,7 @@
 # define HAVE__FULLPATH       1
 # define TIME_WITH_SYS_TIME   1
 # define HAVE_FCNTL_H         1
+# define SIZEOF_LONG          4
 #endif
 
 #if (defined(OS2) || defined(__OS2__)) && defined(__IBMC__)
@@ -97,6 +99,7 @@
 # define HAVE_VSPRINTF        1
 # define HAVE__FULLPATH       1
 # define TIME_WITH_SYS_TIME   1
+# define SIZEOF_LONG          4
 #endif
 
 #if (defined(OS2) || defined(__OS2__)) && defined(__WATCOMC__)
@@ -118,6 +121,7 @@
 # define HAVE_VSPRINTF        1
 # define HAVE__FULLPATH       1
 # define HAVE_FCNTL_H         1
+# define SIZEOF_LONG          4
 #endif
 
 #if defined(WIN32) && defined(__WATCOMC__)
@@ -139,6 +143,7 @@
 # define HAVE__SPLITPATH2     1
 /* # define HAVE_FTRUNCATE      1*/
 # define HAVE_FCNTL_H         1
+# define SIZEOF_LONG          4
 #endif
 
 #if defined(WIN32) && defined(_MSC_VER)
@@ -163,6 +168,7 @@
 # define HAVE__FULLPATH       1
 # define HAVE__SPLITPATH      1
 # define HAVE_FCNTL_H         1
+# define SIZEOF_LONG          4
 #endif
 
 #if defined(WIN32) && defined(__CYGWIN32__)
@@ -190,6 +196,7 @@
 # define HAVE_VFPRINTF        1
 # define TIME_WITH_SYS_TIME   1
 /* # define HAVE_FULLPATH        1 */
+# define SIZEOF_LONG          4
 #endif
 
 #if defined(WIN32) && defined(__MINGW32__)
@@ -216,6 +223,7 @@
 /* # define HAVE_FULLPATH        1 */
 /* # define HAVE_GETTIMEOFDAY    1 */
 # define HAVE_FCNTL_H         1
+# define SIZEOF_LONG          4
 #endif
 
 #if defined(WIN32) && defined(__LCC__)
@@ -242,6 +250,7 @@
 /* # define HAVE_FULLPATH        1 */
 /* # define HAVE_GETTIMEOFDAY    1 */
 # define HAVE_FCNTL_H         1
+# define SIZEOF_LONG          4
 #endif
 
 #if (defined(DOS) || defined(MSDOS)) && defined(DJGPP)
@@ -272,6 +281,7 @@
 #  define _MAX_PATH           PATH_MAX
 # endif
 # define HAVE_FCNTL_H         1
+# define SIZEOF_LONG          4
 #endif
 
 #if defined(_AMIGA)
@@ -286,4 +296,5 @@
 # define HAVE_VFPRINTF        1
 # define UNIX                 1
 # define HAVE_FCNTL_H         1
+# define SIZEOF_LONG          4
 #endif

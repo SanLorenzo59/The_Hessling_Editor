@@ -5,7 +5,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -31,10 +31,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: comm4.c,v 1.38 2006/01/04 04:38:13 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -44,7 +43,7 @@ COMMAND
      popup - display popup menu
 
 SYNTAX
-     POPUP [MOUSE|TEXT|CENTER|CENTRE|BELOW|ABOVE] [INITIAL n] [ESCAPE keyname] /item1[/item2/...]
+     POPUP [MOUSE|TEXT|CENTER|CENTRE|BELOW|ABOVE] [INITIAL n] [ESCAPE keyname] [KEYS keyname,keyname,...] /item1[/item2/...]
 
 DESCRIPTION
      The POPUP command allows the user to create and display a popup
@@ -58,7 +57,8 @@ DESCRIPTION
      a mouse event.
 
      'TEXT' specifies that the top left corner of the popup menu is to
-     be displayed where the text cursor is displayed.
+     be displayed where the text cursor is displayed. If the text starts with
+     a dash, then a divider line is inserted.
 
      'ABOVE' specifies that the bottom row of the popup window is to be displayed
      above the line where the text cursor is displayed.  The popup window will use at
@@ -82,12 +82,17 @@ DESCRIPTION
      window without making a selection.  By default 'q' will quit. Only keynames
      that are valid with the <DEFINE> command are allowed.
 
+     'KEYS' specifies a list of keynames that can be used to exit from the popup
+     with a selection. Only keynames that are valid with the <DEFINE> command are allowed.
+     A maximum of 20 keynames can be specified.
+
      On return from the popup menu, the following Rexx variables are set:
 
-          popup.0 = 2
+          popup.0 = 4
           popup.1 = Item selected or empty string if no item selected.
           popup.2 = Item number selected or zero if no item selected.
           popup.3 = Item number on which the cursor was last positioned.
+          popup.4 = The index into the list of 'KEYS' that terminated the popup or 0 if ENTER used.
 
      If mouse support is available, an item is selectable by clicking
      the first mouse button on the item.  To quit from the popup window
@@ -101,11 +106,12 @@ DESCRIPTION
 
           Border           -  <SET COLOR> DIVIDER
           Non-current line -  <SET COLOR> BLOCK
-          Current line     -  <SET COLOR> CBLOCK
+          Current line     -  <SET COLOR> FILEAREA
+          Divider line     -  <SET COLOR> STATAREA
 
 COMPATIBILITY
      XEDIT: N/A
-     KEDIT: KEDIT does not support INITIAL, ESCAPE, ABOVE or BELOW options.
+     KEDIT: KEDIT does not support INITIAL, ESCAPE, KEYS, ABOVE or BELOW options.
 
 SEE ALSO
      <DIALOG>, <ALERT>
@@ -160,7 +166,7 @@ DESCRIPTION
          MARGINS
          MSGLINE
          MSGMODE
-         NEWLINE
+         NEWLINES
          NUMBER
          POSITION
          PREFIX
@@ -171,19 +177,25 @@ DESCRIPTION
          SYNONYM
          TABLINE
          TABS
+         THIGHLIGHT
+         TOFEOF
          VERIFY
          VERSHIFT
          WORD
          WORDWRAP
+         WRAP
          ZONE
 
      The following file level settings are saved:
          AUTOSAVE
          BACKUP
-         COLOUR
-         ECOLOUR
+         COLOUR/COLOR
+         COLOURING/COLORING
+         ECOLOUR/ECOLOR
          EOLOUT
          TABSOUT
+         TRAILING
+
 
 COMPATIBILITY
      XEDIT: Compatible.
@@ -205,15 +217,15 @@ CHARTYPE *params;
 {
    short rc=RC_OK;
 
-   TRACE_FUNCTION("comm4.c:   Preserve");
+   TRACE_FUNCTION( "comm4.c:   Preserve" );
    /*
     * Don't allow any parameters
     */
-   if (!blank_field(params))
+   if ( !blank_field(params) )
    {
-      display_error(1,params,FALSE);
+      display_error( 1, params, FALSE );
       TRACE_RETURN();
-      return(RC_INVALID_OPERAND);
+      return( RC_INVALID_OPERAND );
    }
    rc = execute_preserve( &CURRENT_VIEW->preserved_view_details, &CURRENT_FILE->preserved_file_details );
 
@@ -372,7 +384,7 @@ CHARTYPE *params;
    unsigned short num_params=0;
    short page_break=0;
    short rc=RC_OK;
-   short target_type=TARGET_NORMAL|TARGET_ALL|TARGET_BLOCK_CURRENT|TARGET_SPARE;
+   long target_type=TARGET_NORMAL|TARGET_ALL|TARGET_BLOCK_CURRENT|TARGET_SPARE;
    TARGET target;
   #if defined(UNIX)
    CHARTYPE *line_term = (CHARTYPE *)"\n";
@@ -661,48 +673,46 @@ CHARTYPE *params;
    unsigned short num_params=0;
    register short i=0;
    short itemno=0;
-   CHARTYPE save_msgline_base = CURRENT_VIEW->msgline_base;
-   short save_msgline_off = CURRENT_VIEW->msgline_off;
-   ROWTYPE save_msgline_rows = CURRENT_VIEW->msgline_rows;
    bool save_msgmode_status = CURRENT_VIEW->msgmode_status;
    CHARTYPE item_type=0;
 
-   TRACE_FUNCTION("comm4.c:   Query");
+   TRACE_FUNCTION( "comm4.c:   Query" );
    strip[0]=STRIP_BOTH;
    strip[1]=STRIP_NONE;
-   num_params = param_split(params,word,QUE_PARAMS,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
-   if ((itemno = find_query_item(word[0],strlen((DEFCHAR *)word[0]),&item_type)) == (-1)
-   || !(item_type & QUERY_QUERY))
+   num_params = param_split( params, word, QUE_PARAMS, WORD_DELIMS, TEMP_PARAM, strip, FALSE );
+   if ( ( itemno = find_query_item( word[0], strlen( (DEFCHAR *)word[0] ), &item_type ) ) == (-1)
+   ||  !( item_type & QUERY_QUERY ) )
    {
-      display_error(1,params,FALSE);
+      display_error( 1, params, FALSE );
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
-
-   itemno = get_item_values(1,itemno,(CHARTYPE *)word[1],QUERY_QUERY,0L,NULL,0L);
+   /*
+    * Note that multi-line outputs like PARSER or COLOR will be displayed as part
+    * of get_item_values()
+    */
+   itemno = get_item_values( 1, itemno, (CHARTYPE *)word[1], QUERY_QUERY, 0L, NULL, 0L );
    /*
     * Save the current position and size of the message line so we can
     * restore it. Do it after we have queried the status, otherwise
     * the status of msgline will be stuffed!
     */
-   CURRENT_VIEW->msgline_base   = POSITION_TOP;
-   CURRENT_VIEW->msgline_off    = 1;
-   CURRENT_VIEW->msgline_rows   = min(terminal_lines-1,itemno);
    CURRENT_VIEW->msgmode_status = TRUE;
-   if (itemno != EXTRACT_ARG_ERROR
-   &&  itemno != EXTRACT_VARIABLES_SET)
+   /*
+    * We display output from QUERY here only for single line queries.
+    * Multi-line displays will have set itemno = EXTRACT_VARIABLES_SET
+    */
+   if ( itemno != EXTRACT_ARG_ERROR
+   &&   itemno != EXTRACT_VARIABLES_SET )
    {
-      strcpy((DEFCHAR *)temp_cmd,"");
-      for (i=0;i<itemno+1;i++)
+      strcpy( (DEFCHAR *)temp_cmd, "" );
+      for ( i = 0; i < itemno + 1; i++ )
       {
-         strcat((DEFCHAR *)temp_cmd,(DEFCHAR *)item_values[i].value);
-         strcat((DEFCHAR *)temp_cmd," ");
+         strcat( (DEFCHAR *)temp_cmd, (DEFCHAR *)item_values[i].value );
+         strcat( (DEFCHAR *)temp_cmd, " " );
       }
-      display_error(0,temp_cmd,TRUE);
+      display_error( 0, temp_cmd, TRUE );
    }
-   CURRENT_VIEW->msgline_base   = save_msgline_base;
-   CURRENT_VIEW->msgline_off    = save_msgline_off;
-   CURRENT_VIEW->msgline_rows   = save_msgline_rows;
    CURRENT_VIEW->msgmode_status = save_msgmode_status;
    TRACE_RETURN();
    return(RC_OK);
@@ -874,6 +884,10 @@ CHARTYPE *params;
    if ( equal( (CHARTYPE *)"key", word[0], 3) )
    {
       /*
+       * Move the cursor to the current location - Bug #3370863.
+       */
+      wmove( CURRENT_WINDOW, y, x );
+      /*
        * Find the item in the list of valid extract options...
        */
       if ( ( itemno = find_query_item( (CHARTYPE *)"READV", 5, &item_type ) ) == (-1) )
@@ -917,7 +931,7 @@ CHARTYPE *params;
          cmd_rec_len = 0;
          wmove(CURRENT_WINDOW_COMMAND,0,0);
          if ( !cursor_on_cmdline )
-            THEcursor_home( TRUE );
+            THEcursor_home( current_screen, CURRENT_VIEW, TRUE );
       }
       else
       {
@@ -1030,7 +1044,6 @@ CHARTYPE *params;
          if ( record_fp == NULL )
          {
             display_error( 8, (CHARTYPE *)"", FALSE );
-            TRACE_RETURN();
             rc = RC_INVALID_OPERAND;
          }
          else
@@ -1048,7 +1061,6 @@ CHARTYPE *params;
             if ( ( record_status = (CHARTYPE *)(*the_malloc)( 27+strlen( (DEFCHAR *)word[0] ) ) ) == NULL )
             {
                display_error( 30, (CHARTYPE *)"", FALSE );
-               TRACE_RETURN();
                rc = RC_OUT_OF_MEMORY;
                fclose( record_fp );
                record_fp = NULL;
@@ -1059,7 +1071,6 @@ CHARTYPE *params;
       else
       {
          display_error( 2, (CHARTYPE *)"", FALSE );
-         TRACE_RETURN();
          rc = RC_INVALID_OPERAND;
       }
    }
@@ -1144,9 +1155,9 @@ SYNTAX
 
 DESCRIPTION
      The REDIT command removes the current file from ring, discarding
-     any changes since the file was last saved either explicitly with
-     the <SAVE> command or implicitly by <SET AUTOSAVE>, and loads the
-     file back into the ring.
+     any changes since the file was last saved explicitly with the
+     <SAVE> or <SSAVE> command or the original file version and loads the file
+     back into the ring.
 
 COMPATIBILITY
      XEDIT: N/A
@@ -1392,7 +1403,7 @@ CHARTYPE *params;
    short rc=RC_OK;
    short direction=0;
    TARGET target;
-   short target_type=TARGET_NORMAL;
+   long target_type=TARGET_NORMAL;
 
    TRACE_FUNCTION("comm4.c:   Repeat");
    if (strcmp("",(DEFCHAR *)params) == 0)
@@ -1423,18 +1434,23 @@ CHARTYPE *params;
     * Repeat the last command until the number of lines has been reached
     * or the last command returns non-zero.
     */
-   in_repeat = TRUE;
 
    while(num_lines-- > 0)
    {
       rc = advance_current_or_focus_line((LINETYPE)direction);
       if (rc != RC_OK)
          break;
-      rc = command_line(last_command_for_repeat,COMMAND_ONLY_FALSE);
+      if ( in_macro )
+      {
+         rc = command_line(last_command_for_repeat_in_macro,COMMAND_ONLY_FALSE);
+      }
+      else
+      {
+         rc = command_line(last_command_for_repeat,COMMAND_ONLY_FALSE);
+      }
       if (rc != RC_OK)
          break;
    }
-   in_repeat = FALSE;
    display_screen(current_screen);
    TRACE_RETURN();
    return(rc);
@@ -1477,11 +1493,21 @@ CHARTYPE *params;
    post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
    if (CURRENT_VIEW->hex)
    {
-      if ((len_params = convert_hex_strings(params)) == (-1))
+      len_params = convert_hex_strings( params );
+      switch( len_params )
       {
-         display_error(32,params,FALSE);
-         TRACE_RETURN();
-         return(RC_INVALID_OPERAND);
+         case -1: /* invalid hex value */
+            display_error( 32, params, FALSE );
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+            break;
+         case -2: /* memory exhausted */
+            display_error( 30, (CHARTYPE *)"", FALSE );
+            TRACE_RETURN();
+            return(RC_OUT_OF_MEMORY);
+            break;
+         default:
+            break;
       }
    }
    else
@@ -1505,7 +1531,7 @@ CHARTYPE *params;
    /*
     * Delete the line, but don't delete the line names...
     */
-   curr = delete_LINE( CURRENT_FILE->first_line, CURRENT_FILE->last_line, curr, DIRECTION_FORWARD, FALSE );
+   curr = delete_LINE( &CURRENT_FILE->first_line, &CURRENT_FILE->last_line, curr, DIRECTION_FORWARD, FALSE );
    curr = curr->prev;
    if ( ( curr = add_LINE( CURRENT_FILE->first_line, curr, params, len_params, current_select, TRUE ) ) == NULL )
    {
@@ -1648,15 +1674,15 @@ CHARTYPE *params;
 {
    short rc=RC_OK;
 
-   TRACE_FUNCTION("comm4.c:   Restore");
+   TRACE_FUNCTION( "comm4.c:   Restore" );
    /*
     * Don't allow any parameters
     */
-   if (!blank_field(params))
+   if ( !blank_field( params ) )
    {
-      display_error(1,params,FALSE);
+      display_error( 1, params, FALSE );
       TRACE_RETURN();
-      return(RC_INVALID_OPERAND);
+      return( RC_INVALID_OPERAND );
    }
    rc = execute_restore( &CURRENT_VIEW->preserved_view_details, &CURRENT_FILE->preserved_file_details );
    TRACE_RETURN();
@@ -1812,6 +1838,8 @@ DESCRIPTION
 
      If 'n' is supplied, the screen scrolls by that many columns.
 
+     RIGHT 0 is equivalent to <SET VERIFY> 1
+
      If 'HALF' is specified the screen is scrolled by half the number
      of columns in the <filearea>.
 
@@ -1826,7 +1854,7 @@ COMPATIBILITY
      KEDIT: Compatible.
 
 SEE ALSO
-     <LEFT>, <RGTLEFT>
+     <LEFT>, <RGTLEFT>, <SET VERIFY>
 
 STATUS
      Complete.
@@ -1847,11 +1875,11 @@ CHARTYPE *params;
    /*
     * Validate only parameter, HALF or positive integer. 1 if no argument.
     */
-   if (equal((CHARTYPE *)"half",params,4))
+   if ( equal( (CHARTYPE *)"half", params, 4 ) )
       shift_val = CURRENT_SCREEN.cols[WINDOW_FILEAREA]/2;
-   else if (equal((CHARTYPE *)"full",params,4))
+   else if ( equal( (CHARTYPE *)"full", params, 4 ) )
       shift_val = CURRENT_SCREEN.cols[WINDOW_FILEAREA];
-   else if (blank_field(params))
+   else if ( blank_field( params ) )
       shift_val = 1L;
    else
    {
@@ -1865,18 +1893,24 @@ CHARTYPE *params;
          TRACE_RETURN();
          return(RC_INVALID_OPERAND);
       }
-      shift_val = atol((DEFCHAR *)params);
+      shift_val = atol( (DEFCHAR *)params );
    }
    /*
-    * If the argument is 0, leave verify columns as is
+    * If the argument is 0, set verify column to 1
     */
-   if (shift_val != 0L)
+   if ( shift_val == 0L )
+   {
+      CURRENT_VIEW->verify_col = 1;
+   }
+   else
+   {
       CURRENT_VIEW->verify_col = max(1,CURRENT_VIEW->verify_col+shift_val);
+   }
 #ifdef MSWIN
-   Win31HScroll(CURRENT_VIEW->verify_col);
+   Win31HScroll( CURRENT_VIEW->verify_col );
 #endif
-   build_screen(current_screen);
-   display_screen(current_screen);
+   build_screen( current_screen );
+   display_screen( current_screen );
    TRACE_RETURN();
    return(rc);
 }
@@ -1950,7 +1984,7 @@ DESCRIPTION
      after confirming each individual change with the user.
 
      The first parameter to the change command is the old and new
-     string values, seperated by delimiters.
+     string values, separated by delimiters.
      The allowable delimiters are '/' '\' and '@'.
 
      The second parameter is the <target>; how many lines are to be
@@ -1986,7 +2020,9 @@ CHARTYPE *params;
    short rc=RC_OK;
 
    TRACE_FUNCTION( "comm4.c:   Schange" );
+   interactive_in_macro = TRUE;
    rc = execute_change_command( params, TRUE );
+   interactive_in_macro = FALSE;
    TRACE_RETURN();
    return(rc);
 }
@@ -2005,7 +2041,7 @@ DESCRIPTION
 
      The SEARCH command is similar to the <LOCATE> command, but it
      only locates strings or regular expressions. The advantage of SEARCH
-     over LOCATE, is that targets are searched from the current <focus line>
+     over LOCATE is that targets are searched from the current <focus line>
      and <focus column> and if the found target is not currently in view,
      it will change the view to make the target visible. This behaviour is
      more compatible with other editors than the behaviour of <LOCATE>.
@@ -2127,8 +2163,8 @@ CHARTYPE *params;
    LENGTHTYPE num_cols=0L;
    short num_params=0;
    short rc=RC_OK;
-   short target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
-   short save_target_type=TARGET_UNFOUND;
+   long target_type=TARGET_NORMAL|TARGET_BLOCK_CURRENT|TARGET_ALL;
+   long save_target_type=TARGET_UNFOUND;
    TARGET target;
    bool num_lines_based_on_scope=FALSE;
    CHARTYPE _THE_FAR buffer[100];
@@ -2217,7 +2253,7 @@ CHARTYPE *params;
    /*
     * Now we are here, everything's OK, do the actual shift...
     */
-   rc = execute_shift_command(shift_left,num_cols,true_line,num_lines,num_lines_based_on_scope,save_target_type,FALSE,FALSE);
+   rc = execute_shift_command( current_screen, CURRENT_VIEW, shift_left, num_cols, true_line, num_lines, num_lines_based_on_scope, save_target_type, FALSE, FALSE );
    TRACE_RETURN();
    return(rc);
 }
@@ -2264,6 +2300,11 @@ CHARTYPE *params;
     */
    if (strcmp((DEFCHAR *)params,"") == 0)
    {
+      /*
+       * Turn off the cursor.
+       */
+      draw_cursor(FALSE);
+      wrefresh(CURRENT_WINDOW);
       display_prompt((CHARTYPE *)"Press the key to be translated...spacebar to exit");
       key = 0;
       while(key != ' ')
@@ -2277,8 +2318,8 @@ CHARTYPE *params;
                (void)THERefresh((CHARTYPE *)"");
             }
 #endif
-            key = my_getch(stdscr);
-#if defined(XCURSES)
+            key = my_getch( CURRENT_WINDOW );
+#if defined(USE_XCURSES)
             if (key == KEY_SF || key == KEY_SR)
                continue;
 #endif
@@ -2305,6 +2346,10 @@ CHARTYPE *params;
          clear_msgline(-1);
          display_prompt( get_key_definition( key, THE_KEY_DEFINE_SHOW, TRUE, mouse_key ) );
       }
+      /*
+       * Turn on the cursor.
+       */
+      draw_cursor(TRUE);
       clear_msgline(-1);
    }
    else
@@ -2328,10 +2373,10 @@ COMMAND
      sort - sort selected lines in a file
 
 SYNTAX
-     SORT target [[sort field 1] [...] [sort field 10]]
+     SORT target [[sort field 1] [...] [sort field 1000]]
 
 DESCRIPTION
-     The SORT command sort a portion of a file based on the 'sort field'
+     The SORT command sorts a portion of a file based on the 'sort field'
      specifications.
 
      A 'sort field' specification consists of:
@@ -2340,9 +2385,14 @@ DESCRIPTION
           left column  - left column of field to sort on
           right column - right column of field to sort on
 
+     If the 'order flag' is omitted for a 'sort field', the 'order flag' for
+     the previous 'sort field' is used. If no 'order flag' is specified, all
+     sort fields are sorted in acending order. Therefore
+     SORT * D 1 1 2 2 A 3 3 4 4 is the same as SORT * D 1 1 D 2 2 A 3 3 A 4 4
+
      The right column MUST be >= left column.
 
-     Only 10 sort fields are allowed.
+     1000 sort fields are allowed.
 
      <'target'> can be any valid target including ALL, *, -*, and BLOCK.
 
@@ -2712,7 +2762,7 @@ CHARTYPE *params;
             }
 #endif
             key = my_getch( stdscr );
-#if defined(XCURSES)
+#if defined(USE_XCURSES)
             if ( key == KEY_SF || key == KEY_SR )
                continue;
 #endif
@@ -2774,7 +2824,7 @@ CHARTYPE *params;
 /***********************************************************************/
 {
    short rc=RC_OK;
-#if defined(UNIX) && !defined(XCURSES)
+#if defined(UNIX) && !defined(USE_XCURSES)
    void (*func)(int);
 #endif
 
@@ -2785,7 +2835,7 @@ CHARTYPE *params;
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
-#if defined(UNIX) && !defined(XCURSES)
+#if defined(UNIX) && !defined(USE_XCURSES)
    if (strcmp("/bin/sh",getenv("SHELL")) == 0)
    {
       display_error(40,(CHARTYPE *)"",FALSE);

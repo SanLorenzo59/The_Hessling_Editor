@@ -4,7 +4,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -30,10 +30,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: nonansi.c,v 1.20 2006/01/29 08:02:29 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -44,7 +43,7 @@ static char RCSid[] = "$Id: nonansi.c,v 1.20 2006/01/29 08:02:29 mark Exp $";
 #include <errno.h>
 
 /*#define DEBUG 1*/
-#ifdef __EMX__            /* prevent DOS- and OS2-include's    */
+#ifdef __EMX__            /* prevent DOS- and OS2-includes    */
 #elif defined(DOS)
 #  include <dos.h>
 #  if !defined(GO32)
@@ -60,6 +59,16 @@ static char RCSid[] = "$Id: nonansi.c,v 1.20 2006/01/29 08:02:29 mark Exp $";
 
 #if defined(WIN32) && defined(_MSC_VER)
 # include <direct.h>
+#endif
+/*
+ * Replace non-ANSI defs with ANSI ones
+ */
+#ifndef S_IFMT
+# if defined(__S_IFMT)
+#  define S_IFMT __S_IFMT
+# elif defined(_S_IFMT)
+#  define S_IFMT _S_IFMT
+# endif
 #endif
 
 /***********************************************************************/
@@ -192,7 +201,7 @@ CHARTYPE *outfilename,*infilename;
    {
       strcpy( (DEFCHAR *)outfilename, (DEFCHAR *)infilename );
       TRACE_RETURN();
-   return;
+      return;
    }
   /*
    * Split the incoming file name into 2 or 3 pieces; fpath/filename or
@@ -278,7 +287,7 @@ CHARTYPE *outfilename,*infilename;
     * Now its time to put the new file name together
     */
 #if defined(DOS) || defined(OS2) || (defined(WIN32) && !defined(__CYGWIN32__)) || defined(__EMX__)
-   if ( in_fmode && strcmp( (DEFCHAR *)EQUIVCHARstr, (DEFCHAR *)in_fmode ) != 0 )
+   if ( in_fmode && !equal( in_fmode, EQUIVCHARstr, 1 ) )
       strcpy( (DEFCHAR *)outfilename, (DEFCHAR *)in_fmode );
    else
       strcpy( (DEFCHAR *)outfilename, (DEFCHAR *)current_fmode );
@@ -286,16 +295,16 @@ CHARTYPE *outfilename,*infilename;
 #else
    strcpy( (DEFCHAR *)outfilename, "" );
 #endif
-   if ( in_fpath && strcmp( (DEFCHAR *)EQUIVCHARstr, (DEFCHAR *)in_fpath ) != 0 )
+   if ( in_fpath && !equal( in_fpath, EQUIVCHARstr, 1 ) )
       strcat( (DEFCHAR *)outfilename, (DEFCHAR *)in_fpath );
    else
       strcat( (DEFCHAR *)outfilename, (DEFCHAR *)current_fpath );
    strcat( (DEFCHAR *)outfilename, (DEFCHAR *)ISTR_SLASH );
-   if ( in_fname && strcmp( (DEFCHAR *)EQUIVCHARstr, (DEFCHAR *)in_fname ) != 0 )
+   if ( in_fname && !equal( in_fname, EQUIVCHARstr, 1 ) )
       strcat( (DEFCHAR *)outfilename, (DEFCHAR *)in_fname );
    else
       strcat( (DEFCHAR *)outfilename, (DEFCHAR *)current_fname );
-   if ( in_ftype && strcmp( (DEFCHAR *)EQUIVCHARstr, (DEFCHAR *)in_ftype ) != 0 )
+   if ( in_ftype && !equal( in_ftype, EQUIVCHARstr, 1 ) )
    {
       strcat( (DEFCHAR *)outfilename, "." );
       strcat( (DEFCHAR *)outfilename, (DEFCHAR *)in_ftype );
@@ -349,14 +358,24 @@ CHARTYPE *filename;
 #endif
 
    TRACE_FUNCTION("nonansi.c: splitpath");
+
+   if ( strlen( (DEFCHAR *)filename ) > MAX_FILE_NAME )
+   {
+      TRACE_RETURN();
+      return(RC_BAD_FILEID);
+   }
    /*
     * Save the current directory.
     */
 #if defined(EMX)
-   _getcwd2(curr_path,MAX_FILE_NAME);
+   if ( _getcwd2( curr_path, MAX_FILE_NAME ) == NULL )
 #else
-   getcwd((DEFCHAR *)curr_path,MAX_FILE_NAME);
+   if ( getcwd( (DEFCHAR *)curr_path, MAX_FILE_NAME ) == NULL )
 #endif
+   {
+      TRACE_RETURN();
+      return(RC_BAD_FILEID);
+   }
    strcpy(sp_path,"");
    strcpy(sp_fname,"");
    convert_equals_in_filename( conv_filename, filename );
@@ -613,10 +632,20 @@ CHARTYPE *filename;
    CHARTYPE _THE_FAR conv_filename[MAX_FILE_NAME+1] ;
 
    TRACE_FUNCTION("nonansi.c: splitpath");
+
+   if ( strlen( (DEFCHAR *)filename ) > MAX_FILE_NAME )
+   {
+      TRACE_RETURN();
+      return(RC_BAD_FILEID);
+   }
    /*
     * Copy the argument to a working area
     */
-   getcwd((DEFCHAR *)curr_path,MAX_FILE_NAME);
+   if ( getcwd( (DEFCHAR *)curr_path, MAX_FILE_NAME ) == NULL )
+   {
+      TRACE_RETURN();
+      return(RC_BAD_FILEID);
+   }
    strcpy((DEFCHAR *)sp_path,"");
    strcpy((DEFCHAR *)sp_fname,"");
    convert_equals_in_filename(conv_filename,filename);
@@ -729,10 +758,20 @@ CHARTYPE *filename;
    CHARTYPE _THE_FAR work_filename[MAX_FILE_NAME+1] ;
 
    TRACE_FUNCTION("nonansi.c: splitpath");
+
+   if ( strlen( (DEFCHAR *)filename ) > MAX_FILE_NAME )
+   {
+      TRACE_RETURN();
+      return(RC_BAD_FILEID);
+   }
    /*
     * Save the current directory.
     */
-   getcwd((DEFCHAR *)curr_path,MAX_FILE_NAME);
+   if ( getcwd( (DEFCHAR *)curr_path, MAX_FILE_NAME ) == NULL )
+   {
+      TRACE_RETURN();
+      return(RC_BAD_FILEID);
+   }
    strcpy((DEFCHAR *)sp_path,"");
    strcpy((DEFCHAR *)sp_fname,"");
    convert_equals_in_filename(work_filename,filename);
@@ -749,7 +788,7 @@ CHARTYPE *filename;
     * First determine if the supplied filename is a directory.
     */
    if ((stat((DEFCHAR *)work_filename,&stat_buf) == 0)
-   &&  (stat_buf.st_mode & S_IFMT) == S_IFDIR)
+   &&  (is_a_dir(stat_buf.st_mode)))
    {
       strcpy((DEFCHAR *)sp_path,(DEFCHAR *)work_filename);
       strcpy((DEFCHAR *)sp_fname,"");
@@ -814,17 +853,27 @@ CHARTYPE *filename;
    CHARTYPE _THE_FAR conv_filename[MAX_FILE_NAME+1] ;
 
    TRACE_FUNCTION("nonansi.c: splitpath");
+
+   if ( strlen( (DEFCHAR *)filename ) > MAX_FILE_NAME )
+   {
+      TRACE_RETURN();
+      return(RC_BAD_FILEID);
+   }
    /*
     * Save the current directory.
     */
 #if defined(EMX)
-   _getcwd2(curr_path,MAX_FILE_NAME);
+   if ( _getcwd2( curr_path, MAX_FILE_NAME ) == NULL )
 #else
-   getcwd((DEFCHAR *)curr_path,MAX_FILE_NAME);
+   if ( getcwd( (DEFCHAR *)curr_path, MAX_FILE_NAME ) == NULL )
 #endif
-   strcpy((DEFCHAR *)sp_path,"");
-   strcpy((DEFCHAR *)sp_fname,"");
-   convert_equals_in_filename(conv_filename,filename);
+   {
+      TRACE_RETURN();
+      return(RC_BAD_FILEID);
+   }
+   strcpy( (DEFCHAR *)sp_path, "" );
+   strcpy( (DEFCHAR *)sp_fname, "" );
+   convert_equals_in_filename( conv_filename, filename );
    if ( strlen( (DEFCHAR *)conv_filename ) > MAX_FILE_NAME )
    {
       TRACE_RETURN();
@@ -837,7 +886,11 @@ CHARTYPE *filename;
     */
    if (strcmp((DEFCHAR *)filename,"") == 0)
    {
-      getcwd((DEFCHAR *)sp_path,MAX_FILE_NAME);
+      if ( getcwd( (DEFCHAR *)sp_path, MAX_FILE_NAME ) == NULL )
+      {
+         TRACE_RETURN();
+         return(RC_BAD_FILEID);
+      }
       strcpy((DEFCHAR *)sp_fname,"");
    }
    /*
@@ -850,8 +903,14 @@ CHARTYPE *filename;
       if (*(conv_filename+1) == ISLASH
       ||  *(conv_filename+1) == '\0')
       {
-         strcpy((DEFCHAR *)work_filename,(DEFCHAR *)getenv("HOME"));
-         strcat((DEFCHAR *)work_filename,(DEFCHAR *)(conv_filename+1));
+         CHARTYPE *home = (CHARTYPE *)getenv("HOME");
+         if ( ((home==NULL) ? 0 : strlen( (DEFCHAR *)home )) + strlen( (DEFCHAR *)conv_filename ) > MAX_FILE_NAME )
+         {
+            TRACE_RETURN();
+            return(RC_BAD_FILEID);
+         }
+         strcpy( (DEFCHAR *)work_filename, (DEFCHAR *)home );
+         strcat( (DEFCHAR *)work_filename, (DEFCHAR *)(conv_filename+1));
       }
       else
       {
@@ -875,7 +934,7 @@ CHARTYPE *filename;
     * First determine if the supplied filename is a directory.
     */
    if ((stat((DEFCHAR *)work_filename,&stat_buf) == 0)
-   &&  (stat_buf.st_mode & S_IFMT) == S_IFDIR)
+   &&  (is_a_dir(stat_buf.st_mode)))
    {
       strcpy((DEFCHAR *)sp_path,(DEFCHAR *)work_filename);
       strcpy((DEFCHAR *)sp_fname,"");
@@ -886,7 +945,11 @@ CHARTYPE *filename;
       switch(len)
       {
          case (-1):
-            getcwd((DEFCHAR *)sp_path,MAX_FILE_NAME);
+            if ( getcwd( (DEFCHAR *)sp_path, MAX_FILE_NAME ) == NULL )
+            {
+               TRACE_RETURN();
+               return(RC_BAD_FILEID);
+            }
             strcpy((DEFCHAR *)sp_fname,(DEFCHAR *)work_filename);
             break;
          case 0:
@@ -912,7 +975,11 @@ CHARTYPE *filename;
       TRACE_RETURN();
       return(RC_FILE_NOT_FOUND);
    }
-   getcwd((DEFCHAR *)sp_path,MAX_FILE_NAME);
+   if ( getcwd( (DEFCHAR *)sp_path, MAX_FILE_NAME ) == NULL )
+   {
+      TRACE_RETURN();
+      return(RC_BAD_FILEID);
+   }
    chdir((DEFCHAR *)curr_path);
    /*
     * Append the OS directory character to the path if it doesn't already
@@ -1100,9 +1167,9 @@ int from_get;
  */
 {
    LINE *curr=now;
+#if defined(PDC_CLIP_SUCCESS)
    LINE *clip_first_line=NULL;
    LINE *my_first_line=NULL;
-#if defined(PDC_CLIP_SUCCESS)
    CHARTYPE *ptr=NULL;
    LINETYPE i,line_start,numlines=0,numcols=0;
    LENGTHTYPE maxlen=0;
@@ -1113,6 +1180,7 @@ int from_get;
 # else
    int offset = 1;
 # endif
+   int this_offset;
 #endif
 
 #if defined(PDC_CLIP_SUCCESS)
@@ -1155,10 +1223,15 @@ int from_get;
    }
    for (i=0; i<length; i++)
    {
-      if (*(ptr+i) == 0x0A) /* CR was prior character */
+      if ( i - line_start == max_line_length /* exceeding WIDTH */
+      ||   *(ptr+i) == 0x0A ) /* CR may have been prior character */
       {
-         *(ptr+i-offset) = '\0';
-         numcols = i-line_start-offset;
+         if ( *(ptr+i) == 0x0A )
+            this_offset = offset;
+         else
+            this_offset = 0;
+         numcols = i - line_start - this_offset;
+/*         *(ptr+i-offset) = '\0'; */
          if ( ( curr = add_LINE( my_first_line, curr, ptr+line_start, numcols, 0, TRUE ) ) == NULL )
          {
             curr = NULL;
@@ -1168,10 +1241,13 @@ int from_get;
          {
             clip_first_line = my_first_line = curr;
          }
-         line_start = i+1;
+         if ( *(ptr+i) == 0x0A )
+            line_start = i+1;
+         else
+            line_start = i;
          numlines++;
-         if (i-line_start-offset > maxlen)
-            maxlen = i-line_start-offset;
+         if (i - line_start - this_offset > maxlen)
+            maxlen = i - line_start - this_offset;
       }
    }
    if (line_start != i )
@@ -1264,7 +1340,8 @@ int target_type;
     * CUA block can have start position after end position, so fix this up so
     * start position is less than end position
     */
-   if ( MARK_VIEW->mark_type == M_CUA
+   if ( MARK_VIEW
+   &&   MARK_VIEW->mark_type == M_CUA
    && ( start_line * max_line_length ) + start_col > (end_line * max_line_length ) + end_col )
    {
       start_line = end_line_in;
@@ -1298,7 +1375,7 @@ int target_type;
     * Allocate an initial amount of memory for the clipboard buffer.
     * It will be increased later if required.
     */
-   ptr = (CHARTYPE *)malloc(clip_size);
+   ptr = (CHARTYPE *)(*the_malloc)(clip_size);
    if (!ptr)
    {
       display_error(30,(CHARTYPE *)"",FALSE);
@@ -1417,7 +1494,7 @@ int target_type;
                  len = min( curr->length-start_col, (end_col - start_col) + 1 );
                  if ( pos + len > clip_size )
                  {
-                    ptr = (CHARTYPE *)realloc( (DEFCHAR *)ptr, clip_size * 2 );
+                    ptr = (CHARTYPE *)(*the_realloc)( (DEFCHAR *)ptr, clip_size * 2 );
                     clip_size *= 2;
                  }
                  memcpy( (DEFCHAR *)ptr+pos, (DEFCHAR *)curr->line+start_col, len );
@@ -1425,7 +1502,7 @@ int target_type;
               }
               if ( pos + 1 + eol_len > clip_size )
               {
-                 ptr = (CHARTYPE *)realloc( (DEFCHAR *)ptr, clip_size * 2 );
+                 ptr = (CHARTYPE *)(*the_realloc)( (DEFCHAR *)ptr, clip_size * 2 );
                  if ( !ptr )
                  {
                     display_error( 30, (CHARTYPE *)"", FALSE );
@@ -1463,29 +1540,241 @@ int target_type;
       CURRENT_VIEW->scope_all = save_scope_all;
 
 #if defined(PDC_CLIP_SUCCESS)
-   rc = PDC_setclipboard( (DEFCHAR *)ptr, pos );
-
-   switch( rc )
+   if ( pos )
    {
-      case PDC_CLIP_MEMORY_ERROR:
-         display_error(30,(CHARTYPE *)"",FALSE);
-         TRACE_RETURN();
-         return(RC_OUT_OF_MEMORY);
-         break;
-      case PDC_CLIP_ACCESS_ERROR:
-         display_error(186,(CHARTYPE *)"",FALSE);
-         rc = RC_INVALID_ENVIRON;
-         break;
-      default:
-         rc = RC_OK;
-         break;
+      rc = PDC_setclipboard( (DEFCHAR *)ptr, pos );
+
+      switch( rc )
+      {
+         case PDC_CLIP_MEMORY_ERROR:
+            display_error(30,(CHARTYPE *)"",FALSE);
+            TRACE_RETURN();
+            return(RC_OUT_OF_MEMORY);
+            break;
+         case PDC_CLIP_ACCESS_ERROR:
+            display_error(186,(CHARTYPE *)"",FALSE);
+            rc = RC_INVALID_ENVIRON;
+            break;
+         default:
+            rc = RC_OK;
+            break;
+      }
    }
 #else
    display_error(82,(CHARTYPE *)"CLIP:",FALSE);
    rc = RC_INVALID_ENVIRON;
 #endif
 
-   free(ptr);
+   (*the_free)( (void *)ptr);
    TRACE_RETURN();
    return(rc);
+}
+
+/*
+ * These THE_curs_set() functions required as PDCurses has been changed so that curs_set(1) no longer
+ * results in an underline cursor, it uses the cursor shape when the application
+ * starts, so if you have a block cursor on starting THE, you would not be able to get
+ * an underline cursor.
+ */
+#if defined(OS2)
+# define curs_set THE_curs_set
+static void THE_curs_set( int visibility )
+{
+#ifndef EMXVIDEO
+   VIOMODEINFO modeInfo = {0};
+   VIOCURSORINFO pvioCursorInfo;
+   int pdc_font;
+#endif
+   int hidden = 0, start = 0, end = 0;
+
+#ifndef EMXVIDEO
+   modeInfo.cb = sizeof(modeInfo);
+   VioGetMode( &modeInfo, 0 );
+   pdc_font = (modeInfo.vres / modeInfo.row);
+#endif
+
+   switch( visibility )
+   {
+      case 0: /* invisible */
+#ifdef EMXVIDEO
+         start = end = 0;
+#else
+         start = pdc_font / 4;
+         end = pdc_font;
+         hidden = -1;
+#endif
+         break;
+
+      case 2: /* highly visible */
+         start = 2;  /* almost full-height block */
+         end = pdc_font - 1;
+         break;
+
+      default: /* normal visibility */
+         start = pdc_font - (pdc_font / 4);
+         end = pdc_font - 1;
+         break;
+   }
+
+#ifdef EMXVIDEO
+   if ( !visibility )
+      v_hidecursor();
+   else
+      v_ctype( start, end );
+#else
+   pvioCursorInfo.yStart = (USHORT)start;
+   pvioCursorInfo.cEnd = (USHORT)end;
+   pvioCursorInfo.cx = (USHORT)1;
+   pvioCursorInfo.attr = hidden;
+   VioSetCurType( (PVIOCURSORINFO)&pvioCursorInfo, 0 );
+#endif
+
+   /*
+    * Tell curses internals we have changed visibility
+    */
+   SP->visibility = visibility;
+
+   return;
+}
+#endif
+
+#if defined(WIN32) && !defined(__CYGWIN32__) && !defined(USE_WINGUICURSES)
+# define curs_set THE_curs_set
+# undef MOUSE_MOVED
+# include <windows.h>
+static void THE_curs_set(int visibility)
+{
+   CONSOLE_CURSOR_INFO cci;
+   HANDLE hConOut = GetStdHandle(STD_OUTPUT_HANDLE);
+
+   TRACE_FUNCTION("nonansi,c: THE_curs_set");
+   if ( GetConsoleCursorInfo( hConOut, &cci ) == FALSE )
+   {
+      TRACE_RETURN();
+      return;
+   }
+
+   switch( visibility )
+   {
+      case 0:    /* invisible */
+         cci.bVisible = FALSE;
+         break;
+      case 2:    /* block */
+         cci.bVisible = TRUE;
+         cci.dwSize = 95;
+         break;
+      default:  /* underline */
+         cci.bVisible = TRUE;
+         cci.dwSize = 25;
+         break;
+   }
+
+   if ( SetConsoleCursorInfo( hConOut, &cci ) == FALSE )
+   {
+      TRACE_RETURN();
+      return;
+   }
+
+   /*
+    * Tell curses internals we have changed visibility
+    */
+   SP->visibility = visibility;
+
+   TRACE_RETURN();
+   return;
+}
+#endif
+
+#if defined(DOS)
+# define curs_set THE_curs_set
+static void PDC_curs_set(int visibility)
+{
+   union REGS regs;
+   int start, end;
+
+   /* get scrnmode into regs.h.al */
+   regs.h.ah = 0x0f;
+   int86( 0x10, &regs, &regs );
+
+   switch( visibility )
+   {
+      case 0:  /* invisible */
+         start = 32;
+         end = 0;  /* was 32 */
+         break;
+      case 2:  /* highly visible */
+         start = 0;   /* full-height block */
+         end = 7;
+         break;
+      default:  /* normal visibility */
+         start = 6;
+         end = 7;
+         break;
+   }
+
+   /* if scrnmode is not set, some BIOSes hang */
+   regs.h.ah = 0x01;
+   regs.h.ch = (unsigned char)start;
+   regs.h.cl = (unsigned char)end;
+   int86( 0x10, &regs, &regs );
+
+   /*
+    * Tell curses internals we have changed visibility
+    */
+   SP->visibility = visibility;
+
+   return;
+}
+#endif
+
+/***********************************************************************/
+#ifdef HAVE_PROTO
+void draw_cursor(bool visible)
+#else
+void draw_cursor(visible)
+bool visible;
+#endif
+/***********************************************************************/
+{
+   TRACE_FUNCTION("nonansi,c: draw_cursor");
+#ifdef HAVE_CURS_SET
+   if (visible)
+   {
+      if (INSERTMODEx)
+      {
+         curs_set(1);   /* First set to displayed... */
+         curs_set(2);   /* ...then try to make it more visible */
+      }
+      else
+      {
+         curs_set(1);   /* underline cursor */
+      }
+   }
+   else
+   {
+      curs_set(0);      /* cursor off */
+   }
+#endif
+   TRACE_RETURN();
+   return;
+}
+/*********************************************************************/
+#ifdef HAVE_PROTO
+int is_a_dir(ATTR_TYPE attrs)
+#else
+int is_a_dir(attrs)
+ATTR_TYPE attrs;
+#endif
+/*********************************************************************/
+{
+#if defined(S_IFDIR)
+   ATTR_TYPE ftype=(attrs & S_IFMT);
+
+   if (ftype == S_IFDIR)
+      return(1);
+#else
+   if ((attrs & F_DI) == F_DI)
+      return(1);
+#endif
+   return(0);
 }

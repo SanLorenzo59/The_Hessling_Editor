@@ -5,7 +5,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -31,10 +31,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: comm1.c,v 1.28 2006/01/29 07:59:13 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -122,10 +121,10 @@ CHARTYPE *params;
    }
    num_lines = atol((DEFCHAR *)word[0]);
    post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
-   insert_new_line((CHARTYPE *)"",0,num_lines,get_true_line(TRUE),FALSE,FALSE,TRUE,CURRENT_VIEW->display_low,TRUE,FALSE);
+   insert_new_line( current_screen, CURRENT_VIEW, (CHARTYPE *)"", 0, num_lines, get_true_line(TRUE), FALSE, FALSE, TRUE, CURRENT_VIEW->display_low, TRUE, FALSE );
    if (curses_started
    && CURRENT_VIEW->current_window == WINDOW_COMMAND)
-      THEcursor_home(TRUE);
+      THEcursor_home( current_screen, CURRENT_VIEW, TRUE );
    TRACE_RETURN();
    return(RC_OK);
 }
@@ -177,7 +176,7 @@ CHARTYPE *params;
    if ( BEEPx )
       beep();
 #endif
-   rc = prepare_dialog( params, TRUE, (CHARTYPE *)"ALERT", FALSE );
+   rc = prepare_dialog( params, TRUE, (CHARTYPE *)"ALERT" );
    TRACE_RETURN();
    return(rc);
 }
@@ -192,7 +191,7 @@ DESCRIPTION
      The ALL command allows for the selective display, and editting
      (subject to <SET SCOPE>) of lines that match the specified target.
      This target consists of any number of individual targets
-     seperated by '&' (logical and) or '|' (logical or).
+     separated by '&' (logical and) or '|' (logical or).
 
      For example, to display all lines in a file that contain the
      strings 'ball' and 'cat' on the same line or the named lines
@@ -231,51 +230,51 @@ CHARTYPE *params;
    LINE *curr=NULL;
    bool target_found=FALSE;
    short status=RC_OK;
-   short target_type=TARGET_NORMAL|TARGET_REGEXP;
+   long target_type=TARGET_NORMAL|TARGET_REGEXP;
    TARGET target;
    LINETYPE line_number=0L;
    unsigned short x=0,y=0;
    bool save_scope=FALSE;
    LINETYPE num_lines=0L;
 
-   TRACE_FUNCTION("comm1.c:   All");
-   if (strlen((DEFCHAR *)params) == 0)
+   TRACE_FUNCTION( "comm1.c:   All" );
+   if ( strlen( (DEFCHAR *)params ) == 0 )
    {
-      if (CURRENT_FILE->number_lines == 0L)
+      if ( CURRENT_FILE->number_lines == 0L )
       {
          TRACE_RETURN();
          return(rc);
       }
-      post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
+      post_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL, TRUE );
       curr = CURRENT_FILE->first_line->next;
-      while(1)
+      while( 1 )
       {
          curr->select = 0;
          curr = curr->next;
-         if (curr->next == NULL)
+         if ( curr->next == NULL )
             break;
       }
       CURRENT_VIEW->display_low = 0;
       CURRENT_VIEW->display_high = 0;
-      build_screen(current_screen);
-      display_screen(current_screen);
+      build_screen( current_screen );
+      display_screen( current_screen );
       TRACE_RETURN();
       return(rc);
    }
-   if (CURRENT_FILE->number_lines == 0L)
+   if ( CURRENT_FILE->number_lines == 0L )
    {
-      display_error(17,params,FALSE);
+      display_error( 17, params, FALSE );
       TRACE_RETURN();
       return(RC_TARGET_NOT_FOUND);
    }
    /*
     * Validate the parameters as valid targets...
     */
-   initialise_target(&target);
-   rc = parse_target(params,get_true_line(TRUE),&target,target_type,TRUE,TRUE,FALSE);
-   if (rc != RC_OK)
+   initialise_target( &target );
+   rc = parse_target( params, get_true_line( TRUE ), &target, target_type, TRUE, TRUE, FALSE );
+   if ( rc != RC_OK )
    {
-      free_target(&target);
+      free_target( &target );
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
@@ -283,11 +282,11 @@ CHARTYPE *params;
     * Save the select levels for all lines in case no target is found.
     */
    curr = CURRENT_FILE->first_line->next;
-   while(1)
+   while( 1 )
    {
       curr->save_select = curr->select;
       curr = curr->next;
-      if (curr->next == NULL)
+      if ( curr->next == NULL )
          break;
    }
    /*
@@ -297,15 +296,19 @@ CHARTYPE *params;
    status = FALSE;
    save_scope = CURRENT_VIEW->scope_all;
    CURRENT_VIEW->scope_all = TRUE;
-   for (line_number=0L;curr->next != NULL;line_number++)
+   /*
+    * Tell the target finding stuff we are the TAG command...
+    */
+   target.all_tag_command = TRUE;
+   for ( line_number = 0L; curr->next != NULL; line_number++ )
    {
-      status = find_rtarget_target(curr,&target,0L,line_number,&num_lines);
-      if (status == RC_OK) /* target found */
+      status = find_rtarget_target( curr, &target, 0L, line_number, &num_lines );
+      if ( status == RC_OK ) /* target found */
       {
          target_found = TRUE;
          curr->select = 1;
       }
-      else if (status == RC_TARGET_NOT_FOUND) /* target not found */
+      else if ( status == RC_TARGET_NOT_FOUND ) /* target not found */
       {
          curr->select = 0;
       }
@@ -317,24 +320,22 @@ CHARTYPE *params;
     * If at least one line matches the target, set DISPLAY to 1 1,
     * otherwise reset the select levels as they were before the command.
     */
-   if (target_found)
+   if ( target_found )
    {
-      post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
+      post_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL, TRUE );
       CURRENT_VIEW->display_low = 1;
       CURRENT_VIEW->display_high = 1;
       CURRENT_VIEW->scope_all = FALSE;
-      CURRENT_VIEW->current_line = find_next_in_scope(CURRENT_VIEW,CURRENT_FILE->first_line->next,1L,DIRECTION_FORWARD);
-      build_screen(current_screen);
-      display_screen(current_screen);
-      CURRENT_VIEW->focus_line = calculate_focus_line(CURRENT_VIEW->focus_line,
-                                                    CURRENT_VIEW->current_line);
-      pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
-      if (CURRENT_VIEW->current_window != WINDOW_COMMAND)
+      CURRENT_VIEW->current_line = find_next_in_scope( CURRENT_VIEW, CURRENT_FILE->first_line->next, 1L, DIRECTION_FORWARD );
+      build_screen( current_screen );
+      display_screen( current_screen );
+      CURRENT_VIEW->focus_line = calculate_focus_line( CURRENT_VIEW->focus_line, CURRENT_VIEW->current_line );
+      pre_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL );
+      if ( CURRENT_VIEW->current_window != WINDOW_COMMAND )
       {
-         getyx(CURRENT_WINDOW,y,x);
-         y = get_row_for_focus_line(current_screen,CURRENT_VIEW->focus_line,
-                                  CURRENT_VIEW->current_row);
-         wmove(CURRENT_WINDOW,y,x);
+         getyx( CURRENT_WINDOW, y, x );
+         y = get_row_for_focus_line( current_screen, CURRENT_VIEW->focus_line, CURRENT_VIEW->current_row );
+         wmove( CURRENT_WINDOW, y, x );
       }
       /*
        * If the same file is in the other screen, refresh it
@@ -345,52 +346,56 @@ CHARTYPE *params;
    {
       CURRENT_VIEW->scope_all = save_scope;
       curr = CURRENT_FILE->first_line->next;
-      while(1)
+      while( 1 )
       {
          curr->select = curr->save_select;
          curr = curr->next;
-         if (curr->next == NULL)
+         if ( curr->next == NULL )
             break;
       }
-      if (status == RC_TARGET_NOT_FOUND)
+      if ( status == RC_TARGET_NOT_FOUND )
       {
-         display_error(17,params,FALSE);
+         display_error( 17, params, FALSE );
          rc = RC_TARGET_NOT_FOUND;
       }
       else
          rc = status;
    }
-   free_target(&target);
+   free_target( &target );
    TRACE_RETURN();
    return(rc);
 }
 /*man-start*********************************************************************
 COMMAND
-     backward - scroll backwards [n] screens
+     backward - scroll backward by number of screens or lines
 
 SYNTAX
-     BAckward [n|*]
+     BAckward [n|*|HALF] [Lines]
 
 DESCRIPTION
-     The BACKWARD command scrolls the file contents backwards through
-     the file 'n' or '*' screens.
+     The BACKWARD command scrolls the file contents backwards 'n' screens
+     or 'n' lines if the optional 'Lines' argument is specified.
 
-     If 0 is specified as the number of screens to scroll, the last
+     If '*' is specified, the <Top-File line> becomes the <current line>.
+
+     If 'HALF' is specified, the file contents are scrolled one half of a screen.
+
+     If 0 is specified as the number of lines or screens to scroll, the last
      line of the file becomes the <current line>.
 
-     If the BACKWARD command is issued while the current line is
-     the <Top-of-File line>, the last line of the file becomes the
-     <current line>.
+     If the BACKWARD command is issued while the current line is the
+     <Top-of-File line> and <SET PAGEWRAP> is ON, the last line of the file becomes
+     the <current line>.
 
 COMPATIBILITY
      XEDIT: Compatible.
-     KEDIT: Does not support HALF or Lines options.
+     KEDIT: Compatible
 
 DEFAULT
      1
 
 SEE ALSO
-     <FORWARD>, <TOP>
+     <FORWARD>, <TOP>, <SET PAGEWRAP>
 
 STATUS
      Complete
@@ -403,11 +408,12 @@ CHARTYPE *params;
 #endif
 /***********************************************************************/
 {
-#define BAC_PARAMS  1
+#define BAC_PARAMS  2
    CHARTYPE *word[BAC_PARAMS+1];
    CHARTYPE strip[BAC_PARAMS];
    unsigned short num_params=0;
    LINETYPE num_pages=0L;
+   short scroll_by_page = 1; /* by default we scroll pages */
    short rc=RC_OK;
 
    TRACE_FUNCTION("comm1.c:   Backward");
@@ -415,48 +421,72 @@ CHARTYPE *params;
     * Validate parameters...
     */
    strip[0]=STRIP_BOTH;
+   strip[1]=STRIP_BOTH;
    num_params = param_split(params,word,BAC_PARAMS,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
-   if (num_params == 0)
+   switch( num_params )
    {
-      num_params = 1;
-      word[0] = (CHARTYPE *)"1";
-   }
-   if (num_params != 1)
-   {
-      display_error(1,(CHARTYPE *)word[1],FALSE);
-      TRACE_RETURN();
-      return(RC_INVALID_OPERAND);
-   }
-   /*
-    * If parameter is '*', set current line equal to "Top of File".
-    */
-   if (strcmp((DEFCHAR *)word[0],"*") == 0)
-   {
-      rc = Top((CHARTYPE *)"");
-      TRACE_RETURN();
-      return(rc);
-   }
-   /*
-    * If the parameter is not a valid integer, error.
-    */
-   if (!valid_integer(word[0]))
-   {
-      display_error(1,(CHARTYPE *)word[0],FALSE);
-      TRACE_RETURN();
-      return(RC_INVALID_OPERAND);
-   }
-   /*
-    * Number of screens to scroll is set here.
-    */
-   num_pages = atol((DEFCHAR *)word[0]);
-   /*
-    * If the number specified is < 0, error...
-    */
-   if (num_pages < 0L)
-   {
-      display_error(5,(CHARTYPE *)word[0],FALSE);
-      TRACE_RETURN();
-      return(RC_INVALID_OPERAND);
+      case 0:
+         num_pages = 1;
+         break;
+      case 1:
+         /*
+          * If parameter is '*', set current line equal to "Top of File".
+          */
+         if (strcmp((DEFCHAR *)word[0],"*") == 0)
+         {
+            rc = Top((CHARTYPE *)"");
+            TRACE_RETURN();
+            return(rc);
+         }
+         /*
+          * If parameter is 'HALF', advance half a page
+          */
+         else if (equal((CHARTYPE *)"HALF",word[0],4))
+         {
+            scroll_by_page = 0;
+            num_pages = CURRENT_SCREEN.rows[WINDOW_FILEAREA] / 2;
+         }
+         /*
+          * If the parameter is not a valid positive integer, error.
+          */
+         else if (!valid_positive_integer(word[0]))
+         {
+            display_error(1,(CHARTYPE *)word[0],FALSE);
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+         }
+         else
+         {
+            /*
+             * Number of screens to scroll is set here.
+             */
+            num_pages = atol((DEFCHAR *)word[0]);
+         }
+         break;
+      case 2:
+         if (equal((CHARTYPE *)"Lines",word[1],1))
+         {
+            scroll_by_page = 0;
+            if (!valid_positive_integer(word[0]))
+            {
+               display_error(1,(CHARTYPE *)word[0],FALSE);
+               TRACE_RETURN();
+               return(RC_INVALID_OPERAND);
+            }
+         }
+         else
+         {
+            display_error(1,(CHARTYPE *)word[1],FALSE);
+            TRACE_RETURN();
+            return(RC_INVALID_OPERAND);
+         }
+         num_pages = atol((DEFCHAR *)word[0]);
+         break;
+      default:
+         display_error(2,(CHARTYPE *)"",FALSE);
+         TRACE_RETURN();
+         return(RC_INVALID_OPERAND);
+         break;
    }
    /*
     * If the current line is already on "Top of File" or the parameter is
@@ -472,7 +502,14 @@ CHARTYPE *params;
    /*
     * Scroll the screen num_pages...
     */
-   rc = scroll_page(DIRECTION_BACKWARD,num_pages,FALSE);
+   if ( scroll_by_page )
+   {
+      rc = scroll_page(DIRECTION_BACKWARD,num_pages,FALSE);
+   }
+   else
+   {
+      rc = advance_current_line(-num_pages);
+   }
    TRACE_RETURN();
    return(rc);
 }
@@ -576,52 +613,69 @@ CHARTYPE *params;
 {
    VIEW_DETAILS *save_current_view=(VIEW_DETAILS *)NULL;
    LINETYPE save_number_of_files=number_of_files;
+   VIEW_DETAILS **save_view;
    register int i=0;
 
-   TRACE_FUNCTION("comm1.c:   Cancel");
+   TRACE_FUNCTION( "comm1.c:   Cancel" );
    /*
     * No arguments are allowed; error if any are present.
     */
-   if (strcmp((DEFCHAR *)params,"") != 0)
+   if ( strcmp( (DEFCHAR *)params, "" ) != 0 )
    {
-      display_error(1,(CHARTYPE *)params,FALSE);
+      display_error( 1, (CHARTYPE *)params, FALSE );
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
-   post_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL,TRUE);
-   for (i=0;i<save_number_of_files;i++)
+   post_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL, TRUE );
+
+   if ( ( save_view = (VIEW_DETAILS **)(*the_malloc)( (save_number_of_files) * sizeof(VIEW_DETAILS *) ) ) == NULL )
    {
-      if (CURRENT_FILE->save_alt == 0)
-         free_view_memory(TRUE,FALSE);
-      else
-      {
-         save_current_view = CURRENT_VIEW;
-         CURRENT_VIEW = CURRENT_VIEW->next;
-         if (CURRENT_VIEW == NULL)
-            CURRENT_VIEW = vd_first;
-      }
+      display_error( 30, (CHARTYPE *)"", FALSE );
+      TRACE_RETURN();
+      return(RC_OUT_OF_MEMORY);
    }
-   if (save_current_view != (VIEW_DETAILS *)NULL)
+   /*
+    * Setthe numbr o screens to 1; stops crashes when there are multiple
+    * screens.  A hack yes.
+    */
+   THEScreen( (CHARTYPE *)"1" );
+   CURRENT_VIEW = vd_first;
+   for ( i = 0; i < save_number_of_files; i++ )
+   {
+      save_view[i] = CURRENT_VIEW;
+      CURRENT_VIEW = CURRENT_VIEW->next;
+   }
+   CURRENT_VIEW = vd_first;
+   for ( i = 0; i < save_number_of_files; i++ )
+   {
+      CURRENT_VIEW = save_view[i];
+      if ( CURRENT_FILE->save_alt == 0 )
+         free_view_memory( TRUE, FALSE );
+   }
+   save_current_view = CURRENT_VIEW = vd_first;
+   (*the_free)( save_view );
+
+   if ( save_current_view != (VIEW_DETAILS *)NULL )
    {
       CURRENT_VIEW = save_current_view;
       CURRENT_SCREEN.screen_view = CURRENT_VIEW;
-      pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
-      build_screen(current_screen);
-      display_screen(current_screen);
-      if (curses_started)
+      pre_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL );
+      build_screen( current_screen );
+      display_screen( current_screen );
+      if ( curses_started )
       {
-         if (CURRENT_WINDOW_PREFIX != NULL)
-            touchwin(CURRENT_WINDOW_PREFIX);
-         if (CURRENT_WINDOW_COMMAND != NULL)
-            touchwin(CURRENT_WINDOW_COMMAND);
-         touchwin(CURRENT_WINDOW_FILEAREA);
-         touchwin(CURRENT_WINDOW);
+         if ( CURRENT_WINDOW_PREFIX != NULL )
+            touchwin( CURRENT_WINDOW_PREFIX );
+         if ( CURRENT_WINDOW_COMMAND != NULL )
+            touchwin( CURRENT_WINDOW_COMMAND );
+         touchwin( CURRENT_WINDOW_FILEAREA );
+         touchwin( CURRENT_WINDOW );
       }
    }
-   if (number_of_files > 0)
+   if ( number_of_files > 0 )
    {
-      sprintf((DEFCHAR *)temp_cmd,"%ld file(s) remain with outstanding changes",number_of_files);
-      display_error(0,(CHARTYPE *)temp_cmd,TRUE);
+      sprintf( (DEFCHAR *)temp_cmd, "%ld file(s) remain with outstanding changes", number_of_files );
+      display_error( 0, (CHARTYPE *)temp_cmd, TRUE );
    }
    TRACE_RETURN();
    return(QUIT);
@@ -699,16 +753,16 @@ CHARTYPE *params;
    /*
     * No arguments are allowed; error if any are present.
     */
-   if (strcmp((DEFCHAR *)params,"") != 0)
+   if ( strcmp( (DEFCHAR *)params, "" ) != 0 )
    {
-      display_error(1,(CHARTYPE *)params,FALSE);
+      display_error( 1, (CHARTYPE *)params, FALSE );
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
    CURRENT_VIEW = vd_first;
-   while (CURRENT_VIEW != (VIEW_DETAILS *)NULL)
+   while ( CURRENT_VIEW != (VIEW_DETAILS *)NULL )
    {
-      free_view_memory(TRUE,FALSE);
+      free_view_memory( TRUE, FALSE );
    }
    TRACE_RETURN();
    return(QUIT);
@@ -820,8 +874,7 @@ CHARTYPE *params;
          }
          del_start = start_col+target.num_lines;
          (void)memdeln(rec,del_start,rec_len,-target.num_lines);
-         rec_len = calculate_rec_len(ADJUST_DELETE,rec_len,del_start,-target.num_lines);
-/*     rec_len += (rec_len>del_start)?target.num_lines:0;*/
+         rec_len = calculate_rec_len( ADJUST_DELETE,rec, rec_len, del_start, -target.num_lines, CURRENT_FILE->trailing );
       }
       else
       {
@@ -832,8 +885,7 @@ CHARTYPE *params;
          }
          del_start = start_col-1;
          (void)memdeln(rec,del_start,rec_len,target.num_lines);
-         rec_len = calculate_rec_len(ADJUST_DELETE,rec_len,del_start,target.num_lines);
-/*       rec_len -= (rec_len>del_start)?target.num_lines:0;*/
+         rec_len = calculate_rec_len( ADJUST_DELETE, rec, rec_len, del_start, target.num_lines, CURRENT_FILE->trailing );
       }
       if (CURRENT_VIEW->current_window == WINDOW_COMMAND)
       {
@@ -922,7 +974,7 @@ DESCRIPTION
      The CHANGE command changes one string of text to another.
 
      The first parameter to the change command is the old and new
-     string values, seperated by delimiters.
+     string values, separated by delimiters.
      The first non alphabetic character after the 'change' command
      is the delimiter.
 
@@ -964,8 +1016,8 @@ CHARTYPE *params;
 {
    short rc=RC_OK;
 
-   TRACE_FUNCTION("comm1.c:   Change");
-   rc = execute_change_command(params,FALSE);
+   TRACE_FUNCTION( "comm1.c:   Change" );
+   rc = execute_change_command( params, FALSE );
    TRACE_RETURN();
    return(rc);
 }
@@ -981,7 +1033,7 @@ DESCRIPTION
 
      'text' can include leading or trailing space characters. Thus
      CINSERT immediatley followed by 5 spaces, will insert 4 space
-     characters. The first space character is the command seperator.
+     characters. The first space character is the command separator.
 
 COMPATIBILITY
      XEDIT: Compatible.
@@ -1168,7 +1220,7 @@ COMMAND
      clocate - move the column pointer
 
 SYNTAX
-     CLocate column target
+     CLocate [column target]
 
 DESCRIPTION
      The CLOCATE command scans the file for the specified <'column target'>
@@ -1176,6 +1228,9 @@ DESCRIPTION
 
      Column targets can be specified as absolute targets, relative
      targets or string targets.
+
+     If no <'column target'> is supplied, the last target used in the last
+     CLOCATE command (if any) is used.
 
 COMPATIBILITY
      XEDIT: Compatible.
@@ -1201,6 +1256,20 @@ CHARTYPE *params;
    unsigned int y=0,x=0;
 
    TRACE_FUNCTION("comm1.c:   Clocate");
+   /*
+    * If no arguments have been supplied, pass the last clocate command
+    * to be executed. If no last clocate command, return error 39.
+    */
+   if ( blank_field( params ) )
+   {
+      params = lastop[LASTOP_CLOCATE].value;
+      if ( blank_field( params ) )
+      {
+         display_error( 39,(CHARTYPE *)"", FALSE );
+         TRACE_RETURN();
+         return(RC_INVALID_OPERAND);
+      }
+   }
    /*
     * Determine at which column to start the search...
     */
@@ -1237,6 +1306,15 @@ CHARTYPE *params;
          len = curr->length;
          start_col = CURRENT_VIEW->current_column;
          break;
+   }
+   /*
+    * Save the params as lastop for clocate
+    */
+   if ( save_lastop( LASTOP_CLOCATE, params ) != RC_OK )
+   {
+      display_error( 30, (CHARTYPE *)"", FALSE );
+      TRACE_RETURN();
+      return(RC_OUT_OF_MEMORY);
    }
    /*
     * Validate the parameters as valid targets...
@@ -1581,6 +1659,7 @@ SYNTAX
 DESCRIPTION
      The CMSG command, primarily used in macros, displays 'text' on the
      command line.
+     The cursor is placed after the last character displayed.
 
 COMPATIBILITY
      XEDIT: Compatible.
@@ -1601,16 +1680,11 @@ CHARTYPE *params;
 /***********************************************************************/
 {
    TRACE_FUNCTION("comm1.c:   Cmsg");
-   memset(cmd_rec,' ',max_line_length);
-   cmd_rec_len = strlen((DEFCHAR *)params);
-   memcpy(cmd_rec,params,cmd_rec_len);
-   if (curses_started
-   &&  CURRENT_WINDOW_COMMAND != (WINDOW *)NULL)
-   {
-      wmove(CURRENT_WINDOW_COMMAND,0,0);
-      my_wclrtoeol(CURRENT_WINDOW_COMMAND);
-      put_string(CURRENT_WINDOW_COMMAND,0,0,cmd_rec,cmd_rec_len);
-   }
+   memset( cmd_rec, ' ', max_line_length );
+   cmd_rec_len = strlen( (DEFCHAR *)params );
+   memcpy( cmd_rec, params, cmd_rec_len );
+   display_cmdline( current_screen, CURRENT_VIEW );
+   Sos_endchar( (CHARTYPE *)"" );
    TRACE_RETURN();
    return(RC_OK);
 }
@@ -1792,8 +1866,8 @@ CHARTYPE *params;
    LINETYPE start_line=0L,end_line=0L,true_line=0L,lines_affected=0L;
    VIEW_DETAILS *source_view=NULL,*dest_view=NULL;
    TARGET target1,target2;
-   short target_type1=TARGET_NORMAL|TARGET_BLOCK_ANY|TARGET_ALL|TARGET_SPARE;
-   short target_type2=TARGET_NORMAL;
+   long target_type1=TARGET_NORMAL|TARGET_BLOCK_ANY|TARGET_ALL|TARGET_SPARE;
+   long target_type2=TARGET_NORMAL;
    bool lines_based_on_scope=FALSE;
 
    TRACE_FUNCTION("comm1.c:   Copy");
@@ -1972,19 +2046,19 @@ COMMAND
      cursor - move cursor to specified position
 
 SYNTAX
-     CURsor Column
-     CURsor Screen UP|DOWN|LEFT|RIGHT
-     CURsor Screen row [col]
-     CURsor [Escreen] UP|DOWN
-     CURsor [Escreen|Kedit] LEFT|RIGHT
-     CURsor [Escreen] row [col]
-     CURsor CUA UP|DOWN|LEFT|RIGHT
-     CURsor CMdline [n]
-     CURsor HOME [SAVE]
-     CURsor File line [col]
-     CURsor GOTO line col
-     CURsor Mouse
-     CURsor Prefix
+     CURsor Column [Priority priority]
+     CURsor Screen UP|DOWN|LEFT|RIGHT [Priority priority]
+     CURsor Screen row [col] [Priority priority]
+     CURsor [Escreen] UP|DOWN [Priority priority]
+     CURsor [Escreen|Kedit] LEFT|RIGHT [Priority priority]
+     CURsor [Escreen] row [col] [Priority priority]
+     CURsor CUA UP|DOWN|LEFT|RIGHT [Priority priority]
+     CURsor CMdline [n] [Priority priority]
+     CURsor HOME [SAVE] [Priority priority]
+     CURsor File line [col] [Priority priority]
+     CURsor GOTO line col [Priority priority]
+     CURsor Mouse [Priority priority]
+     CURsor Prefix [Priority priority]
 
 DESCRIPTION
      The CURSOR command allows the user to specify where the cursor
@@ -2062,8 +2136,12 @@ DESCRIPTION
      in the <prefix area>. This command has no effect if run from the <command line>.
      This command replaces TABPRE.
 
+     The optional 'Priority' argument is included for compatibility with XEDIT.
+     The value of the 'priority' argument must be between 0 and 256, but otherwise
+     it is ignored.
+
 COMPATIBILITY
-     XEDIT: Compatible.
+     XEDIT: Compatible. Priority is ignored.
      KEDIT: Compatible. Added GOTO and PREFIX option.
 
 STATUS
@@ -2078,7 +2156,7 @@ CHARTYPE *params;
 /***********************************************************************/
 {
    register short idx=0;
-#define CUR_PARAMS  4
+#define CUR_PARAMS  6
    CHARTYPE *word[CUR_PARAMS+1];
    CHARTYPE strip[CUR_PARAMS];
    unsigned short num_params=0;
@@ -2093,20 +2171,46 @@ CHARTYPE *params;
    LINETYPE line=0L;
    LENGTHTYPE column=0L;
    CHARTYPE _THE_FAR buffer[100];
+   int priority;
 
    TRACE_FUNCTION("comm1.c:   Cursor");
    strip[0]=STRIP_BOTH;
    strip[1]=STRIP_BOTH;
    strip[2]=STRIP_BOTH;
    strip[3]=STRIP_BOTH;
-   num_params = param_split(params,word,CUR_PARAMS,WORD_DELIMS,TEMP_PARAM,strip,FALSE);
-   if (num_params ==0)
+   strip[4]=STRIP_BOTH;
+   strip[5]=STRIP_BOTH;
+   num_params = param_split( params, word, CUR_PARAMS, WORD_DELIMS, TEMP_PARAM, strip, FALSE );
+   if ( num_params == 0 )
    {
       display_error(3,(CHARTYPE *)"",FALSE);
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
    error_message = word[0];
+   /*
+    * If the 2nd last word is "priority", then get the priority and reduce the number
+    * of args by 2
+    */
+   if ( num_params > 2 )
+   {
+      if ( equal( (CHARTYPE *)"priority", word[num_params-2], 1 ) )
+      {
+         if ( ( error_number = valid_positive_integer_against_maximum( word[num_params-1], 256 ) ) != 0 )
+         {
+            if ( error_number == 4 )
+               sprintf( (DEFCHAR *)buffer, "%s", word[num_params-1] );
+            else
+               sprintf( (DEFCHAR *)buffer, "- MUST be <= %d", 256 );
+            display_error( error_number, buffer, FALSE );
+            rc = RC_INVALID_OPERAND;
+            TRACE_RETURN();
+            return(rc);
+         }
+         priority = atoi( (DEFCHAR *)word[num_params-1] );
+         num_params = num_params - 2;
+      }
+   }
    state = CURSOR_START;
    idx = 0;
    while(1)
@@ -2180,7 +2284,7 @@ CHARTYPE *params;
                   error_number = 1;
                   break;
                }
-               rc = THEcursor_down( CURSOR_ESCREEN );
+               rc = THEcursor_down( current_screen, CURRENT_VIEW, CURSOR_ESCREEN );
                time_to_leave = TRUE;
                break;
             }
@@ -2251,9 +2355,9 @@ CHARTYPE *params;
                break;
             }
             if (num_params == 2)
-               rc = THEcursor_home(TRUE);
+               rc = THEcursor_home( current_screen, CURRENT_VIEW, TRUE );
             else
-               rc = THEcursor_home(FALSE);
+               rc = THEcursor_home( current_screen, CURRENT_VIEW, FALSE );
             time_to_leave = TRUE;
             break;
          case CURSOR_COLUMN:
@@ -2412,7 +2516,7 @@ CHARTYPE *params;
                   break;
                }
             }
-            rc = THEcursor_cmdline(colno);
+            rc = THEcursor_cmdline( current_screen, CURRENT_VIEW, colno);
             time_to_leave = TRUE;
             break;
          case CURSOR_SCREEN:
@@ -2466,7 +2570,7 @@ CHARTYPE *params;
                   error_number = 1;
                   break;
                }
-               rc = THEcursor_down( state );
+               rc = THEcursor_down( current_screen, CURRENT_VIEW, state );
                time_to_leave = TRUE;
                break;
             }
@@ -2481,7 +2585,7 @@ CHARTYPE *params;
                error_number = 1;
                break;
             }
-            if ( strcmp( (DEFCHAR *)word[idx], (DEFCHAR *)EQUIVCHARstr) == 0 )
+            if ( equal( word[idx], EQUIVCHARstr, 1 ) )
                row = 0;
             else
             {
@@ -2511,7 +2615,7 @@ CHARTYPE *params;
             }
             else
             {
-               if (strcmp( (DEFCHAR *)word[idx], (DEFCHAR *)EQUIVCHARstr) == 0)
+               if ( equal( word[idx], EQUIVCHARstr, 1 ) )
                   col = 0;
                else
                {
@@ -2532,7 +2636,7 @@ CHARTYPE *params;
                   }
                }
             }
-            rc = THEcursor_move( TRUE, (bool)((state==CURSOR_ESCREEN)?TRUE:FALSE), row, col );
+            rc = THEcursor_move( current_screen, CURRENT_VIEW, TRUE, (bool)((state==CURSOR_ESCREEN)?TRUE:FALSE), row, col );
             time_to_leave = TRUE;
             break;
          case CURSOR_KEDIT:

@@ -4,7 +4,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -30,10 +30,9 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: box.c,v 1.11 2006/01/29 11:44:53 mark Exp $";
 
 #include <the.h>
 #include <proto.h>
@@ -90,7 +89,6 @@ CHARTYPE fillchar;
 /***********************************************************************/
 {
    BOXP boxp;
-   short rc=RC_OK;
    unsigned short y=0,x=0;
    LENGTHTYPE offset=0;
    short save_mark_type=MARK_VIEW->mark_type;
@@ -183,16 +181,16 @@ CHARTYPE fillchar;
    switch(action)
    {
       case BOX_D:
-         rc = box_delete(&boxp);
+         box_delete(&boxp);
          break;
       case BOX_M:
-         rc = box_move(&boxp,boverlay,TRUE);
+         box_move(&boxp,boverlay,TRUE);
          break;
       case BOX_C:
-         rc = box_move(&boxp,boverlay,TRUE);
+         box_move(&boxp,boverlay,TRUE);
          break;
       case BOX_F:
-         rc = box_fill(&boxp,fillchar);
+         box_fill(&boxp,fillchar);
          break;
    }
    /*
@@ -250,7 +248,6 @@ LINETYPE numlines,numcols;
 /***********************************************************************/
 {
    BOXP boxp;
-   short rc=RC_OK;
    unsigned short y=0,x=0;
 
    TRACE_FUNCTION("box.c:     box_paste_from_clipboard");
@@ -306,7 +303,7 @@ LINETYPE numlines,numcols;
     * Call the appropriate box function...
     */
    boxp.action = BOX_C;
-   rc = box_move( &boxp, FALSE, FALSE );
+   box_move( &boxp, FALSE, FALSE );
    /*
     * Increment the alteration counts...
     */
@@ -386,7 +383,7 @@ BOXP *prm;
                }
                else
                {
-                  curr = delete_LINE( MARK_FILE->first_line, MARK_FILE->last_line, curr, DIRECTION_FORWARD, TRUE );
+                  curr = delete_LINE( &MARK_FILE->first_line, &MARK_FILE->last_line, curr, DIRECTION_FORWARD, TRUE );
                   MARK_FILE->number_lines--;
                   advance_line_ptr = FALSE;
                }
@@ -441,7 +438,7 @@ BOXP *prm;
          }
          *(curr->line+curr->length) = '\0'; /* do we need to do this anymore ? */
       }
-      curr = delete_LINE( MARK_FILE->first_line, MARK_FILE->last_line, curr->next, DIRECTION_FORWARD, TRUE );
+      curr = delete_LINE( &MARK_FILE->first_line, &MARK_FILE->last_line, curr->next, DIRECTION_FORWARD, TRUE );
       MARK_FILE->number_lines--;
    }
    TRACE_RETURN();
@@ -468,8 +465,6 @@ bool boverlay,copy_to_temp;
    if ( copy_to_temp )
    {
       box_copy_to_temp(prm);                  /* copy box from file to temp */
-      prm->src_start_line = 0L;
-      prm->src_start_col = 0;
    }
    if (prm->dst_start_col <= prm->src_start_col+prm->num_cols
    &&  prm->action == BOX_M)
@@ -478,6 +473,11 @@ bool boverlay,copy_to_temp;
       prm->curr_src = save_src; /* point to file src lines */
       box_delete(prm);
       prm->curr_src = temp_src; /* point to temp src lines */
+   }
+   if ( copy_to_temp )
+   {
+      prm->src_start_line = 0L;
+      prm->src_start_col = 0;
    }
    if ( (prm->mark_type == M_STREAM || prm->mark_type == M_CUA )
    &&  prm->num_lines != 1)
@@ -488,6 +488,9 @@ bool boverlay,copy_to_temp;
    prm->src_start_line = save_src_start_line;
    prm->src_start_col = save_src_start_col;
    prm->curr_src = save_src;
+   /*
+    * Now delete the source for a MOVE
+    */
    if (prm->dst_start_col > prm->src_start_col+prm->num_cols
    &&  prm->action == BOX_M)
       box_delete(prm);
@@ -583,7 +586,7 @@ bool boverlay;
    LINETYPE dst_lineno=0L;
    LENGTHTYPE j=0;
    CHARTYPE chr=0;
-   short rc=RC_OK,line_type=0;
+   short line_type=0;
 
    TRACE_FUNCTION("box.c:     box_copy_from_temp");
    dst_lineno = prm->dst_start_line;
@@ -597,7 +600,7 @@ bool boverlay;
          if ( line_type == LINE_TOF
          ||   line_type == LINE_EOF )
          {
-            if ( ( prm->curr_dst = add_LINE( CURRENT_FILE->first_line, prm->curr_dst->prev, (CHARTYPE *)"", 0, 0, TRUE ) ) == (LINE *)NULL )
+            if ( ( prm->curr_dst = add_LINE( prm->dst_view->file_for_view->first_line, prm->curr_dst->prev, (CHARTYPE *)"", 0, 0, TRUE ) ) == (LINE *)NULL )
             {
                TRACE_RETURN();
                return(RC_OUT_OF_MEMORY);
@@ -621,11 +624,10 @@ bool boverlay;
          else
             meminschr( rec, chr, prm->dst_start_col+j, max_line_length, rec_len++ );
       }
-      rc = memrevne( rec, ' ', max_line_length );
-      if ( rc == (-1) )
-         rec_len = 0;
-      else
-         rec_len = rc+1;
+      /*
+       * recalculate rec_len
+       */
+      rec_len = calculate_rec_len( ADJUST_OVERWRITE, rec, rec_len, 1+prm->dst_start_col, prm->num_cols, CURRENT_FILE->trailing );
       post_process_line( prm->dst_view, dst_lineno, (LINE *)NULL, FALSE );
       prm->curr_src = prm->curr_src->next;   /* this should NEVER go past the end */
       prm->curr_dst = prm->curr_dst->next;   /* this should NEVER go past the end */
@@ -838,32 +840,33 @@ CHARTYPE fillchar;
 /***********************************************************************/
 {
    LINETYPE i=0L;
-   short rc=RC_OK;
+   int mystart,mynum;
 
    TRACE_FUNCTION("box.c:     box_fill");
-   for (i=0L;i<prm->num_lines;i++)
+   for ( i = 0L ; i < prm->num_lines; i++ )
    {
-      if (processable_line(CURRENT_VIEW,prm->src_start_line+i,prm->curr_src) == LINE_LINE)
+      if ( processable_line( CURRENT_VIEW, prm->src_start_line+i, prm->curr_src ) == LINE_LINE )
       {
-         pre_process_line(CURRENT_VIEW,prm->src_start_line+i,(LINE *)NULL);/* copy source line into rec */
+         mystart = 0;
+         mynum = max_line_length;
+         pre_process_line( CURRENT_VIEW,prm->src_start_line+i, (LINE *)NULL );/* copy source line into rec */
          if ( prm->mark_type == M_STREAM
          ||   prm->mark_type == M_CUA )
          {
-            int mystart=0,mynum=max_line_length;
-            if (i == 0)
+            if ( i == 0 )
                mystart = prm->src_start_col;
-            if (i+1 == prm->num_lines)
+            if ( i + 1 == prm->num_lines)
                mynum = prm->src_end_col - mystart + 1;
-            memset(rec+mystart,fillchar,mynum);
+            memset( rec + mystart, fillchar, mynum );
          }
          else
-            memset(rec+prm->src_start_col,fillchar,prm->num_cols);
-         rc = memrevne(rec,' ',max_line_length);
-         if (rc == (-1))
-            rec_len = 0;
-         else
-            rec_len = rc+1;
-         post_process_line(CURRENT_VIEW,prm->src_start_line+i,(LINE *)NULL,FALSE);
+         {
+            mystart = prm->src_start_col;
+            mynum = prm->num_cols;
+            memset( rec + mystart, fillchar, mynum );
+         }
+         rec_len = calculate_rec_len( ADJUST_OVERWRITE, rec, rec_len, 1+mystart, mynum, CURRENT_FILE->trailing );
+         post_process_line( CURRENT_VIEW, prm->src_start_line + i, (LINE *)NULL, FALSE );
       }
       prm->curr_src = prm->curr_src->next;   /* this should NEVER go past the end */
    }

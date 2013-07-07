@@ -215,3 +215,13 @@
   vfprintf
   vprintf
   vsprintf
+* wide character functions
+  wcslen
+  wcscpy
+  towupper
+  towlower
+  iswupper
+  iswlower
+  iswdigit
+  wmemcpy
+  wmemset

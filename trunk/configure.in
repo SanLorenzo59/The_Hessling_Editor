@@ -1,21 +1,24 @@
 dnl Process this file with autoconf to produce a configure script.
-AC_INIT(the.c)
-AC_PREFIX_DEFAULT(/usr)
+AC_INIT(THE, m4_esyscmd_s([grep VER_DOT ./the.ver | cut -f 2 -d '=']), mark@rexx.org, THE)
+AC_PREFIX_DEFAULT(/usr/local)
+
+MH_PACKAGE="THE"
 
 . $srcdir/the.ver
 VERSION_NODOT=\"$VER\"
 VERSION=\"$VER_DOT\"
+VERSION_UNQUOTED=$VER_DOT
 VER_DATE=\"$VER_DATE\"
 AC_SUBST(VERSION)
+AC_SUBST(VERSION_UNQUOTED)
 AC_SUBST(VERSION_NODOT)
 AC_SUBST(VER_DATE)
-
-MH_PACKAGE="THE"
+cp $srcdir/common/config.guess $srcdir
+cp $srcdir/common/config.sub $srcdir
 
 dnl ---------------------- check for C compiler -----------------
 dnl Checks for one of the C compilers below - change if yours not there.
 
-CC_LIST="xlC gcc acc cc c89"
 MH_PROG_CC
 
 AC_CONFIG_HEADER(config.h)
@@ -23,11 +26,15 @@ AC_ISC_POSIX
 
 dnl Checks for system first
 AC_CANONICAL_SYSTEM
-AC_PROG_GCC_TRADITIONAL
+
+dnl
+dnl include our 32/64bit tests
+dnl
+sinclude(common/inclibarch.m4)
 dnl
 dnl Test if using g++ and if its broken WRT string.h
 if test "$ac_cv_prog_CC" = "g++"; then
-	MH_HAVE_BROKEN_CXX_WITH_STRING_H
+   MH_HAVE_BROKEN_CXX_WITH_STRING_H
 fi
 
 BASE_BINARY="binarybase"
@@ -35,110 +42,130 @@ BASE_INSTALL="installbase"
 on_qnx=no
 on_cygwin="no"
 case "$target" in
-	*hp-hpux9*)
-		SYS_DEFS="-D_HPUX_SOURCE"
-		AC_DEFINE(SELECT_IN_TIME_H)
-		;;
-	*hp-hpux*)
-		SYS_DEFS="-D_HPUX_SOURCE"
-		if test "$ac_cv_prog_CC" != "gcc"; then
-			if test "$enable_hpux_portable" = yes; then
-				SYS_DEFS="${SYS_DEFS} +DAportable"
-			fi
-		fi
-		;;
-	*ibm-aix*)
-		SYS_DEFS="-D_ALL_SOURCE"
-		;;
-	*ibm-OS390*)
-		SYS_DEFS="-D_ALL_SOURCE -DOS390"
-		;;
-	*dec-osf4*)
-		SYS_DEFS="-D_XOPEN_SOURCE_EXTENDED"
-		AC_DEFINE(HAVE_BROKEN_SYS_ACL_H)
-		;;
-	*dec-osf*)
-		;;
-	*sequent-dynix*)
-		;;
-	*solaris*)
-		;;
-	sparc*sunos*)
-		;;
-	*linux*)
-		;;
-	*cygwin*)
-		BASE_BINARY="cygwinbinary"
-		on_cygwin="yes"
-		;;
-	*sgi-irix*)
-		SYS_DEFS="-DSGI_MPROT_T_UNDEFINED"
-		;;
-	*pc-sco*)
-		SYS_DEFS="-UM_XENIX -b elf"
-		;;
-	*nto-qnx*)
-		;;
-	*qnx*)
-		on_qnx=yes
-		SYS_DEFS="-Q"
-		EEXTRA="-mf -N0x20000 -Q"
-		;;
-	*beos*)
-		if test "$prefix" != "/usr"; then
-			prefix=/boot/home/config
-		fi
-		;;
-	*darwin*)
-		EEXTRA="-flat_namespace -undefined suppress"
-		;;
+   *hp-hpux9*)
+      SYS_DEFS="-D_HPUX_SOURCE"
+      AC_DEFINE(SELECT_IN_TIME_H)
+      ;;
+   *hp-hpux*)
+      SYS_DEFS="-D_HPUX_SOURCE"
+      if test "$ac_cv_prog_CC" != "gcc"; then
+         if test "$enable_hpux_portable" = yes; then
+            SYS_DEFS="${SYS_DEFS} +DAportable"
+         fi
+      fi
+      ;;
+   *ibm-aix*)
+      SYS_DEFS="-D_ALL_SOURCE"
+      ;;
+   *ibm-OS390*)
+      SYS_DEFS="-D_ALL_SOURCE -DOS390"
+      ;;
+   *dec-osf4*)
+      SYS_DEFS="-D_XOPEN_SOURCE_EXTENDED"
+      AC_DEFINE(HAVE_BROKEN_SYS_ACL_H)
+      ;;
+   *dec-osf*)
+      ;;
+   *sequent-dynix*)
+      ;;
+   *solaris*)
+      ;;
+   sparc*sunos*)
+      ;;
+   *linux*)
+      ;;
+   *cygwin*)
+      BASE_BINARY="cygwinbinary"
+      on_cygwin="yes"
+      ;;
+   *sgi-irix*)
+      SYS_DEFS="-DSGI_MPROT_T_UNDEFINED"
+      ;;
+   *pc-sco*)
+      SYS_DEFS="-UM_XENIX -b elf"
+      ;;
+   *nto-qnx*)
+      ;;
+   *qnx*)
+      on_qnx=yes
+      SYS_DEFS="-Q"
+      EEXTRA="-mf -N0x20000 -Q"
+      SIMPLE_CFLAGS=yes
+      ;;
+   *beos*)
+      if test "$prefix" != "/usr"; then
+         prefix=/boot/home/config
+      fi
+      ;;
+   *apple-darwin*)
+# sinclude(common/inclibarch.m4) MUST have been included before here
+      SYS_DEFS="$valid_arch_flags"
+      EEXTRA="$valid_arch_flags -flat_namespace -undefined suppress"
+      ;;
+   *darwin*)
+      EEXTRA="-flat_namespace -undefined suppress"
+      ;;
 esac
 AC_SUBST(EEXTRA)
 AC_SUBST(BASE_BINARY)
 AC_SUBST(BASE_INSTALL)
 
-dnl ---------------------- check for 'dist' argument -----------------
-dnl allow --with-dist
-distonly=no
+MH_GET_KERNEL_NAME
+
+dnl ---------------------- check for '--with-dist' switch -----------------
 AC_ARG_WITH(dist,
-	[  --with-dist             build for distribition only],
-	[distonly=yes],
+   [  --with-dist             specify this just to build a distribution],
+   [with_dist=$withval],
+   [with_dist=no],
 )
 
 dnl ---------------------- check for Curses argument -----------------
 dnl allow --with-dwindows to link with dwindows
 AC_ARG_WITH(dwindows,
-	[  --with-dwindows         build with dwindows],
-	[with_dwindows=$withval],
-	[with_dwindows=no],
+   [  --with-dwindows         build with dwindows(incomplete)],
+   [with_dwindows=$withval],
+   [with_dwindows=no],
 )
 dnl allow --with-xcurses to link with XCurses
 AC_ARG_WITH(xcurses,
-	[  --with-xcurses          link with XCurses],
-	[with_xcurses=$withval],
-	[with_xcurses=no],
+   [  --with-xcurses          link with XCurses],
+   [with_xcurses=$withval],
+   [with_xcurses=no],
+)
+dnl allow --with-xcurses-static to link with static XCurses library
+AC_ARG_WITH(xcurses-static,
+   [  --with-xcurses-static   link with static XCurses library],
+   [with_xcurses_static=$withval],
+   [with_xcurses_static=no],
 )
 dnl allow --with-pdcurses to link with PDCurses
 AC_ARG_WITH(pdcurses,
-	[  --with-pdcurses         link with PDCurses (cygwin only)],
-	[with_pdcurses=$withval],
-	[with_pdcurses=no],
+   [  --with-pdcurses         link with PDCurses (cygwin only)],
+   [with_pdcurses=$withval],
+   [with_pdcurses=no],
 )
 dnl allow --with-ncurses to link with ncurses
 AC_ARG_WITH(ncurses,
-	[  --with-ncurses          link with ncurses],
-	[with_ncurses=$withval],
-	[with_ncurses=no],
+   [  --with-ncurses          link with ncurses],
+   [with_ncurses=$withval],
+   [with_ncurses=no],
 )
 dnl allow --with-extcurses to link with AIX Extended curses
 AC_ARG_WITH(extcurses,
-	[  --with-extcurses        link with AIX Extended curses],
-	[with_extcurses=$withval],
-	[with_extcurses=no],
+   [  --with-extcurses        link with AIX Extended curses],
+   [with_extcurses=$withval],
+   [with_extcurses=no],
 )
 if test "$on_cygwin" = no -a "$with_pdcurses" = yes; then
-	AC_MSG_ERROR(--with-pdcurses only valid on cygwin platform; THE cannot be configured)
+   AC_MSG_ERROR(--with-pdcurses only valid on cygwin platform; THE cannot be configured)
 fi
+
+dnl --------------- allow --enable-utf8 to allow UTF-8 files --------
+AC_ARG_ENABLE(utf8,
+   [  --enable-utf8           enable UTF8 support],
+   [with_utf8=$enableval],
+   [with_utf8=no],
+)
 
 dnl
 dnl Check lots of things specific to AIX
@@ -147,24 +174,28 @@ dnl Check that the OS supports extended curses
 dnl Only supporting it on AIX 3.x
 dnl
 if test "$with_extcurses" = yes ; then
-	case "$target" in
-	*aix3*)
-		;;
-	*)
-		AC_MSG_ERROR(Extended Curses support only available on AIX 3.x; THE cannot be configured)
-		;;
-	esac
+   case "$target" in
+   *aix3*)
+      ;;
+   *)
+      AC_MSG_ERROR(Extended Curses support only available on AIX 3.x; THE cannot be configured)
+      ;;
+   esac
 fi
 
 if test "$with_ncurses" = no -a "$with_xcurses" = no; then
-	case "$target" in
-	*ibm-aix4.3*)
-		SYS_DEFS="${SYS_DEFS} -DHAVE_BROKEN_COLORS"
-		;;
-	*)
-		;;
-	esac
+   case "$target" in
+   *ibm-aix4.3*)
+      SYS_DEFS="${SYS_DEFS} -DHAVE_BROKEN_COLORS"
+      ;;
+   *)
+      ;;
+   esac
 fi
+dnl _XOPEN_SOURCE_EXTENDED needed for ncursesw
+dnl if test "$enable_utf8" = yes; then
+dnl    SYS_DEFS="${SYS_DEFS} -D_XOPEN_SOURCE_EXTENDED"
+dnl fi
 AC_SUBST(SYS_DEFS)
 
 dnl
@@ -172,92 +203,104 @@ dnl check for only 1 curses library specified
 dnl
 THEBIN="the"
 THETYPE=""
+WIDE_CHAR=""
+checkcurses="no"
 typeset -i curs_count
 curs_count=0
 if test "$with_ncurses" = yes; then
-	THEBIN="nthe"
-	THETYPE="-ncurses"
-	curs_count=$curs_count+1
+   THEBIN="nthe"
+   THETYPE="ncurses"
+   checkcurses="yes"
+   curs_count=$curs_count+1
+   if test "$enable_utf8" = yes; then
+      WIDE_CHAR="-DUSE_UTF8"
+      THETYPE="ncursesw"
+      THEBIN="nwthe"
+   fi
 fi
 if test "$with_xcurses" = yes; then
-	THEBIN="xthe"
-	THETYPE="-X11"
-	curs_count=$curs_count+1
+   THEBIN="xthe"
+   THETYPE="X11"
+   checkcurses="yes"
+   curs_count=$curs_count+1
+   if test "$enable_utf8" = yes; then
+      WIDE_CHAR="-DUSE_UTF8 -DUSE_WIDE_CHAR -DPDC_WIDE -DPDC_FORCE_UTF8"
+      THETYPE="X11w"
+   fi
+fi
+if test "$with_xcurses_static" = yes; then
+   THEBIN="xthe"
+   THETYPE="X11"
+   checkcurses="yes"
+   curs_count=$curs_count+1
+   if test "$enable_utf8" = yes; then
+      WIDE_CHAR="-DUSE_UTF8 -DUSE_WIDE_CHAR -DPDC_WIDE -DPDC_FORCE_UTF8"
+      THETYPE="X11w"
+      THEBIN="xwthe"
+   fi
 fi
 if test "$with_pdcurses" = yes; then
-	THEBIN="the"
-	THETYPE="-pdcurses"
-	curs_count=$curs_count+1
+   THEBIN="the"
+   THETYPE="pdcurses"
+   checkcurses="yes"
+   curs_count=$curs_count+1
 fi
 if test "$with_dwindows" = yes; then
-	THEBIN="wthe"
-	THETYPE="-dwindows"
-	curs_count=$curs_count+1
+   THEBIN="wthe"
+   THETYPE="dwindows"
+   curs_count=$curs_count+1
 fi
 if test "$with_extcurses" = yes; then
-	curs_count=$curs_count+1
+   curs_count=$curs_count+1
 fi
 if test $curs_count -gt 1; then
-	AC_MSG_ERROR(More than 1 Curses library specified; THE cannot be configured)
+   AC_MSG_ERROR(More than 1 Curses library specified; THE cannot be configured)
 fi
+dnl set defines for wide character support
 AC_SUBST(THEBIN)
 AC_SUBST(THETYPE)
+AC_SUBST(WIDE_CHAR)
 
 dnl allow --with-cursesincdir to specify where Curses header file is
 AC_ARG_WITH(cursesincdir,
-	[  --with-cursesincdir=DIR specify where curses header file is],
-	[with_cursesincdir=$withval],
-	[with_cursesincdir=no],
+   [  --with-cursesincdir=DIR specify where curses header file is],
+   [with_cursesincdir=$withval],
+   [with_cursesincdir=no],
 )
 dnl allow --with-curseslibdir to specify where Curses library file is
 AC_ARG_WITH(curseslibdir,
-	[  --with-curseslibdir=DIR specify where curses library file is],
-	[with_curseslibdir=$withval],
-	[with_curseslibdir=no],
+   [  --with-curseslibdir=DIR specify where curses library file is],
+   [with_curseslibdir=$withval],
+   [with_curseslibdir=no],
 )
 
-dnl allow --with-rexx for Rexx support
-AC_ARG_WITH(rexx,
-	[  --with-rexx=int         specify Rexx interpeter (rexxtrans|regina|rexximc|objrexx|unirexx|rexx6000)],
-	[with_rexx=$withval],
-	[with_rexx=no],
-)
-dnl allow --with-rexxincdir to specify where REXX header file is
-AC_ARG_WITH(rexxincdir,
-	[  --with-rexxincdir=DIR   specify where REXX header file is],
-	[with_rexxincdir=$withval],
-	[with_rexxincdir=no],
-)
-dnl allow --with-rexxlibdir to specify where REXX library file is
-AC_ARG_WITH(rexxlibdir,
-	[  --with-rexxlibdir=DIR   specify where REXX library file is],
-	[with_rexxlibdir=$withval],
-	[with_rexxlibdir=no],
-)
-CHECK_REXX
+dnl
+dnl include Rexx support
+dnl
+sinclude(common/increxx.m4)
 
 dnl ---------------------- check for Xaw3d library -------------------
 dnl allow --with-xaw3d to link with XCurses
 AC_ARG_WITH(xaw3d,
-	[  --with-xaw3d            link with Xaw3d],
-	[with_xaw3d=$withval],
-	[with_xaw3d=no],
+   [  --with-xaw3d            link with Xaw3d],
+   [with_xaw3d=$withval],
+   [with_xaw3d=no],
 )
 
 dnl ---------------------- check for neXtaw library -------------------
 dnl allow --with-nextaw to link with XCurses
 AC_ARG_WITH(nextaw,
-	[  --with-nextaw           link with neXtaw],
-	[with_nextaw=$withval],
-	[with_nextaw=no],
+   [  --with-nextaw           link with neXtaw],
+   [with_nextaw=$withval],
+   [with_nextaw=no],
 )
 
 dnl ---------------------- check for Checker -------------------------
 dnl allow --with-checker to use Checker
 AC_ARG_WITH(checker,
-	[  --with-checker          build THE with Checker],
-	[with_checker=$withval],
-	[with_checker=no],
+   [  --with-checker          build THE with Checker],
+   [with_checker=$withval],
+   [with_checker=no],
 )
 
 dnl ---------------------- check packages -----------------------
@@ -269,8 +312,8 @@ AC_SUBST(MH_EXTRA_LIBS)
 
 dnl ---------------------- check Curses -------------------------
 dnl don't check for Curses or Rexx arguments if only building for distribution
-if test "$distonly" = no; then
-	MH_CHECK_CURSES
+if test "$checkcurses" = "yes"; then
+   MH_CHECK_CURSES
 fi
 
 dnl ---------------------- check packages -----------------------
@@ -279,14 +322,16 @@ dnl MUST be after MH_CHECK_CURSES
 dnl
 MH_XLIBS=""
 MH_XINC_DIR=""
-if test "$with_xcurses" = yes; then
-	if test "$ac_cv_prog_xcurses_config" = yes; then
-		MX_XINC_DIR=`xcurses-config --cflags`
-		MH_XLIBS=`xcurses-config --libs`
-	else
-	MH_CHECK_X_LIB
-	fi
-fi
+dnl if test "$with_xcurses" = yes; then
+dnl    if test "$ac_cv_prog_xcurses_config" = yes; then
+dnl       MX_XINC_DIR=`xcurses-config --cflags`
+dnl       MH_XLIBS=`xcurses-config --libs`
+dnl    else
+dnl       MH_CHECK_X_LIB
+dnl    fi
+dnl fi
+AC_SUBST(MH_XLIBS)
+AC_SUBST(MH_XINC_DIR)
 
 dnl --------------------- Check for other programs. ---------------
 AC_PROG_MAKE_SET
@@ -295,35 +340,39 @@ MH_CHECK_CHECKER
 dnl -------------------- Checks for header files. -----------------
 AC_HEADER_STDC
 AC_CHECK_HEADERS( \
-	errno.h \
-	alloca.h \
-	ctype.h \
-	sys/types.h \
-	sys/mode.h \
-	sys/stat.h \
-	sys/socket.h \
-	sys/file.h \
-	sys/wait.h \
-	sys/acl.h \
-	sys/time.h \
-	sys/select.h \
-	select.h \
-	unistd.h \
-	stdlib.h \
-	memory.h \
-	fcntl.h \
-	string.h \
-	stdarg.h \
-	stat.h \
-	dirent.h \
-	time.h
-	)
+   errno.h \
+   alloca.h \
+   ctype.h \
+   wctype.h \
+   sys/types.h \
+   sys/mode.h \
+   sys/stat.h \
+   sys/socket.h \
+   sys/file.h \
+   sys/wait.h \
+   sys/acl.h \
+   sys/time.h \
+   sys/select.h \
+   select.h \
+   unistd.h \
+   stdlib.h \
+   memory.h \
+   fcntl.h \
+   locale.h \
+   string.h \
+   stdarg.h \
+   stdint.h \
+   inttypes.h \
+   stat.h \
+   dirent.h \
+   time.h
+   )
 
 MH_HAVE_PROTO
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 if test "$ac_cv_prog_CC" != "g++"; then
-	AC_C_CONST
+   AC_C_CONST
 fi
 AC_TYPE_SIZE_T
 AC_HEADER_TIME
@@ -335,118 +384,67 @@ AC_FUNC_MEMCMP
 AC_FUNC_ALLOCA
 AC_TYPE_SIGNAL
 MH_FUNC_ACL_GET
-AC_CHECK_FUNCS(rename lstat readlink getacl chown strcasecmp strcmpi stricmp mkfifo select siginterrupt)
+MH_CHECK_FUNCS(rename lstat readlink getacl chown strcasecmp strcmpi stricmp mkfifo select siginterrupt setlocale realpath)
 
-if test "$with_dwindows" = no; then
-	MH_CHECK_CHTYPE
-	MH_CHECK_BROKEN_SYSVR4_CURSES
-	MH_CURSES_FUNCS
+if test "$checkcurses" = "yes"; then
+   MH_CHECK_CHTYPE
+   MH_CHECK_BROKEN_SYSVR4_CURSES
+   MH_CURSES_FUNCS
 fi
 
-dnl --------------- allow --enable-debug to compile in debug mode --------
-AC_ARG_ENABLE(debug,
-	[  --enable-debug          turn on debugging],
-	[with_debug=$enableval],
-	[with_debug=no],
-)
-cflags_g="`echo $CFLAGS | grep -c '\-g'`"
-cflags_O="`echo $CFLAGS | grep -c '\-O'`"
-
-if test "$with_debug" = yes; then
-	if test "$cflags_g" = "0"; then
-		CFLAGS="${CFLAGS} -g"
-	fi
-	if test "$cflags_O" != "0"; then
-		CFLAGS="`echo ${CFLAGS} | sed -e s/-O.//`"
-	fi
-	LDOPT="-g"
-else
-	if test "$cflags_O" = "0"; then
-		CFLAGS="${CFLAGS} -O"
-	fi
-	if test "$cflags_g" != "0"; then
-		CFLAGS="`echo ${CFLAGS} | sed -e s/-g//`"
-	fi
-	LDOPT="-O"
-fi
-
-if test "$ac_cv_prog_CC" = "gcc"; then
-	if test "$with_debug" = yes; then
-		CFLAGS="${CFLAGS} -Wall"
-		LDOPT="-g"
-	else
-		CFLAGS="-O3 -Wall -fomit-frame-pointer"
-		LDOPT="-O3"
-	fi
-fi
-AC_SUBST(LDOPT)
-
-dnl --------------- allow --enable-efence to enable linking with Electric Fence
-AC_ARG_ENABLE(efence,
-        [  --enable-efence         link with Electric Fence],
-        [with_efence=$enableval],
-        [with_efence=no],
-)
-if test "$with_efence" = yes; then
-        EFENCE_LD="-lefence"
-else
-        EFENCE_LD=""
-fi
-
-if test "$with_efence" = yes; then
-	CFLAGS="${CFLAGS} -D__USING_EFENCE"
-fi
-AC_SUBST(EFENCE_LD)
+dnl
+dnl include our debugging switch checking
+dnl
+sinclude(common/incdebug.m4)
 
 dnl --------------- allow --enable-bounds-checking to compile in debug mode --------
 AC_ARG_ENABLE(bounds-checking,
-	[  --enable-bounds-checking turn on bounds checking],
-	[with_bounds_checking=$enableval],
-	[with_bounds_checking=no],
+   [  --enable-bounds-checking turn on bounds checking],
+   [with_bounds_checking=$enableval],
+   [with_bounds_checking=no],
 )
 
 if test "$with_bounds_checking" = yes; then
-	CFLAGS="${CFLAGS} -fbounds-checking -D__BOUNDS_CHECKING_ON"
+   CFLAGS="${CFLAGS} -fbounds-check -D__BOUNDS_CHECKING_ON"
 fi
 
 dnl --------------- allow --enable-trace to log trace information --------
 AC_ARG_ENABLE(trace,
-	[  --enable-trace          turn on tracing],
-	[with_trace=$enableval;AC_DEFINE(THE_TRACE)],
-	[with_trace=no]
+   [  --enable-trace          turn on tracing],
+   [with_trace=$enableval;AC_DEFINE(THE_TRACE)],
+   [with_trace=no]
 )
 if test "$with_trace" = yes; then
-	MH_XTRA_OBJS="$MH_XTRA_OBJS trace.o"
+   MH_XTRA_OBJS="$MH_XTRA_OBJS trace.o"
+fi
+if test "$enable_utf8" = yes; then
+   MH_XTRA_OBJS="$MH_XTRA_OBJS utf8.o"
 fi
 AC_SUBST(MH_XTRA_OBJS)
 
-dnl --------------- allow --enable-purify to enable linking with Purify
-AC_ARG_ENABLE(purify,
-	[  --enable-purify         link with Purify (TM)],
-	[with_purify=$enableval],
-	[with_purify=no],
-)
-if test "$with_purify" = yes; then
-	PURIFY="purify"
-else
-	PURIFY=""
-fi
-AC_SUBST(PURIFY)
-
-dnl --------------- enable --enable-hpux-portable to enable HP-UX binaries to run on all chipsets
-AC_ARG_WITH(hpux_portable,
-	[  --enable-hpux-portable  make HP-UX binaries portable],
-	[enable_hpux_portable=$enableval],
-	[enable_hpux_portable=no],
-)
-
 dnl --------------- allow --with-htmlext to specify file extension of HTML files
 AC_ARG_WITH(htmlext,
-	[  --with-htmlext          specify extension of HTML files],
-	[HTML_EXT=.$withval],
-	[HTML_EXT=.html],
+   [  --with-htmlext          specify extension of HTML files],
+   [HTML_EXT=.$withval],
+   [HTML_EXT=.html],
 )
 AC_SUBST(HTML_EXT)
+
+dnl --------------- allow --with-global-profile to specify a global profile file
+AC_ARG_WITH(global-profile,
+   [  --with-global-profile   specify name of global profile file],
+   [THE_GLOBAL_PROFILE="$withval"],
+   [THE_GLOBAL_PROFILE=""],
+)
+if test x"$THE_GLOBAL_PROFILE" != x; then
+  AC_DEFINE_UNQUOTED(THE_GLOBAL_PROFILE,"$THE_GLOBAL_PROFILE")
+fi
+
+dnl
+dnl include our check for RPM
+dnl
+MH_CHECK_RPM
+MH_GET_DISTRO_NAME()
 
 dnl --------------- Force definition of pre-compiler macro UNIX ----------
 AC_DEFINE(UNIX)
@@ -465,109 +463,32 @@ AC_SUBST(thisdir)
 
 dnl ---- leave the setting of CC to last
 if test "$mh_cv_checker" = yes; then
-	CC="checkergcc"
-	AC_DEFINE(CC)
+   CC="checkergcc"
+   AC_DEFINE(CC)
 fi
 
 AC_OUTPUT(Makefile)
 
-if test "$distonly" = yes; then
-	echo
-	echo "$MH_PACKAGE has now been configured for distribution only"
-	rm -f config.h
+dnl
+dnl include our status information
+dnl
+if test "$with_dist" = no; then
+   MH_SHOW_STATUS( MH_SHOW_THE, "notrailer" )
+   echo "To build the '$THEBIN' executable, text and normal HTML documentation; 'make'"
+   echo "then to install THE in the above directories; 'make install'"
+   echo
+   echo "Individual portions of THE can be built as follows:"
+   echo "- To build the 'the' executable; 'make the'"
+   echo "- To build a text reference manual; 'make the.man'"
+   echo "- To build the help file; THE_Help.txt; 'make THE_Help.txt'"
+   echo "- To build the normal HTML reference manual; 'make html'"
+   echo "- To build a HTML reference manual in one file; 'make combined'"
+   echo "- To build a HTML reference manual in separate files; 'make helpviewer'"
+   echo "- To build a PDF reference manual; 'make pdf' - this requires htmldoc"
+   echo
 else
-	CURSES_LIB=""
-	if test "$with_xcurses" = yes ; then
-		CURSES_LIB="XCurses"
-	else
-		if test "$with_ncurses" = yes ; then
-			CURSES_LIB="ncurses"
-		else
-			if test "$with_extcurses" = yes ; then
-				CURSES_LIB="Extended Curses"
-			else
-				if test "$with_dwindows" = yes ; then
-					CURSES_LIB="dwindows"
-				else
-					CURSES_LIB="Default - Not specified"
-				fi
-			fi
-		fi
-	fi
-	
-	echo
-	echo "THE has now been configured with the following options:"
-	echo
-	echo "                  Rexx Interpreter: $REXX_INT"
-	if test "$with_rexxincdir" != no ; then
-	echo "                  rexx headers in: $with_rexxincdir"
-	fi
-	if test "$with_rexxlibdir" != no ; then
-	echo "                 rexx libraries in: $with_rexxlibdir"
-	fi
-	if test "$ac_cv_prog_xcurses_config" = yes; then
-		cpopts="$CURSES_LIB (using xcurses-config)"
-	else
-		cpopts="$CURSES_LIB"
-	fi
-	echo "                    Curses package: $cpopts"
-	if test "$with_cursesincdir" != no ; then
-	echo "                 curses headers in: $with_cursesincdir"
-	fi
-	if test "$with_curseslibdir" != no ; then
-	echo "               curses libraries in: $with_curseslibdir"
-	fi
-	myopts=""
-	if test "$with_debug" = yes ; then
-		myopts="$myopts DEBUG"
-	fi
-	if test "$with_purify" = yes ; then
-		myopts="$myopts PURIFY"
-	fi
-	if test "$with_trace" = yes ; then
-		myopts="$myopts TRACE"
-	fi
-	if test "$with_xaw3d" = yes ; then
-		myopts="$myopts XAW3D"
-	fi
-	if test "$with_nextaw" = yes ; then
-		myopts="$myopts NEXTAW"
-	fi
-	if test "$ac_cv_prog_dw_config" = yes; then
-		myopts="$myopts Using dw-config"
-	fi
-	if test "$with_hpux_portable" = yes ; then
-		myopts="$myopts HPUX-PORTABLE"
-	fi
-	if test "$mh_cv_checker" = yes ; then
-		myopts="$myopts CHECKER"
-	fi
-	if test "$with_bounds_checking" = yes; then
-		myopts="$myopts BOUNDS-CHECKING"
-	fi
-	if test "$with_efence" = yes; then
-		myopts="$myopts EFENCE"
-	fi
-	if test "$exec_prefix" = '${prefix}' ; then
-		macro_dir="$prefix"
-	else
-		macro_dir="$exec_prefix"
-	fi
-	echo "                     Build options: $myopts"
-	echo "               HTML file extension: $HTML_EXT"
-	echo "'$THEBIN' binary will be installed in: $macro_dir/bin"
-	echo "   THE macros will be installed in: $macro_dir/share/THE"
-	echo
-	echo "To build the '$THEBIN' executable, text and normal HTML documentation; 'make'"
-	echo "then to install THE in the above directories; 'make install'"
-	echo
-	echo "Individual portions of THE can be built as follows:"
-	echo "- To build the 'the' executable; 'make the'"
-	echo "- To build a text reference manual; 'make the.man'"
-	echo "- To build the help file; THE_Help.txt; 'make THE_Help.txt'"
-	echo "- To build the normal HTML reference manual; 'make html'"
-	echo "- To build a HTML reference manual in one file; 'make combined'"
-	echo "- To build a HTML reference manual in seperate files; 'make helpviewer'"
-	echo "- To build a PDF reference manual; 'make pdf' - this requires htmldoc"
-	echo
+   echo ""
+   echo "Source distributions (zip and dist) can now be made for $MH_PACKAGE"
+   echo ""
+   rm -f config.h
 fi

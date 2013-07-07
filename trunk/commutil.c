@@ -5,7 +5,7 @@
 /***********************************************************************/
 /*
  * THE - The Hessling Editor. A text editor similar to VM/CMS xedit.
- * Copyright (C) 1991-2001 Mark Hessling
+ * Copyright (C) 1991-2013 Mark Hessling
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -31,15 +31,14 @@
  * This software is going to be maintained and enhanced as deemed
  * necessary by the community.
  *
- * Mark Hessling,  M.Hessling@qut.edu.au  http://www.lightlink.com/hessling/
+ * Mark Hessling, mark@rexx.org  http://www.rexx.org/
  */
 
-static char RCSid[] = "$Id: commutil.c,v 1.43 2005/09/01 10:29:25 mark Exp $";
 
-#include <the.h>
-#include <proto.h>
-#include <key.h>
-#include <command.h>
+#include "the.h"
+#include "proto.h"
+#include "key.h"
+#include "command.h"
 
 #ifdef HAVE_PROTO
 static CHARTYPE *build_defined_key_definition(int, CHARTYPE *,DEFINE *,int);
@@ -55,10 +54,18 @@ static bool save_target();
 
 #define HEXVAL(c) (((c)>'9')?(tolower(c)-'a'+10):((c)-'0'))
 
- static CHARTYPE _THE_FAR cmd_history[MAX_SAVED_COMMANDS][MAX_COMMAND_LENGTH];
+ static CHARTYPE _THE_FAR *cmd_history[MAX_SAVED_COMMANDS];
+ static short cmd_history_len[MAX_SAVED_COMMANDS];
  static short last_cmd=(-1),current_cmd=0,number_cmds=0,offset_cmd=0;
- CHARTYPE _THE_FAR last_command_for_reexecute[MAX_COMMAND_LENGTH];
- CHARTYPE _THE_FAR last_command_for_repeat[MAX_COMMAND_LENGTH];
+// CHARTYPE _THE_FAR last_command_for_reexecute[MAX_COMMAND_LENGTH];
+// CHARTYPE _THE_FAR last_command_for_repeat[MAX_COMMAND_LENGTH];
+// CHARTYPE _THE_FAR last_command_for_repeat_in_macro[MAX_COMMAND_LENGTH];
+ CHARTYPE _THE_FAR *last_command_for_reexecute;
+ short last_command_for_reexecute_len;
+ CHARTYPE _THE_FAR *last_command_for_repeat;
+ short last_command_for_repeat_len;
+ CHARTYPE _THE_FAR *last_command_for_repeat_in_macro;
+ short last_command_for_repeat_in_macro_len;
 
 #define KEY_REDEF "/* Key re-definitions */"
 #define KEY_DEFAULT "/* Default key definitions */"
@@ -215,9 +222,9 @@ bool default_keys,mouse_key;
     * First determine if the key is a named key.
     */
    if (mouse_key)
-      keyname = mouse_key_number_to_name(key,key_buf);
+      keyname = mouse_key_number_to_name( key, key_buf, &dummy );
    else
-      keyname = get_key_name(key,&dummy);
+      keyname = get_key_name( key, &dummy );
    /*
     * If key is invalid,  show it as a character and decimal; provided it
     * is an ASCII or extended character.
@@ -461,6 +468,9 @@ CHARTYPE *synonym, *params;
       }
       curr = curr->next;
    }
+#ifdef THE_TRACE
+   trace_string( "returning: %d\n", rc );
+#endif
    TRACE_RETURN();
    return rc;
 }
@@ -973,66 +983,54 @@ int define_format;
    TRACE_RETURN();
    return((key_defined)?buf:(CHARTYPE *)NULL);
 }
+
 /***********************************************************************/
 #ifdef HAVE_PROTO
-CHARTYPE *build_synonym_definition( CHARTYPE *synonym, CHARTYPE *buf, DEFINE *curr )
+CHARTYPE *build_synonym_definition( DEFINE *curr, CHARTYPE *name, CHARTYPE *buf, bool full_definition )
 #else
-CHARTYPE *build_synonym_definition( synonym, buf, curr )
-CHARTYPE *synonym,*buf;
+CHARTYPE *build_synonym_definition( curr, name, buf, full_definition )
 DEFINE *curr;
+CHARTYPE *name,*buf;
+bool full_defnition;
 #endif
 /***********************************************************************/
 {
-/*--------------------------- local data ------------------------------*/
-   bool synonym_defined=FALSE;
-   bool first_time=TRUE;
    CHARTYPE delim[2];
-/*--------------------------- processing ------------------------------*/
+   DEFCHAR *cmd;
+
    TRACE_FUNCTION("commutil.c:build_synonym_definition");
-/*---------------------------------------------------------------------*/
-/* The argument, buf, MUST be long enough to to accept the full command*/
-/* and arguments and MUST have be nul terminated before this function  */
-/* is called.                                                          */
-/*---------------------------------------------------------------------*/
+   /*
+    * The argument, buf, MUST be long enough to to accept the full command
+    * and arguments and MUST have be nul terminated before this function
+    * is called.
+    */
    delim[1] = '\0';
-   while( curr != NULL )
+   if ( curr )
    {
-      if ( equal( curr->synonym, synonym,curr->def_funkey ) )
-      {
-         synonym_defined = TRUE;
-         if ( first_time )
-         {
-            if ( curr->linend )
-               delim[0] = curr->linend;
-            else
-               delim[0] = CURRENT_VIEW->linend_value;
-         }
-         else
-         {
-            strcat( (DEFCHAR *)buf, (DEFCHAR *)delim );
-         }
-         /*
-          * Append the command to the string.
-          */
-         if ( curr->def_command == (-1) ) /* definition is REXX instore */
-            strcat( (DEFCHAR *)buf, (DEFCHAR *)"REXX" );
-         else
-            strcat( (DEFCHAR *)buf, (DEFCHAR *)command[curr->def_command].text );
-         /*
-          * Append any parameters.
-          */
-         if (strcmp( (DEFCHAR *)curr->def_params, "" ) != 0 )
-         {
-            strcat( (DEFCHAR *)buf, " " );
-            strcat( (DEFCHAR *)buf, (DEFCHAR *)curr->def_params );
-         }
-         first_time = FALSE;
-      }
-      curr = curr->next;
+      if ( curr->linend )
+         delim[0] = curr->linend;
+      else
+         delim[0] = CURRENT_VIEW->linend_value;
+      if ( curr->def_command == (-1) ) /* definition is REXX instore */
+         cmd = "REXX";
+      else
+         cmd = (DEFCHAR *)command[curr->def_command].text;
+      if ( full_definition )
+         sprintf( (DEFCHAR *)buf, "%s %d%s%s %s%s%s", name, curr->def_funkey, (curr->linend) ? " LINEND " : "", (curr->linend) ? (DEFCHAR *)delim : "", cmd, (curr->def_params) ? " " : "", curr->def_params );
+      else
+         sprintf( (DEFCHAR *)buf, "%s%s%s", cmd, (curr->def_params) ? " " : "", curr->def_params );
+   }
+   else
+   {
+      if ( full_definition )
+         sprintf( (DEFCHAR *)buf, "%s %lu %s", name, (unsigned long)strlen((DEFCHAR *)name), name );
+      else
+         sprintf( (DEFCHAR *)buf, "%s", name );
    }
    TRACE_RETURN();
-   return( (synonym_defined) ? buf : (CHARTYPE *)NULL );
+   return( buf );
 }
+
 /***********************************************************************/
 #ifdef HAVE_PROTO
 short display_all_keys(void)
@@ -1185,10 +1183,10 @@ short display_all_keys()
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
-int set_rexx_variables_for_all_keys(int *number_keys_return)
+int set_rexx_variables_for_all_keys(int key_type, int *number_keys_return)
 #else
-int set_rexx_variables_for_all_keys(number_keys_return)
-int *number_keys_return;
+int set_rexx_variables_for_all_keys(key_type,number_keys_return)
+int key_type,*number_keys_return;
 #endif
 /***********************************************************************/
 {
@@ -1202,60 +1200,66 @@ int *number_keys_return;
    TRACE_FUNCTION("commutil.c:set_rexx_variables_for_all_keys");
 
    *number_keys_return = 0;
-   save_funkey = (-1);
-   for (i=0;command[i].text != NULL;i++)
+   if ( key_type == KEY_TYPE_KEY || key_type == KEY_TYPE_ALL )
    {
-      if (command[i].funkey != (-1)
-      &&  save_funkey != command[i].funkey)
+      save_funkey = (-1);
+      for (i=0;command[i].text != NULL;i++)
       {
-         number_keys++;
-         save_funkey = command[i].funkey;
-         keydef = get_key_definition( command[i].funkey, THE_KEY_DEFINE_SHOW, TRUE, FALSE );
-         if ( ( rc = set_rexx_variable( (CHARTYPE *)"define", keydef, strlen((DEFCHAR *)keydef), number_keys ) ) != RC_OK )
+         if (command[i].funkey != (-1)
+         &&  save_funkey != command[i].funkey)
          {
-            TRACE_RETURN();
-            return(rc);
+            number_keys++;
+            save_funkey = command[i].funkey;
+            keydef = get_key_definition( command[i].funkey, THE_KEY_DEFINE_SHOW, TRUE, FALSE );
+            if ( ( rc = set_rexx_variable( (CHARTYPE *)"define", keydef, strlen((DEFCHAR *)keydef), number_keys ) ) != RC_OK )
+            {
+               TRACE_RETURN();
+               return(rc);
+            }
          }
       }
-   }
-   /*
-    * ...next, display any key redefinitions.
-    */
-   curr_define = first_define;
-   while( curr_define != NULL )
-   {
-      if ( key != curr_define->def_funkey )
+      /*
+       * ...next, display any key redefinitions.
+       */
+      curr_define = first_define;
+      while( curr_define != NULL )
       {
-         number_keys++;
-         keydef = get_key_definition( curr_define->def_funkey, THE_KEY_DEFINE_SHOW, FALSE, FALSE );
-         if ( ( rc = set_rexx_variable( (CHARTYPE *)"define", keydef, strlen((DEFCHAR *)keydef), number_keys ) ) != RC_OK )
+         if ( key != curr_define->def_funkey )
          {
-            TRACE_RETURN();
-            return(rc);
+            number_keys++;
+            keydef = get_key_definition( curr_define->def_funkey, THE_KEY_DEFINE_SHOW, FALSE, FALSE );
+            if ( ( rc = set_rexx_variable( (CHARTYPE *)"define", keydef, strlen((DEFCHAR *)keydef), number_keys ) ) != RC_OK )
+            {
+               TRACE_RETURN();
+               return(rc);
+            }
          }
+         key = curr_define->def_funkey;
+         curr_define = curr_define->next;
       }
-      key = curr_define->def_funkey;
-      curr_define = curr_define->next;
    }
 #if defined(PDCURSES_MOUSE_ENABLED) || defined(NCURSES_MOUSE_VERSION)
    /*
     * ...last, display any mouse key definitions.
     */
-   curr_define = first_mouse_define;
-   while( curr_define != NULL )
+   if ( key_type == KEY_TYPE_MOUSE || key_type == KEY_TYPE_ALL )
    {
-      if ( key != curr_define->def_funkey )
+      curr_define = first_mouse_define;
+      while( curr_define != NULL )
       {
-         number_keys++;
-         keydef = get_key_definition( curr_define->def_funkey, THE_KEY_DEFINE_SHOW, FALSE, TRUE );
-         if ( ( rc = set_rexx_variable( (CHARTYPE *)"define", keydef, strlen((DEFCHAR *)keydef), number_keys ) ) != RC_OK )
+         if ( key != curr_define->def_funkey )
          {
-            TRACE_RETURN();
-            return(rc);
+            number_keys++;
+            keydef = get_key_definition( curr_define->def_funkey, THE_KEY_DEFINE_SHOW, FALSE, TRUE );
+            if ( ( rc = set_rexx_variable( (CHARTYPE *)"define", keydef, strlen((DEFCHAR *)keydef), number_keys ) ) != RC_OK )
+            {
+               TRACE_RETURN();
+               return(rc);
+            }
          }
+         key = curr_define->def_funkey;
+         curr_define = curr_define->next;
       }
-      key = curr_define->def_funkey;
-      curr_define = curr_define->next;
    }
 #endif
    *number_keys_return = number_keys;
@@ -1290,7 +1294,7 @@ bool command_only;
 
    TRACE_FUNCTION("commutil.c:command_line");
 #ifdef THE_TRACE
-   trace_string( "cmd_line: [%s] command_only: %d\n", cmd_line, command_only );
+   trace_string( "cmd_line: \"%s\" command_only: %d\n", cmd_line, command_only );
 #endif
    /*
     * If the command line is blank, just return.
@@ -1398,6 +1402,15 @@ bool command_only;
          }
       }
       /*
+       * To reduce file accesses, check if command is COMMAND or MACRO, and treat
+       * both as though they were already prefixed with COMMAND
+       */
+      if ( my_stricmp( (DEFCHAR *)"COMMAND", (DEFCHAR *)cl_cmd ) == 0
+      ||   my_stricmp( (DEFCHAR *)"MACRO", (DEFCHAR *)cl_cmd ) == 0 )
+      {
+         command_only = 1;
+      }
+      /*
        * Before we try the command array, if SET MACRO is ON and IMPMACRO is
        * ON and we have not reached here via COMMAND command, try for a
        * macro...
@@ -1407,8 +1420,12 @@ bool command_only;
       &&  CURRENT_VIEW->imp_macro
       && !command_only)
       {
+#if 0
          strcpy( (DEFCHAR *)command_entered, (DEFCHAR *)cmd[j] );
          rc = execute_macro( command_entered, FALSE, &macrorc );
+#else
+         rc = execute_macro( cmd[j], FALSE, &macrorc );
+#endif
          if ( rc != RC_FILE_NOT_FOUND )
          {
             lastrc = (rc==RC_SYSTEM_ERROR)?rc:macrorc;
@@ -1513,6 +1530,9 @@ bool command_only;
             break;
          }
       }
+#ifdef THE_TRACE
+      trace_string( "executed command: rc: %d valid_command: %d\n", rc, valid_command );
+#endif
       /*
        * If an error occurred while executing a command above, break.
        */
@@ -1572,11 +1592,7 @@ bool command_only;
       if (CURRENT_VIEW->imp_macro
       && !command_only)
       {
-#ifdef __BOUNDS_CHECKING_ON
-         memmove(command_entered,cmd[j],strlen(cmd[j]) + 1);
-#else
-         strcpy((DEFCHAR *)command_entered,(DEFCHAR *)cmd[j]);
-#endif
+         memmove(command_entered,cmd[j],strlen((DEFCHAR *)cmd[j]) + 1);
          if (CURRENT_VIEW->imp_os)
          {
             rc = execute_macro(command_entered,FALSE,&macrorc);
@@ -1667,6 +1683,7 @@ void cleanup_command_line()
          wmove(CURRENT_WINDOW_COMMAND,0,CURRENT_VIEW->cmdline_col);
    }
    CURRENT_VIEW->cmdline_col = (-1);
+   cmd_verify_col = 1;
    TRACE_RETURN();
    return;
 }
@@ -1797,13 +1814,9 @@ bool trailing_spaces_is_arg;
     * In case params is NULL, copy an empty string into param_ptr...
     */
    if (params == NULL)
-      strcpy((DEFCHAR *)param_ptr,"");
+      strcpy( (DEFCHAR *)param_ptr, "" );
    else
-#ifdef __BOUNDS_CHECKING_ON
-      memmove((DEFCHAR *)param_ptr,(DEFCHAR *)params,strlen(params) + 1);
-#else
-      strcpy((DEFCHAR *)param_ptr,(DEFCHAR *)params);
-#endif
+      memmove((DEFCHAR *)param_ptr,(DEFCHAR *)params,strlen((DEFCHAR *)params) + 1);
 
    for ( i = 0; i < words; i++ )
        word[i] = (CHARTYPE *)"";
@@ -1972,11 +1985,7 @@ CHARTYPE *quoted;
    if ( params == NULL )
       strcpy( (DEFCHAR *)param_ptr, "" );
    else
-#ifdef __BOUNDS_CHECKING_ON
-      memmove( (DEFCHAR *)param_ptr, (DEFCHAR *)params, strlen( params ) + 1 );
-#else
-      strcpy( (DEFCHAR *)param_ptr, (DEFCHAR *)params );
-#endif
+      memmove( (DEFCHAR *)param_ptr, (DEFCHAR *)params, strlen( (DEFCHAR *)params ) + 1 );
 
    /*
     * Set all our return word values to empty strings
@@ -2106,9 +2115,9 @@ CHARTYPE *quoted;
     */
    for ( i = 0; i < words; i++ )
    {
-      if ( quoted[i] != '*' )
+      if ( quoted[i] )
       {
-         word[i] = MyStrip( word[i], STRIP_BOTH, '"' );
+         word[i] = MyStrip( word[i], STRIP_BOTH, quoted[i] );
       }
       else if ( *(strip+i) )
       {
@@ -2620,7 +2629,7 @@ bool search_for_target;
    register short i=0;
    short rc=RC_OK;
    TARGET target;
-   short target_type=TARGET_NORMAL|TARGET_BLOCK|TARGET_ALL;
+   long target_type=TARGET_NORMAL|TARGET_BLOCK|TARGET_ALL;
 
    TRACE_FUNCTION("commutil.c:find_command");
    for (i=0;command[i].text != NULL;i++)
@@ -2677,10 +2686,17 @@ void init_command()
    register short i=0;
 
    TRACE_FUNCTION("commutil.c:init_command");
-   strcpy((DEFCHAR *)last_command_for_reexecute,"");
-   strcpy((DEFCHAR *)last_command_for_repeat,"");
-   for (i=0;i<MAX_SAVED_COMMANDS;i++)
-      strcpy((DEFCHAR *)cmd_history[i],"");
+   last_command_for_reexecute = NULL;
+   last_command_for_reexecute_len = 0;
+   last_command_for_repeat_in_macro = NULL;
+   last_command_for_repeat_in_macro_len = 0;
+   last_command_for_repeat = NULL;
+   last_command_for_repeat_len = 0;
+   for ( i = 0; i < MAX_SAVED_COMMANDS; i++ )
+   {
+      cmd_history[i] = NULL;
+      cmd_history_len[i] = 0;
+   }
    TRACE_RETURN();
    return;
 }
@@ -2693,6 +2709,7 @@ CHARTYPE *new_cmd;
 #endif
 /***********************************************************************/
 {
+   int len_cmd;
    TRACE_FUNCTION("commutil.c:add_command");
    /*
     * Do not save commands if the commands are issued from a macro.
@@ -2712,8 +2729,13 @@ CHARTYPE *new_cmd;
       TRACE_RETURN();
       return;
    }
+   len_cmd = strlen( (DEFCHAR *)new_cmd );
    offset_cmd = 0;
-   if (strcmp((DEFCHAR *)new_cmd,(DEFCHAR *)cmd_history[current_cmd]) == 0)
+   /*
+    * if the incoming command is the same as the current one, don't save it again
+    */
+   if ( cmd_history[current_cmd]
+   && ( strcmp( (DEFCHAR *)new_cmd,(DEFCHAR *)cmd_history[current_cmd] ) == 0 ) )
    {
       TRACE_RETURN();
       return;
@@ -2727,7 +2749,21 @@ CHARTYPE *new_cmd;
    }
    else
       current_cmd = ++last_cmd;
-   strcpy((DEFCHAR *)cmd_history[current_cmd],(DEFCHAR *)new_cmd);
+   /*
+    * Allocate/reallocate memory for current command if the new
+    * command length is > current command in array
+    */
+   if ( len_cmd > cmd_history_len[current_cmd] )
+   {
+     cmd_history[current_cmd] = (CHARTYPE *)(*the_realloc)( cmd_history[current_cmd], len_cmd + 1 );
+     if ( cmd_history[current_cmd] == NULL )
+     {
+        cmd_history_len[current_cmd] = 0;
+        TRACE_RETURN();
+        return;
+     }
+   }
+   strcpy( (DEFCHAR *)cmd_history[current_cmd], (DEFCHAR *)new_cmd );
    number_cmds++;
    if (number_cmds > MAX_SAVED_COMMANDS)
       number_cmds = MAX_SAVED_COMMANDS;
@@ -2820,7 +2856,9 @@ CHARTYPE *last_cmd,*cmnd;
 #endif
 /***********************************************************************/
 {
-   TRACE_FUNCTION("commutil.c:save_last_command");
+   int last_cmd_len;
+
+   TRACE_FUNCTION( "commutil.c:save_last_command" );
    /*
     * If the command to be added is the same as the current command or if
     * the command line is empty or if the command is "=" or "?", return
@@ -2828,20 +2866,60 @@ CHARTYPE *last_cmd,*cmnd;
     * Save commands for repeat but NOT for execute if the command is
     * run from a macro...
     */
-   if (valid_command_to_save(last_cmd))
+   if ( valid_command_to_save( last_cmd ) )
    {
-      if (!in_macro)
+      last_cmd_len = strlen( (DEFCHAR *)last_cmd );
+      if ( !in_macro )
       {
-         if ( strlen( (DEFCHAR *)last_cmd ) < sizeof(last_command_for_reexecute) )
+         if ( last_cmd_len > last_command_for_reexecute_len )
          {
-            strcpy((DEFCHAR *)last_command_for_reexecute,(DEFCHAR *)last_cmd);
+            last_command_for_reexecute = (CHARTYPE *)(*the_realloc)( last_command_for_reexecute, last_cmd_len + 1 );
          }
-      }
-      if (!equal((CHARTYPE *)"repeat",cmnd,4))
-      {
-         if ( strlen( (DEFCHAR *)last_cmd ) < sizeof(last_command_for_repeat) )
+         if ( last_command_for_reexecute )
          {
-            strcpy((DEFCHAR *)last_command_for_repeat,(DEFCHAR *)last_cmd);
+            strcpy( (DEFCHAR *)last_command_for_reexecute, (DEFCHAR *)last_cmd );
+            last_command_for_reexecute_len = last_cmd_len;
+#ifdef THE_TRACE
+            trace_string( "Saved for Reexecute \"%s\"\n", last_cmd );
+#endif
+         }
+         else
+            last_command_for_reexecute_len = 0;
+      }
+      if ( !equal( (CHARTYPE *)"repeat", cmnd, 4 )
+      &&   save_for_repeat )
+      {
+         if ( in_macro )
+         {
+            if ( last_cmd_len > last_command_for_repeat_in_macro_len )
+            {
+               last_command_for_repeat_in_macro = (CHARTYPE *)(*the_realloc)( last_command_for_repeat_in_macro, last_cmd_len + 1 );
+            }
+            if ( last_command_for_repeat_in_macro )
+            {
+               strcpy( (DEFCHAR *)last_command_for_repeat_in_macro, (DEFCHAR *)last_cmd );
+#ifdef THE_TRACE
+               trace_string( "Saved for Repeat In Macro\"%s\"\n", last_cmd );
+#endif
+            }
+            else
+               last_command_for_repeat_in_macro_len = 0;
+         }
+         else
+         {
+            if ( last_cmd_len > last_command_for_repeat_len )
+            {
+               last_command_for_repeat = (CHARTYPE *)(*the_realloc)( last_command_for_repeat, last_cmd_len + 1 );
+            }
+            if ( last_command_for_repeat )
+            {
+               strcpy( (DEFCHAR *)last_command_for_repeat, (DEFCHAR *)last_cmd );
+#ifdef THE_TRACE
+               trace_string( "Saved for Repeat \"%s\"\n", last_cmd );
+#endif
+            }
+            else
+               last_command_for_repeat_len = 0;
          }
       }
    }
@@ -2935,7 +3013,7 @@ bool expand_tabs,use_tabs,add_to_recovery;
    LENGTHTYPE i,j;
    bool expanded=FALSE;
    bool tabs_exhausted=FALSE;
-   bool state=FALSE;
+   int state=STATE_NORMAL;
    LENGTHTYPE tabcol=0;
 
    TRACE_FUNCTION("commutil.c:tabs_convert");
@@ -3212,7 +3290,7 @@ CHARTYPE *str;
    LENGTHTYPE i=0;
    CHARTYPE *p=NULL;
    bool dec_char=FALSE;
-   CHARTYPE temp_str[MAX_COMMAND_LENGTH];
+   CHARTYPE *temp_str;
    CHARTYPE *ptr, *end_ptr, *first_non_blank=NULL, *last_non_blank=NULL;
    short num=0;
    int str_len;
@@ -3230,6 +3308,15 @@ CHARTYPE *str;
    {
       TRACE_RETURN();
       return( str_len );
+   }
+   /*
+    * Allocate some termporary space; it MUST be <= input string
+    */
+   temp_str = (CHARTYPE *)alloca( str_len + 1 );
+   if ( temp_str == NULL )
+   {
+      TRACE_RETURN();
+      return(-2);
    }
    ptr = str;
    end_ptr = str + strlen( (DEFCHAR *)str ) - 1;
@@ -3367,10 +3454,6 @@ short suspend_curses()
 # endif
 #endif
 
-#if defined(WIN32) || defined(OS2)
-   reset_shell_mode();
-#endif
-
 #if WAS_HAVE_BSD_CURSES
    noraw();
    nl();
@@ -3390,9 +3473,6 @@ short resume_curses()
 /***********************************************************************/
 {
    TRACE_FUNCTION("commutil.c:resume_curses");
-#if defined(WIN32) || defined(OS2)
-   reset_prog_mode();
-#endif
 #ifdef UNIX
 # if defined(USE_EXTCURSES)
    cresetty(FALSE);
@@ -3702,21 +3782,7 @@ CHARTYPE param_type;
    TRACE_RETURN();
    return;
 }
-#ifdef MSWIN
-/***********************************************************************/
-#ifdef HAVE_PROTO
-void init_temp_space(void)
-#else
-void init_temp_space()
-#endif
-/***********************************************************************/
-{
-   TRACE_FUNCTION("commutil.c:init_temp_space");
-   temp_params = temp_macros = tmp_cmd = temp_cmd = NULL;
-   TRACE_RETURN();
-   return;
-}
-#endif
+
 /***********************************************************************/
 #ifdef HAVE_PROTO
 CHARTYPE calculate_actual_row(short base,short off,ROWTYPE rows,bool force_in_view)
@@ -3816,7 +3882,7 @@ short *errnum;
     * macropath provided the filename does not already contain a path.
     */
    strcpy( (DEFCHAR*)macroname, (DEFCHAR*)inmacroname );
-   (void *)strrmdup(strtrans(macroname,OSLASH,ISLASH),ISLASH,TRUE);
+   strrmdup(strtrans(macroname,OSLASH,ISLASH),ISLASH,TRUE);
 #if defined( UNIX ) || defined( VMS )
    strcpy((DEFCHAR *)delims,(DEFCHAR *)ISTR_SLASH);
    if (strpbrk((DEFCHAR *)macroname,(DEFCHAR *)delims) == NULL
@@ -3833,35 +3899,35 @@ short *errnum;
        * directory in the_macro_path, try to find the supplied file in that
        * directory.
        */
-      if (len_macroname > len_macro_suffix)
+      if ( len_macroname > len_macro_suffix )
       {
-         if (strcmp((DEFCHAR*)macroname+(len_macroname-len_macro_suffix),(DEFCHAR*)macro_ext) == 0)
+         if ( strcmp( (DEFCHAR*)macroname+(len_macroname-len_macro_suffix), (DEFCHAR*)macro_ext ) == 0 )
             append_suffix = FALSE;
          else
             append_suffix = TRUE;
       }
       file_found = FALSE;
-      for (i=0;i<max_macro_dirs;i++)
+      for ( i = 0; i < max_macro_dirs; i++ )
       {
-         strcpy((DEFCHAR *)filename,(DEFCHAR *)the_macro_dir[i]);
-         if (strlen((DEFCHAR *)filename) == 0)
+         strcpy( (DEFCHAR *)filename, (DEFCHAR *)the_macro_dir[i] );
+         if ( strlen( (DEFCHAR *)filename ) == 0 )
             continue;
-         if (*(filename+strlen((DEFCHAR *)filename)-1) != ISLASH)
-            strcat((DEFCHAR *)filename,(DEFCHAR *)ISTR_SLASH);
-         strcat((DEFCHAR *)filename,(DEFCHAR *)macroname);     /* append the file name */
-         if (append_suffix)
-            strcat((DEFCHAR *)filename,(DEFCHAR *)macro_ext); /* append default suffix */
-         if (file_exists(filename))           /* check if file exists... */
+         if ( *(filename+strlen( (DEFCHAR *)filename) - 1 ) != ISLASH )
+            strcat( (DEFCHAR *)filename, (DEFCHAR *)ISTR_SLASH );
+         strcat( (DEFCHAR *)filename, (DEFCHAR *)macroname );     /* append the file name */
+         if ( append_suffix )
+            strcat( (DEFCHAR *)filename, (DEFCHAR *)macro_ext ); /* append default suffix */
+         if ( file_exists( filename ) )           /* check if file exists... */
          {
             file_found = TRUE;
             break;
          }
       }
-      if (!file_found)
+      if ( !file_found )
       {
-         strcpy((DEFCHAR *)filename,(DEFCHAR *)macroname);
-         if (append_suffix)
-            strcat((DEFCHAR *)filename,(DEFCHAR *)macro_ext);
+         strcpy( (DEFCHAR *)filename, (DEFCHAR *)macroname );
+         if ( append_suffix )
+            strcat( (DEFCHAR *)filename, (DEFCHAR *)macro_ext );
          *errnum = 11;
          TRACE_RETURN();
          return(RC_FILE_NOT_FOUND);
@@ -3873,16 +3939,16 @@ short *errnum;
        * The supplied macro file name does contain a path...so just check to
        * ensure that the file exists.
        */
-      if (splitpath(macroname) != RC_OK)
+      if ( splitpath( macroname ) != RC_OK )
       {
          *errnum = 9;
          TRACE_RETURN();
          return(RC_FILE_NOT_FOUND);
       }
-      strcpy((DEFCHAR *)filename,(DEFCHAR *)sp_path);
-      strcat((DEFCHAR *)filename,(DEFCHAR *)sp_fname);
-      if (!file_exists(filename)
-      ||  strcmp((DEFCHAR *)sp_fname,"") == 0)
+      strcpy( (DEFCHAR *)filename, (DEFCHAR *)sp_path );
+      strcat( (DEFCHAR *)filename, (DEFCHAR *)sp_fname );
+      if ( !file_exists( filename )
+      ||   strcmp( (DEFCHAR *)sp_fname, "" ) == 0 )
       {
          *errnum = 9;
          TRACE_RETURN();
@@ -3892,7 +3958,7 @@ short *errnum;
    /*
     * If the file is not readable, error.
     */
-   if (!file_readable(filename))
+   if ( !file_readable( filename ) )
    {
       *errnum = 8;
       TRACE_RETURN();
@@ -3919,7 +3985,6 @@ CHARTYPE *cmd_line;
     * First check if the command is a synonym, and use the real name to
     * search the command array.
     */
-
    memset(buf,'\0',7);
    memcpy(buf,cmd_line,min(6,strlen((DEFCHAR *)cmd_line)));
    for (i=0;i<7;i++)
@@ -3989,9 +4054,9 @@ int start_col;
    buf[1] = '\0';
    Cmsg(initial);
    if ( start_col == -1 )
-      THEcursor_cmdline( (short)(strlen( (DEFCHAR *)initial ) + 1 ) );
+      THEcursor_cmdline( current_screen, CURRENT_VIEW, (short)(strlen( (DEFCHAR *)initial ) + 1 ) );
    else
-      THEcursor_cmdline( (short)(start_col + 1 ) );
+      THEcursor_cmdline( current_screen, CURRENT_VIEW, (short)(start_col + 1 ) );
    in_readv = TRUE; /* this MUST go after THEcursor_cmdline() to work */
    /*
     * If we were called from execute_dialog, refresh the dialog window
@@ -4002,7 +4067,7 @@ int start_col;
    while( 1 )
    {
       key = my_getch( stdscr );
-#if defined(XCURSES)
+#if defined(USE_XCURSES)
       if ( key == KEY_SF || key == KEY_SR )
          continue;
 #endif
@@ -4376,7 +4441,7 @@ bool display_parse_error, search_semantics,*target_found;
    LINETYPE save_focus_line=0L;
    LINETYPE save_current_line=0L;
    TARGET target;
-   short target_type;
+   long target_type;
    bool negative=FALSE;
    short rc;
    bool wrapped=FALSE;
@@ -4392,12 +4457,12 @@ bool display_parse_error, search_semantics,*target_found;
     */
    if ( search_semantics )
    {
-      target_type=TARGET_STRING|TARGET_REGEXP;
+      target_type = TARGET_STRING|TARGET_REGEXP;
       focus_column = get_true_column(TRUE);
    }
    else
    {
-      target_type=TARGET_NORMAL|TARGET_SPARE|TARGET_REGEXP;
+      target_type = TARGET_NORMAL|TARGET_SPARE|TARGET_REGEXP|TARGET_BLOCK;
       focus_column = 0;
    }
 
@@ -4439,9 +4504,15 @@ bool display_parse_error, search_semantics,*target_found;
          &&   save_target( &target ) )
          {
             if ( search_semantics )
-               strcpy( (DEFCHAR *)lastop[LASTOP_SEARCH].value, (DEFCHAR *)target.string );
+               rc = save_lastop( LASTOP_SEARCH, target.string );
             else
-               strcpy( (DEFCHAR *)lastop[LASTOP_LOCATE].value, (DEFCHAR *)target.string );
+               rc = save_lastop( LASTOP_LOCATE, target.string );
+            if ( rc != RC_OK )
+            {
+               display_error( 30, (CHARTYPE *)"", FALSE );
+               TRACE_RETURN();
+               return rc;
+            }
          }
          /*
           * Don't free the target if THIGHLIGHT is on
@@ -4478,9 +4549,15 @@ bool display_parse_error, search_semantics,*target_found;
       &&   save_target( &target ) )
       {
          if ( search_semantics )
-            strcpy( (DEFCHAR *)lastop[LASTOP_SEARCH].value, (DEFCHAR *)target.string );
+            rc = save_lastop( LASTOP_SEARCH, target.string );
          else
-            strcpy( (DEFCHAR *)lastop[LASTOP_LOCATE].value, (DEFCHAR *)target.string );
+            rc = save_lastop( LASTOP_LOCATE, target.string );
+         if ( rc != RC_OK )
+         {
+            display_error( 30, (CHARTYPE *)"", FALSE );
+            TRACE_RETURN();
+            return rc;
+         }
       }
       /*
        * If the number of targetted lines is not 0, move the current or focus line
@@ -4545,6 +4622,8 @@ void adjust_other_screen_shadow_lines()
  * are changed in the current screen. Used by SET SELECT, SET DISPLAY, ALL, MORE and LESS
  */
 {
+
+   TRACE_FUNCTION("commutil.c:adjust_other_screen_shadow_lines");
    /*
     * If the same file is in the other screen, refresh it
     */
@@ -4564,4 +4643,70 @@ void adjust_other_screen_shadow_lines()
 
    TRACE_RETURN();
    return;
+}
+
+/***********************************************************************/
+#ifdef HAVE_PROTO
+int is_file_in_ring( CHARTYPE *fpath, CHARTYPE *fname )
+#else
+int is_file_in_ring( fpath, fname )
+CHARTYPE *fpath, *fname;
+#endif
+/***********************************************************************/
+{
+   VIEW_DETAILS *curr=vd_first;
+
+   TRACE_FUNCTION("commutil.c:is_file_in_ring");
+
+   while( curr )
+   {
+#if defined(OS2) || defined(WIN32) || defined(DOS)
+      if ( my_stricmp( (DEFCHAR *)curr->file_for_view->fpath, (DEFCHAR *)fpath ) == 0
+      &&   my_stricmp( (DEFCHAR *)curr->file_for_view->fname, (DEFCHAR *)fname ) == 0 )
+#else
+      if ( strcmp( (DEFCHAR *)curr->file_for_view->fpath, (DEFCHAR *)fpath ) == 0
+      &&   strcmp( (DEFCHAR *)curr->file_for_view->fname, (DEFCHAR *)fname ) == 0 )
+#endif
+      {
+         TRACE_RETURN();
+         return TRUE;
+      }
+      curr = curr->next;
+   }
+   TRACE_RETURN();
+   return FALSE;
+}
+
+/***********************************************************************/
+#ifdef HAVE_PROTO
+int save_lastop( int idx, CHARTYPE *op )
+#else
+int save_lastop( idx, op )
+int idx;
+CHARTYPE *op;
+#endif
+/***********************************************************************/
+{
+   int op_len;
+   int rc = RC_OK;
+
+   TRACE_FUNCTION("commutil.c:save_lastop");
+
+   op_len = strlen( (DEFCHAR *)op );
+   if ( op_len > lastop[idx].value_len )
+   {
+      lastop[idx].value = (CHARTYPE *)(*the_realloc)( lastop[idx].value, op_len + 1 );
+   }
+   if ( lastop[idx].value )
+   {
+      strcpy( (DEFCHAR *)lastop[idx].value, (DEFCHAR *)op );
+      lastop[idx].value_len = op_len;
+   }
+   else
+   {
+      lastop[idx].value_len = 0;
+      rc = RC_OUT_OF_MEMORY;
+   }
+   TRACE_RETURN();
+   return rc;
 }
