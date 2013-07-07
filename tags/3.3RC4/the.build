@@ -1,0 +1,65 @@
+#
+# This file contains target specifiers for the THE build.the macro.
+#
+# To be recognised by build.the, it must be stored as $HOME/.thebuild
+# under Unix platforms, and c:\the.build under DOS, OS/2 and Windows
+# platforms.
+#
+# For each target, there must be an entry for the following items:
+# BUILD_MAKE_COMMAND, BUILD_MAKE_DIR, BUILD_ERROR_FORMAT and
+# BUILD_WARNING_FORMAT
+#
+# The values of the "*FORMAT" items is a PARSE template, where the following
+# variables are used:
+# !fn - the name of the file with the error/warning
+# !line - the line number in !fn where the error/warning occurred
+# !col - the column number in !fn where the error/warning occurred
+# !msg - the text of the error message
+# Only !col is optional; all others must exist
+#
+# Here are some templates for various compilers...
+#
+# gcc
+# ===
+# Error:   !fn ':' !line ':' !msg
+# Warning: !fn ':' !line ': warning:' !msg
+#
+# MS VC++
+# =======
+# Error:   !fn '(' !line ') :' . 'error' . ':' !msg
+# Warning: !fn '(' !line ') : warning' . ':' !msg
+#
+# Watcom C++
+# ==========
+# Error:   !fn '(' !line '): Error!' . ':' !msg
+# Warning: !fn '(' !line '): Warning!' . ':' !msg
+#
+# Watcom C++ (under QNX)
+# ======================
+#
+# Error:   !fn '(' !line '): Error!' . ':' . '(col' !col ')' . 1 . ':' 'Error!' . ':' !msg
+# Warning: !fn '(' !line '): Warning!' . ':' . '(col' !col ')' . 1 . ':' 'Error!' . ':' !msg
+#
+[the-xcurses]
+BUILD_MAKE_COMMAND make the
+BUILD_MAKE_DIR /home/mark/THE/xcurses
+BUILD_ERROR_FORMAT !fn ':' !line ':' !msg
+BUILD_WARNING_FORMAT !fn ':' !line ': warning:' !msg
+
+[the-ncurses]
+BUILD_MAKE_COMMAND make the
+BUILD_MAKE_DIR /home/mark/THE/ncurses
+BUILD_ERROR_FORMAT !fn ':' !line ':' !msg
+BUILD_WARNING_FORMAT !fn ':' !line ': warning:' !msg
+
+[regina]
+BUILD_MAKE_COMMAND make
+BUILD_MAKE_DIR /home/mark/Regina
+BUILD_ERROR_FORMAT !fn ':' !line ':' !msg
+BUILD_WARNING_FORMAT !fn ':' !line ': warning:' !msg
+
+[regina-mt]
+BUILD_MAKE_COMMAND make
+BUILD_MAKE_DIR /home/mark/Regina/mt
+BUILD_ERROR_FORMAT !fn ':' !line ':' !msg
+BUILD_WARNING_FORMAT !fn ':' !line ': warning:' !msg
