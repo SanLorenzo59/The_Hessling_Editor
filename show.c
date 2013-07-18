@@ -1369,7 +1369,10 @@ VIEW_DETAILS *curr_view;
        * Display the contents of the cmdline from the cmd_verify_col
        */
       getyx( SCREEN_WINDOW_COMMAND(curr_screen), y, x );
-      display_line_left( SCREEN_WINDOW_COMMAND(curr_screen), set_colour( curr_view->file_for_view->attr+ATTR_CMDLINE), cmd_rec+cmd_verify_col-1, cmd_rec_len, 0, screen[curr_screen].cols[WINDOW_COMMAND] );
+      if ( inDIALOG )
+         display_line_left( SCREEN_WINDOW_COMMAND(curr_screen), set_colour( curr_view->file_for_view->attr+ATTR_DIA_EDITFIELD), cmd_rec+cmd_verify_col-1, cmd_rec_len, 0, screen[curr_screen].cols[WINDOW_COMMAND] );
+      else
+         display_line_left( SCREEN_WINDOW_COMMAND(curr_screen), set_colour( curr_view->file_for_view->attr+ATTR_CMDLINE), cmd_rec+cmd_verify_col-1, cmd_rec_len, 0, screen[curr_screen].cols[WINDOW_COMMAND] );
       wnoutrefresh( SCREEN_WINDOW_COMMAND(curr_screen) );
       wmove( SCREEN_WINDOW_COMMAND(curr_screen), y, x );
    }

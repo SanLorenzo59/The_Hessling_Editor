@@ -1028,6 +1028,9 @@ CHARTYPE *params;
    short rc=RC_OK;
    LINETYPE true_line=0L;
    CHARTYPE *lname=NULL,*fname=NULL;
+   VIEW_DETAILS *dir=NULL;
+   PRESERVED_VIEW_DETAILS *preserved_view_details=NULL;
+   PRESERVED_FILE_DETAILS *preserved_file_details=NULL;
 
    TRACE_FUNCTION("commsos.c: Sos_edit");
    /*
@@ -1120,9 +1123,25 @@ CHARTYPE *params;
    strcat((DEFCHAR *)edit_fname,(DEFCHAR *)sp_fname);
 #endif
    /*
-    * Edit the file.
+    * If we are editing a directory and have a DIR.DIR file in the ring, find it...
+    */
+   if ( strlen( (DEFCHAR *)sp_fname ) == 0 )
+   {
+      dir = find_pseudo_file( PSEUDO_DIR );
+      if ( dir )
+      {
+         /* ... and preserve the settings so we can apply them to the new DIR.DIR */
+         execute_preserve( dir, &preserved_view_details, dir->file_for_view, &preserved_file_details );
+      }
+   }
+   /*
+    * Edit the DIR.DIR file
     */
    rc = EditFile( edit_fname, FALSE );
+   if ( dir )
+   {
+      execute_restore( CURRENT_VIEW, &preserved_view_details, CURRENT_FILE, &preserved_file_details );
+   }
    pre_process_line(CURRENT_VIEW,CURRENT_VIEW->focus_line,(LINE *)NULL);
    TRACE_RETURN();
    return(rc);

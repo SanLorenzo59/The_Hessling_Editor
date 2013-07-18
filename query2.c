@@ -1790,17 +1790,32 @@ LINETYPE arglen;
 #if defined(HAVE_SLK_INIT)
    if ( blank_field( itemargs ) )
    {
-      if ( SLKx )
+      if ( max_slk_labels == 0
+      &&   query_type != QUERY_MODIFY )
+      {
+         item_values[1].value = (CHARTYPE *)"UNAVAILABLE";
+         item_values[1].len = 11;
+         number_variables = 2;
+      }
+      else if ( SLKx )
       {
          item_values[1].value = (CHARTYPE *)"ON";
          item_values[1].len = 2;
-         number_variables = 1;
+         number_variables = 2;
       }
       else
       {
          item_values[1].value = (CHARTYPE *)"OFF";
          item_values[1].len = 3;
+         number_variables = 2;
+      }
+      if ( query_type == QUERY_MODIFY
+      ||   query_type == QUERY_STATUS )
          number_variables = 1;
+      else
+      {
+         item_values[2].len = sprintf( (DEFCHAR *)query_num1,"%d", slk_format_switch );
+         item_values[2].value = query_num1;
       }
       TRACE_RETURN();
       return( number_variables );

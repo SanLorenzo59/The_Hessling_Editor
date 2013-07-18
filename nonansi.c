@@ -99,7 +99,7 @@ CHARTYPE *filename;
 /***********************************************************************/
 {
    TRACE_FUNCTION("nonansi.c: file_writable");
-   if (!file_exists(filename))
+   if ( file_exists( filename ) != THE_FILE_EXISTS )
    {
       TRACE_RETURN();
       return(TRUE);
@@ -121,14 +121,30 @@ CHARTYPE *filename;
 #endif
 /***********************************************************************/
 {
+   int rc;
    TRACE_FUNCTION("nonansi.c: file_exists");
-   if (access((DEFCHAR *)filename,F_OK) == (-1))
+   if ( access( (DEFCHAR *)filename, F_OK ) == (-1) )
+   {
+      rc = errno;
+      switch( rc )
+      {
+#ifdef ENAMETOOLONG
+         case ENAMETOOLONG:
+            rc = THE_FILE_NAME_TOO_LONG;
+            break;
+#endif
+         default:
+            rc = THE_FILE_UNKNOWN;
+            break;
+      }
+      TRACE_RETURN();
+      return((short)rc);
+   }
+   else
    {
       TRACE_RETURN();
-      return(FALSE);
+      return(THE_FILE_EXISTS);
    }
-   TRACE_RETURN();
-   return(TRUE);
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
@@ -787,8 +803,8 @@ CHARTYPE *filename;
    /*
     * First determine if the supplied filename is a directory.
     */
-   if ((stat((DEFCHAR *)work_filename,&stat_buf) == 0)
-   &&  (is_a_dir(stat_buf.st_mode)))
+   if ( ( stat((DEFCHAR *)work_filename, &stat_buf ) == 0 )
+   &&   ( is_a_dir_stat( stat_buf.st_mode ) ) )
    {
       strcpy((DEFCHAR *)sp_path,(DEFCHAR *)work_filename);
       strcpy((DEFCHAR *)sp_fname,"");
@@ -933,8 +949,8 @@ CHARTYPE *filename;
    /*
     * First determine if the supplied filename is a directory.
     */
-   if ((stat((DEFCHAR *)work_filename,&stat_buf) == 0)
-   &&  (is_a_dir(stat_buf.st_mode)))
+   if ( ( stat( (DEFCHAR *)work_filename, &stat_buf ) == 0 )
+   &&   ( is_a_dir_stat( stat_buf.st_mode ) ) )
    {
       strcpy((DEFCHAR *)sp_path,(DEFCHAR *)work_filename);
       strcpy((DEFCHAR *)sp_fname,"");
@@ -1758,16 +1774,46 @@ bool visible;
    TRACE_RETURN();
    return;
 }
+/*
+ * is_a_dir_stat() used when the attributes are obtained from stat()
+ */
 /*********************************************************************/
 #ifdef HAVE_PROTO
-int is_a_dir(ATTR_TYPE attrs)
+int is_a_dir_stat(ATTR_TYPE attrs)
 #else
-int is_a_dir(attrs)
+int is_a_dir_stat(attrs)
 ATTR_TYPE attrs;
 #endif
 /*********************************************************************/
 {
 #if defined(S_IFDIR)
+   ATTR_TYPE ftype=(attrs & S_IFMT);
+
+   if (ftype == S_IFDIR)
+      return(1);
+#else
+   if ((attrs & F_DI) == F_DI)
+      return(1);
+#endif
+   return(0);
+}
+
+/*
+ * is_a_dir_dir() used when the attributes are obtained from _findfirst() on Windows
+ */
+/*********************************************************************/
+#ifdef HAVE_PROTO
+int is_a_dir_dir(ATTR_TYPE attrs)
+#else
+int is_a_dir_dir(attrs)
+ATTR_TYPE attrs;
+#endif
+/*********************************************************************/
+{
+#if defined(_A_SUBDIR)
+   if ( ( attrs & _A_SUBDIR) == _A_SUBDIR )
+      return(1);
+#elif defined(S_IFDIR)
    ATTR_TYPE ftype=(attrs & S_IFMT);
 
    if (ftype == S_IFDIR)

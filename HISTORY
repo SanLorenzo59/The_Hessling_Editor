@@ -6,15 +6,29 @@ Version 3.3RC4 ??-??-2013
      o Fix for bug 256: LASTOP for CLOCATE not set
      o Fix for bug 257: EXTRACT /LASTKEY n not showing nth key
      o Fix for bug 258: Too many attempts to open macro files
+     o Fix for bug 260: Error message 0029: needs a filename
+     o Fix for bug 234: PUT goes to C:\ on W7
+     o Fix bug in DEFSORT on Windows introduced in 3.3RC1
+     o Fix for bug 262: Cursor won't go to EditField for DIALOG command
+     o Fix for big 227: RC1 in maximized xterm gives segfault
+     o Fix for bug 226: extra blanks in command lines create error msgs
+     o Fix for bug 264: rc4: duplicate command has hard coded limit 32767
+     o Fix for bug 238: RC2 DIR.DIR colors lost when screen split
  --- Changed commands or behaviour:
      o CLOCATE now uses last clocate target if no arguments supplied
      o Removed 150 character limit for commands on command line
      o SET SLK now has ON option
+     o Default value for -k command line switch without an optional format number is 4
+     o READV CMDLINE now allows the TAB key to be used to terminate the command. Also
+       affects DIALOG command.
  --- New features:
      o Feature Request 37: Add SLK to EXTRACT/QUERY
      o Feature Request 54: Document new line flag targets (done in 3.3RC1)
      o Feature Request 32: Expand EXTRACT DEFINE to limit to key or mouse definitions
      o Feature Request 59: Add PgUp/PgDn support to POPUP
+     o Feature Request 49: Add specific color settings for POPUP
+     o Feature Request 50: Extend COLOR DIALOG for each item
+     o Closed (rejected) Feature Request 55: RC1 Make default for Windows thec.exe
 
 Version 3.3RC3 22-03-2013 (Mageia only)
  --- Changed commands or behaviour:
@@ -26,6 +40,11 @@ Version 3.3RC3 22-03-2013 (Mageia only)
 
 Version 3.3RC2 21-Feb-2012 (MacOS X only)
  --- Bug fixes:
+     o NOTE. All bug/feature request numbers prior to and including this release refer to
+       id numbers in the old SourceForge system. To find details about these bug use the
+       following link:
+       https://sourceforge.net/support/tracker.php?aid=id
+       where 'id' is the old bug number.
      o Fix for bug 3363509: SET CTLCHAR would always show an error
      o Fix for bug 3366183: RC1 on W7 dir C:\Program Files (x86)\ crashes THE
      o Fix for bug 3367591: RC1 "define S-F1 macro syntax q" crashes THE

@@ -30,7 +30,7 @@
  */
 
 /*
-$Id: proto.h,v 1.57 2013/06/22 02:01:40 mark Exp $
+$Id: proto.h,v 1.60 2013/07/10 02:08:25 mark Exp $
 */
 
                                                          /* commutil.c */
@@ -139,7 +139,7 @@ short execute_shift_command Args(( CHARTYPE, VIEW_DETAILS *, bool, LENGTHTYPE, L
 short execute_set_lineflag Args(( unsigned int, unsigned int, unsigned int, LINETYPE, LINETYPE, bool, long ));
 short do_actual_change_case Args((LINETYPE, LINETYPE,CHARTYPE,bool,short,LENGTHTYPE,LENGTHTYPE));
 short execute_change_case Args((CHARTYPE *,CHARTYPE));
-short rearrange_line_blocks Args((CHARTYPE,CHARTYPE,LINETYPE,LINETYPE,LINETYPE,short,VIEW_DETAILS*,VIEW_DETAILS*,bool,LINETYPE *));
+short rearrange_line_blocks Args((CHARTYPE,CHARTYPE,LINETYPE,LINETYPE,LINETYPE,long,VIEW_DETAILS*,VIEW_DETAILS*,bool,LINETYPE *));
 short execute_set_point Args(( CHARTYPE, VIEW_DETAILS *, CHARTYPE *, LINETYPE, bool ));
 short execute_wrap_word Args((LENGTHTYPE));
 short execute_split_join Args((short,bool,bool));
@@ -160,8 +160,8 @@ short prepare_dialog Args((CHARTYPE *,bool,CHARTYPE *));
 short execute_dialog Args((CHARTYPE *,CHARTYPE *,CHARTYPE *,bool,short,short,CHARTYPE *,short,bool));
 short prepare_popup Args((CHARTYPE *));
 short execute_popup Args((int, int, int, int , int , int , int , int , CHARTYPE **, int));
-short execute_preserve Args((PRESERVED_VIEW_DETAILS **, PRESERVED_FILE_DETAILS **));
-short execute_restore Args((PRESERVED_VIEW_DETAILS **, PRESERVED_FILE_DETAILS **));
+short execute_preserve Args((VIEW_DETAILS *, PRESERVED_VIEW_DETAILS **, FILE_DETAILS *, PRESERVED_FILE_DETAILS **));
+short execute_restore Args((VIEW_DETAILS *, PRESERVED_VIEW_DETAILS **, FILE_DETAILS *, PRESERVED_FILE_DETAILS **));
                                                           /* default.c */
 void set_global_defaults Args((void));
 void set_global_look_defaults Args((void));
@@ -203,6 +203,7 @@ void free_a_view Args((void));
 short free_file_memory Args((bool));
 short read_directory Args((void));
 VIEW_DETAILS *find_file Args((CHARTYPE *,CHARTYPE *));
+VIEW_DETAILS *find_pseudo_file Args((CHARTYPE));
 short execute_command_file Args((FILE *));
 CHARTYPE *read_file_into_memory Args((CHARTYPE *,int *));
                                                             /* getch.c */
@@ -225,7 +226,8 @@ bool IsPathAndFilenameValid Args((CHARTYPE *));
 LINE *getclipboard Args((LINE *, int));
 short setclipboard Args((FILE_DETAILS *,CHARTYPE *,bool,LINETYPE,LINETYPE,LINETYPE,LINETYPE *,bool,LENGTHTYPE,LENGTHTYPE,bool,bool,int));
 void draw_cursor Args((bool));
-int is_a_dir Args((ATTR_TYPE));
+int is_a_dir_stat Args((ATTR_TYPE));
+int is_a_dir_dir Args((ATTR_TYPE));
                                                            /* parser.c */
 short parse_line Args((CHARTYPE,FILE_DETAILS *,SHOW_LINE *,short));
 short parse_paired_comments Args((CHARTYPE,FILE_DETAILS *));

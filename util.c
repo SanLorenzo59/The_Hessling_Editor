@@ -1687,7 +1687,7 @@ short scrn;
 
       draw_divider();
    }
-   if ( SLKx )
+   if ( max_slk_labels )
    {
 #if defined(HAVE_SLK_INIT)
 # if defined(HAVE_SLK_ATTRSET)
@@ -2989,9 +2989,7 @@ char *prefix;
    * This function is not thread safe.
    */
 #define PATH_DELIMS ":\\/"
-#if !defined HAVE_BROKEN_TMPNAM
-   return tmpnam( NULL );
-#else
+#if defined HAVE_BROKEN_TMPNAM
    char *path=NULL,*filename=NULL;
    static char *buffer = NULL;
    static size_t buffersize = 0;
@@ -3039,6 +3037,10 @@ char *prefix;
    }
 
    return(NULL);
+#elif defined WIN32
+   return _tempnam( NULL, "THE" );
+#else
+   return tmpnam( NULL );
 #endif
 }
 

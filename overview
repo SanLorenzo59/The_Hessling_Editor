@@ -147,11 +147,11 @@ below in '[]'. The purpose of each of the switches is as follows:
   of THE.  You can optionally supply a directory with the -1 switch to specify where
   the THE FIFO (.thefifo) is created. If not supplied, the THE FIFO is created
   in the users $HOME directory.
-  This feature is currently only available with the X11 port of the
-  using XCurses 2.5 and greater.  If the first instance of THE with the -1
-  switch crashes for any reason, subsequent attempts to run THE with the same -1
-  switch will hang.  To fix this remove the FIFO and then run THE with the -1
-  switch again.
+  This feature is available with the X11 port of the using XCurses
+  2.5 and greater, the ncurses port and with Windows ports.
+  If the first instance of THE with the -1 switch crashes for any reason, subsequent
+  attempts to run THE with the same -1 switch will hang.  To fix this remove the FIFO
+  and then run THE with the -1 switch again.
 
 After all the above switches are stated on the command line, THE treats
 the remainder of the command line as files or directories to edit.
