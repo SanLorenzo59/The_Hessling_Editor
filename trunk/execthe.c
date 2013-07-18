@@ -485,7 +485,7 @@ int main( int argc, char *argv[] )
          {
             /*
              * We have an arg to pass to the spawned process. If the arg has a space in it, the
-             * user MUST have quoted it originally.  Windows (of course) does work like Unix
+             * user MUST have quoted it originally.  Windows (of course) doesn't work like Unix
              * and execv() actually concats all the args into one string to pass to CreateProcess().
              * This results is multiple args for a single arg that has spaces.
              * We have to work around this by appending quotes to args that have spaces for Windows.

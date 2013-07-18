@@ -15,7 +15,10 @@ Trace o
 'set readonly on'
 'set targetsave string'
 'set filetabs on'
-'extract /version'
+'set trailing remove'
+'color prefix black on grey'
+'color arrow black on grey'
+'extract /version/filename/fpath'
 If initial() Then
    Do
       Call Common_Initial
@@ -26,6 +29,8 @@ Interpret Call version.3
 Return 0
 
 Common_Initial: Procedure
+'define F6 macro syntax F6'
+'define S-F2 prevwindow'
 'define C-S save'
 'define C-W mark word'
 'define C-F macro blockloc.the'
@@ -36,24 +41,72 @@ Common_Initial: Procedure
 'define C-F6 macro tags goto'
 'define C-F7 macro tags prev'
 'define C-F8 macro tags next'
+'define TAB macro complete.the sos tabf'
 'parser make make.tld'
 'autocolor Makefile make'
 'autocolor Makefile.in make'
 'autocolor makefile make'
+'autocolor makefile.*.vc make'
 'autocolor *.mak make'
 'autocolor *.wins make'
 'autocolor *.marm make'
 'parser m4 m4.tld'
 'autocolor *.m4 m4'
+'autocolor configure.in m4'
 'parser opl opl.tld'
 'autocolor *.opl opl'
 'parser c c.tld'
+'autocolor config.h.in c'
 'parser rexx rexx.tld'
+'parser objc objc.tld'
 'parser nsi nsi.tld'
 'autocolor *.nsi nsi'
+'autocolor *.nsh nsi'
+'parser sql plsql.tld'
+'autocolor *.sql sql'
+'autocolor *.pkh sql'
+'autocolor *.pkb sql'
+'autocolor *.pks sql'
+'autocolor *.m objc'
+'parser spec spec.tld'
+'autocolor *.spec spec'
+'autocolor DIR.DIR dir'
+'parser js js.tld'
+'parser html html.tld'
+'autocolor *.html html'
+'autocolor *.htm html'
+'autocolor *.js js'
+/*
+ * Code completion
+ */
+'define c-e macro codecomp.the toggle'
+'define space macro codecomp.the'
 Return
 
 WIN32_Initial: Procedure
+Call WIN_Initial
+Return
+
+WIN64_Initial: Procedure
+Call WIN_Initial
+Return
+
+WIN_Initial: Procedure
+'define C-L mark line'
+'define C-O overlaybox'
+'define C-D duplicate 1 block'
+'define C-B mark box'
+'define C-G delete block'
+'define C-C copy block reset'
+'define C-K copy block'
+'define C-X sos edit'
+'define C-V move block reset'
+'define C-U reset block'
+'define A-V clipboard paste'
+'define A-C clipboard copy'
+Return
+
+DOS_Initial: Procedure
 'define C-L mark line'
 'define C-O overlaybox'
 'define C-D duplicate 1 block'
@@ -88,7 +141,8 @@ QNX_Initial: Procedure
 'define S-NEXT bot'
 'define S-PREVIOUS top'
 'define EXIT sos delend'
-'define FIND macro filemenu.the'
+'define FIND cursor home'
+'define SELECT sos startendchar'
 'define C-H macro cref.the'
 'define S-HOME tabfile'
 'define S-CANCEL tabfile -'
@@ -101,8 +155,11 @@ UNIX_Initial: Procedure
 'define select sos startendchar'
 Return
 
-X11_Initial: Procedure
+X11_Initial: Procedure Expose version.
 'define S-F11 locate'
+'define EXIT cancel'
+'define A-V clipboard paste'
+If version.5 = 'Darwin' Then 'define HELP insertmode toggle'
 Return
 
 X11: Procedure
@@ -119,7 +176,24 @@ Return
 Win32: Procedure
 Return
 
+Win64: Procedure
+Return
+
+DOS: Procedure
+Return
+
 QNX: Procedure
+'extract /ftype'
+If ftype.1 = 'tt' Then
+   Do
+      'set reserved autoscroll -3                                               Line'
+      'set reserved autoscroll -2 Service   *Forms A *Forms B *From A  *From B  Code---- Bits --   Len      PP'
+   End
+Else
+   Do
+      'nomsg set reserved -3 off'
+      'nomsg set reserved -2 off'
+   End
 Return
 
 UNIX: Procedure
@@ -135,7 +209,7 @@ If terminal.1() \= 'X11' Then
       'define c-pgup top'
       'define c-pgdn bottom'
       'define c-end sos delend'
-      'define backspace sos delchar'
+      'define backspace sos delback'
       'define END sos startendchar'
    End
 Return

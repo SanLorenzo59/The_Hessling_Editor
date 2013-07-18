@@ -879,6 +879,19 @@ Do While(Lines(infile)>0)
             Say '<H2>' header '</H2>'
             line = Linein(infile)
           End
+     When Strip(line) = '+'||Copies('-',30) Then
+          Do
+            If in_code_section = 'Y' Then
+               Do
+                 Say '</blockquote></td></tr></table><br>'
+                 in_code_section = 'N'
+               End
+            Else
+               Do
+                 Say '<table width="100%" border="1" cellpadding="4" cellspacing="0" bgcolor="#cccccc"><tr><td><blockquote>'
+                 in_code_section = 'Y'
+               End
+          End
      When Substr(Strip(line),1,5) = '+----' Then
           Do
             columns = Words(Translate(line,' ','-')) - 1
@@ -987,6 +1000,13 @@ Do While(Lines(infile)>0)
           End
      When header = 'Line Targets' Then
           Do
+            If in_code_section = 'Y' Then
+               Do
+                 Say Strip(line) '<BR>'
+               End
+            Else
+               Say line
+/*
             Say '<TABLE BORDER=1 CELLSPACING=1 CELLPADDING=2><TR>'
             ar = '<TD>'
             dr = '<TD>'
@@ -1007,6 +1027,7 @@ Do While(Lines(infile)>0)
                If line = '' Then Leave
                Say line '<BR>'
             End
+*/
           End
      When Substr(line,2,5) = '[SET]' | Substr(line,2,3) = 'SET' Then
           Do

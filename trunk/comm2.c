@@ -365,11 +365,11 @@ DESCRIPTION
 
      The colours used for the dialog box are:
 
-          Border          -  <SET COLOR> DIVIDER
+          Border          -  <SET COLOR> DIALOGBORDER
           Prompt area     -  <SET COLOR> DIALOG
-          Editfield       -  <SET COLOR> CMDLINE
-          Inactive button -  <SET COLOR> BLOCK
-          Active button   -  <SET COLOR> CBLOCK
+          Editfield       -  <SET COLOR> DIALOGEDITFIELD
+          Inactive button -  <SET COLOR> DIALOGBUTTON
+          Active button   -  <SET COLOR> DIALOGABUTTON
 
 COMPATIBILITY
      XEDIT: N/A
@@ -435,6 +435,9 @@ CHARTYPE *params;
    CHARTYPE *word[DIR_PARAMS+1];
    CHARTYPE strip[DIR_PARAMS];
    CHARTYPE quoted[DIR_PARAMS];
+   VIEW_DETAILS *dir=NULL;
+   PRESERVED_VIEW_DETAILS *preserved_view_details=NULL;
+   PRESERVED_FILE_DETAILS *preserved_file_details=NULL;
    unsigned short num_params=0;
    short rc=RC_OK;
 
@@ -483,9 +486,22 @@ CHARTYPE *params;
    strcat( (DEFCHAR *)temp_cmd, (DEFCHAR *)dir_filename );
 #endif
    /*
+    * If we have a DIR.DIR file in the ring, find it...
+    */
+   dir = find_pseudo_file( PSEUDO_DIR );
+   if ( dir )
+   {
+      /* ... and preserve the settings so we can apply them to the new DIR.DIR */
+      execute_preserve( dir, &preserved_view_details, dir->file_for_view, &preserved_file_details );
+   }
+   /*
     * Edit the DIR.DIR file
     */
    rc = EditFile( temp_cmd, FALSE );
+   if ( dir )
+   {
+      execute_restore( CURRENT_VIEW, &preserved_view_details, CURRENT_FILE, &preserved_file_details );
+   }
 
    TRACE_RETURN();
    return(RC_OK);
@@ -613,7 +629,8 @@ CHARTYPE *params;
    CHARTYPE *word[DUP_PARAMS+1];
    CHARTYPE strip[DUP_PARAMS];
    unsigned short num_params=0;
-   short rc=RC_OK,num_occ=0;
+   short rc=RC_OK;
+   long num_occ=0;
    LINETYPE start_line=0L,end_line=0L,dest_line=0L,lines_affected=0L;
    CHARTYPE command_source=0;
    TARGET target;
@@ -646,7 +663,13 @@ CHARTYPE *params;
       TRACE_RETURN();
       return(RC_INVALID_OPERAND);
    }
-   num_occ = atoi((DEFCHAR *)word[0]);
+   num_occ = atol((DEFCHAR *)word[0]);
+   if ( num_occ == 0 )
+   {
+      display_error( 6, (CHARTYPE *)"", FALSE );
+      TRACE_RETURN();
+      return(RC_INVALID_OPERAND);
+   }
    /*
     * Validate second parameter is a valid target...
     */
@@ -1981,7 +2004,7 @@ CHARTYPE *params;
       strrmdup(strtrans(the_help_file,OSLASH,ISLASH),ISLASH,TRUE);
       first = FALSE;
    }
-   if (!file_exists(the_help_file))
+   if ( file_exists( the_help_file ) != THE_FILE_EXISTS )
    {
       display_error(23,(CHARTYPE *)the_help_file,FALSE);
       TRACE_RETURN();

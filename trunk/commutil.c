@@ -166,6 +166,14 @@ AREAS _THE_FAR valid_areas[ATTR_MAX]=
    {(CHARTYPE *)"FILETABS"    ,8,WINDOW_FILETABS   ,TRUE },
    {(CHARTYPE *)"FILETABSDIV" ,11,WINDOW_FILETABS   ,TRUE },
    {(CHARTYPE *)"CURSORLINE"  ,6,WINDOW_FILEAREA   ,TRUE },
+   {(CHARTYPE *)"DIALOGBORDER"  ,12,WINDOW_DIVIDER    ,FALSE},
+   {(CHARTYPE *)"DIALOGEDITFIELD",15,WINDOW_DIVIDER    ,FALSE},
+   {(CHARTYPE *)"DIALOGBUTTON"  ,12,WINDOW_DIVIDER    ,FALSE},
+   {(CHARTYPE *)"DIALOGABUTTON" ,13,WINDOW_DIVIDER    ,FALSE},
+   {(CHARTYPE *)"POPUPBORDER"  ,11,WINDOW_DIVIDER    ,FALSE},
+   {(CHARTYPE *)"POPUPCURLINE" ,12,WINDOW_DIVIDER    ,FALSE},
+   {(CHARTYPE *)"POPUP"       ,5,WINDOW_DIVIDER    ,FALSE},
+   {(CHARTYPE *)"POPUPDIVIDER" ,12,WINDOW_DIVIDER    ,FALSE},
 };
 
 /***********************************************************************/
@@ -673,13 +681,14 @@ bool mouse_details_present;
             break;
          case OPTION_READV:
             /*
-             * If the key hit is KEY_ENTER, KEY_RETURN or KEY_NUMENTER, terminate
+             * If the key hit is KEY_ENTER, KEY_RETURN or KEY_NUMENTER, or TAB terminate
              * the READV CMDLINE command.
              */
             if (key == KEY_RETURN
             ||  key == KEY_ENTER
             ||  key == KEY_C_m
-            ||  key == KEY_NUMENTER)
+            ||  key == KEY_NUMENTER
+            ||  key == 9)
             {
                rc = RC_READV_TERM;
                curr = NULL;
@@ -817,7 +826,8 @@ bool mouse_details_present;
                   if (key == KEY_RETURN
                   ||  key == KEY_ENTER
                   ||  key == KEY_C_m
-                  ||  key == KEY_NUMENTER)
+                  ||  key == KEY_NUMENTER
+                  ||  key == 9)
                   {
                      rc = RC_READV_TERM;
                      break;
@@ -1345,6 +1355,9 @@ bool command_only;
       TRACE_RETURN();
       return(RC_OUT_OF_MEMORY);
    }
+#if 0
+fprintf(stderr,"%s %d: Command: [%s] idline: %d\n",__FILE__,__LINE__,command_entered,(vd_current) ? vd_current->file_for_view->attr[5].pair : -1);
+#endif
    /*
     * Allocate some space to cl_cmd and cl_param for the a command when
     * it is split into a command and its parameters.
@@ -3532,7 +3545,7 @@ short restore_THE()
    if ( filetabs != (WINDOW *)NULL )
       touchwin( filetabs );
 #if defined(HAVE_SLK_INIT)
-   if (SLKx)
+   if ( max_slk_labels )
    {
       slk_touch();
       slk_noutrefresh();
@@ -3917,7 +3930,7 @@ short *errnum;
          strcat( (DEFCHAR *)filename, (DEFCHAR *)macroname );     /* append the file name */
          if ( append_suffix )
             strcat( (DEFCHAR *)filename, (DEFCHAR *)macro_ext ); /* append default suffix */
-         if ( file_exists( filename ) )           /* check if file exists... */
+         if ( file_exists( filename ) == THE_FILE_EXISTS )     /* check if file exists... */
          {
             file_found = TRUE;
             break;
@@ -3947,7 +3960,7 @@ short *errnum;
       }
       strcpy( (DEFCHAR *)filename, (DEFCHAR *)sp_path );
       strcat( (DEFCHAR *)filename, (DEFCHAR *)sp_fname );
-      if ( !file_exists( filename )
+      if ( file_exists( filename ) != THE_FILE_EXISTS
       ||   strcmp( (DEFCHAR *)sp_fname, "" ) == 0 )
       {
          *errnum = 9;
@@ -4066,7 +4079,7 @@ int start_col;
    wrefresh( CURRENT_WINDOW_COMMAND );
    while( 1 )
    {
-      key = my_getch( stdscr );
+      key = my_getch( CURRENT_WINDOW_COMMAND );
 #if defined(USE_XCURSES)
       if ( key == KEY_SF || key == KEY_SR )
          continue;

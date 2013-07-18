@@ -30,7 +30,7 @@
  */
 
 /*
-$Id: vars.h,v 1.40 2013/06/22 01:18:19 mark Exp $
+$Id: vars.h,v 1.42 2013/07/18 22:45:13 mark Exp $
 */
 
 /* Please, include the.h first. */
@@ -77,7 +77,8 @@ extern bool           BEEPx,
                       PAGEWRAPx,
                       FILETABSx,
                       CTLCHARx,
-                      save_for_repeat;
+                      save_for_repeat,
+                      inDIALOG;
 extern CHARTYPE       CMDARROWSTABCMDx,
                       EOLx,
                       INTERFACEx,
@@ -289,7 +290,8 @@ extern bool           StartedPrinter;
 #if defined(SIGWINCH) && defined(USE_NCURSES)
 extern bool ncurses_screen_resized;
 #endif
-extern int            max_slk_labels;
+extern int            max_slk_labels,
+                      slk_format_switch;
 extern bool           single_instance_server;
 #ifdef THE_SINGLE_INSTANCE_ENABLED
 extern CHARTYPE       fifo_name[MAX_FILE_NAME+1];

@@ -48,14 +48,16 @@ static CHARTYPE tmp_str[MAX_FILE_NAME+50];
 HANDLE mutex, event, shm;
 char *shmptr;
 
-static void display_syserror(DWORD error)
+static void display_syserror(DWORD error, const char *prefix)
 {
    char buf[512];
+   char msg[1024];
 
    FormatMessage( FORMAT_MESSAGE_FROM_SYSTEM, NULL, error, MAKELANGID( LANG_NEUTRAL, SUBLANG_DEFAULT), buf, sizeof( buf ), NULL ) ;
+   sprintf( msg, "%s: %s", prefix, buf );
    if ( GetConsoleOutputCP() == GetOEMCP() )
-      CharToOem( buf, buf );
-   display_error( 0, buf, FALSE );
+      CharToOem( msg, msg );
+   display_error( 0, msg, FALSE );
 }
 
 /***********************************************************************/
@@ -103,15 +105,16 @@ int initialise_fifo( LINE *first_file_name, LINETYPE startup_line, LENGTHTYPE st
 
    _snprintf( buf, sizeof(buf), "THEshm%s", fifo_name );
    SetLastError( 0 ); /* prevent problems determining the correct error code */
-   if ( ( shm = CreateFileMapping( (HANDLE) 0xFFFFFFFF,
+//   if ( ( shm = CreateFileMapping( (HANDLE) 0xFFFFFFFF,
+   if ( ( shm = CreateFileMapping( INVALID_HANDLE_VALUE,
                                    NULL,
                                    PAGE_READWRITE | SEC_COMMIT,
                                    0ul,
                                    SHM_SIZE,
                                    buf ) ) == NULL )
    {
-      display_syserror( GetLastError() );
-      TRACE_CONSTANT("Returning because CreateFileMapping() failed\n");
+      display_syserror( GetLastError(), "CreateFileMapping() failed" );
+      TRACE_CONSTANT("CreateFileMapping() failed\n");
       TRACE_RETURN();
       return 1;
    }
@@ -128,8 +131,8 @@ int initialise_fifo( LINE *first_file_name, LINETYPE startup_line, LENGTHTYPE st
                                      0ul,
                                      SHM_SIZE ) ) == NULL )
       {
-         display_syserror( GetLastError() );
-         TRACE_CONSTANT("Client Returning because shared memory already exists\n");
+         display_syserror( GetLastError(), "Client: Shared memory already exists" );
+         TRACE_CONSTANT("Client: Shared memory already exists\n");
          TRACE_RETURN();
          return 1;
       }
@@ -137,8 +140,8 @@ int initialise_fifo( LINE *first_file_name, LINETYPE startup_line, LENGTHTYPE st
       _snprintf( buf, sizeof(buf), "THEmtx%s", fifo_name );
       if ( ( mutex = OpenMutex( MUTEX_ALL_ACCESS, FALSE, buf ) ) == NULL )
       {
-         display_syserror( GetLastError() );
-         TRACE_CONSTANT("Client Returning because OpenMutex() failed\n");
+         display_syserror( GetLastError(), "Client: OpenMutex() failed" );
+         TRACE_CONSTANT("Client: OpenMutex() failed\n");
          TRACE_RETURN();
          return 1;
       }
@@ -146,8 +149,8 @@ int initialise_fifo( LINE *first_file_name, LINETYPE startup_line, LENGTHTYPE st
       _snprintf( buf, sizeof(buf), "THEevt%s", fifo_name );
       if ( ( event = OpenEvent( EVENT_ALL_ACCESS, FALSE, buf ) ) == NULL )
       {
-         display_syserror( GetLastError() );
-         TRACE_CONSTANT("Client Returning because OpenEvent() failed\n");
+         display_syserror( GetLastError(), "Client: OpenEvent() failed" );
+         TRACE_CONSTANT("Client: OpenEvent() failed\n");
          TRACE_RETURN();
          return 1;
       }
@@ -171,8 +174,8 @@ int initialise_fifo( LINE *first_file_name, LINETYPE startup_line, LENGTHTYPE st
             {
                if ( WaitForSingleObject( mutex, INFINITE ) != WAIT_OBJECT_0 )
                {
-                  display_syserror( GetLastError() );
-                  TRACE_CONSTANT("Client Returning because WaitForSingleObject() failed\n");
+                  display_syserror( GetLastError(), "Client: WaitForSingleObject() failed" );
+                  TRACE_CONSTANT("Client: WaitForSingleObject() failed\n");
                   TRACE_RETURN();
                   return 1;
                }
@@ -243,10 +246,10 @@ int initialise_fifo( LINE *first_file_name, LINETYPE startup_line, LENGTHTYPE st
                                      0ul,
                                      SHM_SIZE ) ) == NULL )
       {
-         display_syserror( GetLastError() );
+         display_syserror( GetLastError(), "Server: Shared memory already exists" );
          CloseHandle( shm );
          shm = NULL;
-         TRACE_CONSTANT("Server Returning because shared memory already exists\n");
+         TRACE_CONSTANT("Server: Shared memory already exists\n");
          TRACE_RETURN();
          return 1;
       }
@@ -255,12 +258,12 @@ int initialise_fifo( LINE *first_file_name, LINETYPE startup_line, LENGTHTYPE st
       _snprintf( buf, sizeof(buf), "THEmtx%s", fifo_name );
       if ( ( mutex = CreateMutex( NULL, FALSE, buf ) ) == NULL )
       {
-         display_syserror( GetLastError() );
+         display_syserror( GetLastError(), "Server: CreateMutex() failed" );
          UnmapViewOfFile( shmptr );
          CloseHandle( shm );
          shmptr = NULL;
          shm = NULL;
-         TRACE_CONSTANT("Server Returning because CreateMutex() failed\n");
+         TRACE_CONSTANT("Server: CreateMutex() failed\n");
          TRACE_RETURN();
          return 1;
       }
@@ -268,14 +271,14 @@ int initialise_fifo( LINE *first_file_name, LINETYPE startup_line, LENGTHTYPE st
       _snprintf( buf, sizeof(buf), "THEevt%s", fifo_name );
       if ( ( event = CreateEvent( NULL, TRUE, FALSE, buf ) ) == NULL )
       {
-         display_syserror( GetLastError() );
+         display_syserror( GetLastError(), "Server: CreateEvent() failed" );
          CloseHandle( mutex );
          UnmapViewOfFile( shmptr );
          CloseHandle( shm );
          mutex = NULL;
          shmptr = NULL;
          shm = NULL;
-         TRACE_CONSTANT("Server Returning because CreateEvent() failed\n");
+         TRACE_CONSTANT("Server: CreateEvent() failed\n");
          TRACE_RETURN();
          return 0;
       }
@@ -302,7 +305,7 @@ static void process_edit_request( void )
     */
    if ( WaitForSingleObject( mutex, INFINITE ) != WAIT_OBJECT_0 )
    {
-      display_syserror( GetLastError() );
+      display_syserror( GetLastError(), "" );
       TRACE_RETURN();
       return;
    }
@@ -379,7 +382,7 @@ int process_fifo_input( int key )
       if ( src == WAIT_FAILED )
       {
          TRACE_CONSTANT( "WAIT_FAILED\n");
-         display_syserror( GetLastError() );
+         display_syserror( GetLastError(), "" );
          break;
       }
       else
@@ -465,7 +468,7 @@ bool ro;
 
    TRACE_FUNCTION("single.c:  initialise_fifo");
 
-   if ( file_exists( fifo_name ) )
+   if ( file_exists( fifo_name ) == THE_FILE_EXISTS )
    {
       /*
        * The FIFO exists, so we assume we are the client here...

@@ -409,7 +409,7 @@ void *in_first, *in_next;
    if (rc == 0)
       return(0);
    if (DIRORDERx == DIRSORT_DESC)
-      rc = (rc == 1) ? (-1) : 1;
+      rc = (rc > 0) ? (-1) : 1;
    return(rc);
 }
 
@@ -435,7 +435,7 @@ void *in_first, *in_next;
    if (rc == 0)
       return(0);
    if (DIRORDERx == DIRSORT_DESC)
-      rc = (rc == 1) ? (-1) : 1;
+      rc = (rc > 0) ? (-1) : 1;
    return(rc);
 }
 
@@ -453,8 +453,8 @@ void *in_first, *in_next;
    int rc=0;
    struct dirfile *first=(struct dirfile *)in_first,*next=(struct dirfile *)in_next;
 
-   first_dir=is_a_dir(first->fattr);
-   next_dir=is_a_dir(next->fattr);
+   first_dir=is_a_dir_dir(first->fattr);
+   next_dir=is_a_dir_dir(next->fattr);
    if (first_dir && !next_dir)
       rc = (-1);
    if (!first_dir && next_dir)
@@ -468,7 +468,7 @@ void *in_first, *in_next;
    if (rc == 0)
       return(0);
    if (DIRORDERx == DIRSORT_DESC)
-      rc = (rc == 1) ? (-1) : 1;
+      rc = (rc > 0) ? (-1) : 1;
    return(rc);
 }
 
@@ -500,7 +500,7 @@ void *in_first, *in_next;
    if (rc == 0)
       return(0);
    if (DIRORDERx == DIRSORT_DESC)
-      rc = (rc == 1) ? (-1) : 1;
+      rc = (rc > 0) ? (-1) : 1;
    return(rc);
 }
 
@@ -524,7 +524,7 @@ void *in_first, *in_next;
    if (rc == 0)
       return(0);
    if (DIRORDERx == DIRSORT_DESC)
-      rc = (rc == 1) ? (-1) : 1;
+      rc = (rc > 0) ? (-1) : 1;
    return(rc);
 }
 /*********************************************************************/

@@ -100,14 +100,14 @@ DESCRIPTION
      window, or on the border of the window.
 
      Keyboard keys that take effect in the POPUP command are CURU, CURD,
-     CURL, CURR, and ENTER.
+     CURL, CURR, PGUP, PGDN and ENTER.
 
      The colours used for the popup are:
 
-          Border           -  <SET COLOR> DIVIDER
-          Non-current line -  <SET COLOR> BLOCK
-          Current line     -  <SET COLOR> FILEAREA
-          Divider line     -  <SET COLOR> STATAREA
+          Border           -  <SET COLOR> POPUPBORDER
+          Non-current line -  <SET COLOR> POPUP
+          Current line     -  <SET COLOR> POPUPCURLINE
+          Divider line     -  <SET COLOR> POPUPDIVIDER
 
 COMPATIBILITY
      XEDIT: N/A
@@ -227,7 +227,7 @@ CHARTYPE *params;
       TRACE_RETURN();
       return( RC_INVALID_OPERAND );
    }
-   rc = execute_preserve( &CURRENT_VIEW->preserved_view_details, &CURRENT_FILE->preserved_file_details );
+   rc = execute_preserve( CURRENT_VIEW, &CURRENT_VIEW->preserved_view_details, CURRENT_FILE, &CURRENT_FILE->preserved_file_details );
 
    TRACE_RETURN();
    return(rc);
@@ -815,7 +815,7 @@ DESCRIPTION
           <SOS TABB>, <SOS TABF>, <SOS TABWORDB>, <SOS TABWORDF>,
           <SOS UNDO>, <SOS DELWORD>, <SET INSERTMODE>, <TEXT>
 
-     Either of the keys, ENTER, RETURN and NUMENTER will terminate
+     Either of the keys, TAB, ENTER, RETURN and NUMENTER will terminate
      READV 'Cmdline', irrespective of what THE commands have been
      assigned.
 
@@ -1181,7 +1181,7 @@ CHARTYPE *params;
    PRESERVED_VIEW_DETAILS *preserved_view_details=NULL;
    PRESERVED_FILE_DETAILS *preserved_file_details=NULL;
    LINETYPE current_line, focus_line;
-   CHARTYPE edit_fname[MAX_FILE_NAME];
+   CHARTYPE *edit_fname;
 
    TRACE_FUNCTION("comm4.c:   Redit");
    if (strcmp((DEFCHAR *)params,"") != 0)
@@ -1201,27 +1201,36 @@ CHARTYPE *params;
    /*
     * Save the filename...
     */
-   strcpy( (DEFCHAR *)edit_fname, (DEFCHAR *)CURRENT_FILE->fpath );
-   strcat( (DEFCHAR *)edit_fname, (DEFCHAR *)CURRENT_FILE->fname );
-   rc = execute_preserve( &preserved_view_details, &preserved_file_details );
-   current_line = CURRENT_VIEW->current_line;
-   focus_line = CURRENT_VIEW->focus_line;
-   if ( rc == RC_OK )
+   if ( ( edit_fname = (CHARTYPE *)(*the_malloc)( 1+strlen( (DEFCHAR *)CURRENT_FILE->fpath )+strlen( (DEFCHAR *)CURRENT_FILE->fname ) ) ) == NULL )
    {
-      free_view_memory(TRUE,TRUE);
-      rc = EditFile( edit_fname, FALSE );
-      execute_restore( &preserved_view_details, &preserved_file_details );
-      if ( current_line < CURRENT_FILE->number_lines )
-         CURRENT_VIEW->current_line = current_line;
-      else
-         CURRENT_VIEW->current_line = CURRENT_FILE->number_lines;
-      if ( focus_line < CURRENT_FILE->number_lines )
-         CURRENT_VIEW->focus_line = focus_line;
-      else
-         CURRENT_VIEW->focus_line = CURRENT_FILE->number_lines;
-      pre_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL );
-      build_screen( current_screen );
-      display_screen( current_screen );
+      display_error( 30, (CHARTYPE *)"", FALSE );
+      rc = RC_OUT_OF_MEMORY;
+   }
+   else
+   {
+      strcpy( (DEFCHAR *)edit_fname, (DEFCHAR *)CURRENT_FILE->fpath );
+      strcat( (DEFCHAR *)edit_fname, (DEFCHAR *)CURRENT_FILE->fname );
+      rc = execute_preserve( CURRENT_VIEW, &preserved_view_details, CURRENT_FILE, &preserved_file_details );
+      current_line = CURRENT_VIEW->current_line;
+      focus_line = CURRENT_VIEW->focus_line;
+      if ( rc == RC_OK )
+      {
+         free_view_memory(TRUE,TRUE);
+         rc = EditFile( edit_fname, FALSE );
+         execute_restore( CURRENT_VIEW, &preserved_view_details, CURRENT_FILE, &preserved_file_details );
+         if ( current_line < CURRENT_FILE->number_lines )
+            CURRENT_VIEW->current_line = current_line;
+         else
+            CURRENT_VIEW->current_line = CURRENT_FILE->number_lines;
+         if ( focus_line < CURRENT_FILE->number_lines )
+            CURRENT_VIEW->focus_line = focus_line;
+         else
+            CURRENT_VIEW->focus_line = CURRENT_FILE->number_lines;
+         pre_process_line( CURRENT_VIEW, CURRENT_VIEW->focus_line, (LINE *)NULL );
+         build_screen( current_screen );
+         display_screen( current_screen );
+      }
+      (*the_free)( edit_fname );
    }
    TRACE_RETURN();
    return(rc);
@@ -1330,7 +1339,7 @@ CHARTYPE *params;
    show_statarea();
    display_filetabs( NULL );
 #if defined(HAVE_SLK_INIT)
-   if (SLKx)
+   if ( max_slk_labels )
    {
       slk_touch();
       slk_noutrefresh();
@@ -1684,7 +1693,7 @@ CHARTYPE *params;
       TRACE_RETURN();
       return( RC_INVALID_OPERAND );
    }
-   rc = execute_restore( &CURRENT_VIEW->preserved_view_details, &CURRENT_FILE->preserved_file_details );
+   rc = execute_restore( CURRENT_VIEW, &CURRENT_VIEW->preserved_view_details, CURRENT_FILE, &CURRENT_FILE->preserved_file_details );
    TRACE_RETURN();
    return(rc);
 }

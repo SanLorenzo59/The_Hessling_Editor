@@ -73,7 +73,15 @@ static COLOUR_DEF _THE_FAR the_colours[ATTR_MAX] =
    {COLOR_WHITE   ,COLOR_BLACK ,A_BOLD   ,A_NORMAL                 }, /* BOUNDMARK   */
    {COLOR_YELLOW  ,COLOR_BLUE  ,A_BOLD   ,A_NORMAL                 }, /* FILETABS    */
    {COLOR_WHITE   ,COLOR_BLUE  ,A_NORMAL ,A_NORMAL                 }, /* FILETABSDIV */
-   {COLOR_WHITE   ,COLOR_BLUE  ,A_NORMAL ,A_NORMAL                 }, /* CURSORLINE   */
+   {COLOR_WHITE   ,COLOR_BLUE  ,A_NORMAL ,A_NORMAL                 }, /* CURSORLINE  */
+   {COLOR_RED     ,COLOR_WHITE ,A_NORMAL ,A_BOLD                   }, /* DIA-BORDER    */
+   {COLOR_BLACK   ,COLOR_CYAN  ,A_NORMAL ,A_BOLD                   }, /* DIA-EDITFIELD */
+   {COLOR_BLUE    ,COLOR_WHITE ,A_NORMAL ,A_REVERSE                }, /* DIA-BUTTON    */
+   {COLOR_RED     ,COLOR_WHITE ,A_NORMAL ,A_BOLD|A_REVERSE         }, /* DIA-ABUTTON   */
+   {COLOR_RED     ,COLOR_WHITE ,A_NORMAL ,A_BOLD                   }, /* POP-BORDER    */
+   {COLOR_WHITE   ,COLOR_BLUE  ,A_NORMAL ,A_NORMAL                 }, /* POP-CURLINE   */
+   {COLOR_BLUE    ,COLOR_WHITE ,A_NORMAL ,A_REVERSE                }, /* POPUP         */
+   {COLOR_BLUE    ,COLOR_WHITE ,A_NORMAL ,A_REVERSE                }, /* POP-DIVIDER   */
 };
 
 static COLOUR_DEF _THE_FAR kedit_colours[ATTR_MAX] =
@@ -111,6 +119,14 @@ static COLOUR_DEF _THE_FAR kedit_colours[ATTR_MAX] =
    {COLOR_YELLOW  ,COLOR_BLACK ,A_BOLD   ,A_NORMAL                 }, /* FILETABS    */
    {COLOR_WHITE   ,COLOR_BLACK ,A_NORMAL ,A_NORMAL                 }, /* FILETABSDIV */
    {COLOR_CYAN    ,COLOR_BLUE  ,A_BOLD   ,A_NORMAL                 }, /* CURSORLINE   */
+   {COLOR_CYAN    ,COLOR_BLUE  ,A_BOLD   ,A_NORMAL                 }, /* DIA-BORDER    */
+   {COLOR_YELLOW  ,COLOR_BLUE  ,A_BOLD   ,A_NORMAL                 }, /* DIA-EDITFIELD */
+   {COLOR_CYAN    ,COLOR_WHITE ,A_BOLD   ,A_REVERSE                }, /* DIA-BUTTON    */
+   {COLOR_YELLOW  ,COLOR_WHITE ,A_BOLD   ,A_REVERSE|A_BOLD         }, /* DIA-ABUTTON   */
+   {COLOR_CYAN    ,COLOR_BLUE  ,A_BOLD   ,A_NORMAL                 }, /* POP-BORDER    */
+   {COLOR_CYAN    ,COLOR_BLUE  ,A_BOLD   ,A_NORMAL                 }, /* POP-CURLINE   */
+   {COLOR_CYAN    ,COLOR_WHITE ,A_BOLD   ,A_REVERSE                }, /* POPUP         */
+   {COLOR_YELLOW  ,COLOR_BLUE  ,A_BOLD   ,A_BOLD                   }, /* POP-DIVIDER   */
 };
 
 # if defined(USE_WINGUICURSES1)
@@ -149,6 +165,14 @@ static COLOUR_DEF _THE_FAR keditw_colours[ATTR_MAX] =
    {COLOR_MAGENTA ,COLOR_WHITE ,A_NORMAL         ,A_NORMAL                 }, /* FILETABS    */
    {COLOR_YELLOW  ,COLOR_WHITE ,A_BOLD           ,A_NORMAL                 }, /* FILETABSDIV */
    {COLOR_BLACK   ,COLOR_WHITE ,A_NORMAL         ,A_NORMAL                 }, /* CURSORLINE   */
+   {COLOR_BLUE    ,COLOR_WHITE ,A_NORMAL         ,A_NORMAL                 }, /* DIA-BORDER    */
+   {COLOR_BLUE    ,COLOR_WHITE ,A_NORMAL         ,A_NORMAL                 }, /* DIA-EDITFIELD */
+   {COLOR_WHITE   ,COLOR_BLACK ,A_BOLD           ,A_REVERSE                }, /* DIA-BUTTON    */
+   {COLOR_CYAN    ,COLOR_BLACK ,A_NORMAL         ,A_REVERSE|A_BOLD         }, /* DIA-ABUTTON   */
+   {COLOR_BLUE    ,COLOR_WHITE ,A_NORMAL         ,A_NORMAL                 }, /* POP-BORDER    */
+   {COLOR_BLACK   ,COLOR_WHITE ,A_NORMAL         ,A_NORMAL                 }, /* POP-CURLINE   */
+   {COLOR_WHITE   ,COLOR_BLACK ,A_BOLD           ,A_REVERSE                }, /* POPUP         */
+   {COLOR_BLUE    ,COLOR_WHITE ,A_NORMAL         ,A_BOLD                   }, /* POP-DIVIDER   */
 };
 # else
 static COLOUR_DEF _THE_FAR keditw_colours[ATTR_MAX] =
@@ -186,6 +210,14 @@ static COLOUR_DEF _THE_FAR keditw_colours[ATTR_MAX] =
    {COLOR_MAGENTA ,COLOR_WHITE ,A_NORMAL         ,A_NORMAL                 }, /* FILETABS    */
    {COLOR_YELLOW  ,COLOR_WHITE ,A_BOLD           ,A_NORMAL                 }, /* FILETABSDIV */
    {COLOR_BLACK   ,COLOR_WHITE ,A_BOLD   |A_BLINK,A_NORMAL                 }, /* CURSORLINE   */
+   {COLOR_BLUE    ,COLOR_WHITE ,A_NORMAL         ,A_NORMAL                 }, /* DIA-BORDER    */
+   {COLOR_BLUE    ,COLOR_WHITE ,A_NORMAL |A_BLINK,A_NORMAL                 }, /* DIA-EDITFIELD */
+   {COLOR_WHITE   ,COLOR_BLACK ,A_NORMAL |A_BOLD ,A_REVERSE                }, /* DIA-BUTTON    */
+   {COLOR_CYAN    ,COLOR_BLACK ,A_NORMAL         ,A_REVERSE|A_BOLD         }, /* DIA-ABUTTON   */
+   {COLOR_BLUE    ,COLOR_WHITE ,A_NORMAL         ,A_NORMAL                 }, /* POP-BORDER    */
+   {COLOR_BLACK   ,COLOR_WHITE ,A_NORMAL |A_BLINK,A_NORMAL                 }, /* POP-CURLINE   */
+   {COLOR_WHITE   ,COLOR_BLACK ,A_NORMAL |A_BOLD ,A_REVERSE                }, /* POPUP         */
+   {COLOR_BLUE    ,COLOR_WHITE ,A_NORMAL         ,A_BOLD                   }, /* POP-DIVIDER   */
 };
 # endif
 
@@ -224,12 +256,20 @@ static COLOUR_DEF _THE_FAR xedit_colours[ATTR_MAX] =
    {COLOR_GREEN   ,COLOR_WHITE ,A_BOLD   ,A_NORMAL                 }, /* FILETABS    */
    {COLOR_GREEN   ,COLOR_WHITE ,A_NORMAL ,A_NORMAL                 }, /* FILETABSDIV */
    {COLOR_GREEN   ,COLOR_BLACK ,A_NORMAL ,A_NORMAL                 }, /* CURSORLINE   */
+   {COLOR_GREEN   ,COLOR_BLACK ,A_BOLD   ,A_BOLD                   }, /* DIA-BORDER    */
+   {COLOR_YELLOW  ,COLOR_BLACK ,A_NORMAL ,A_NORMAL                 }, /* DIA-EDITFIELD */
+   {COLOR_BLACK   ,COLOR_GREEN ,A_NORMAL ,A_REVERSE                }, /* DIA-BUTTON    */
+   {COLOR_CYAN    ,COLOR_GREEN ,A_BOLD   ,A_BOLD|A_REVERSE         }, /* DIA-ABUTTON   */
+   {COLOR_GREEN   ,COLOR_BLACK ,A_BOLD   ,A_BOLD                   }, /* POP-BORDER    */
+   {COLOR_GREEN   ,COLOR_BLACK ,A_NORMAL ,A_NORMAL                 }, /* POP-CURLINE   */
+   {COLOR_BLACK   ,COLOR_GREEN ,A_NORMAL ,A_REVERSE                }, /* POPUP         */
+   {COLOR_CYAN    ,COLOR_BLACK ,A_NORMAL ,A_BOLD                   }, /* POP-DIVIDER   */
 };
 #else
-static COLOUR_DEF _THE_FAR the_colours[ATTR_MAX] =    { {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0} };
-static COLOUR_DEF _THE_FAR kedit_colours[ATTR_MAX] =  { {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0} };
-static COLOUR_DEF _THE_FAR keditw_colours[ATTR_MAX] = { {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0} };
-static COLOUR_DEF _THE_FAR xedit_colours[ATTR_MAX] =  { {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0} };
+static COLOUR_DEF _THE_FAR the_colours[ATTR_MAX] =    { {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0} };
+static COLOUR_DEF _THE_FAR kedit_colours[ATTR_MAX] =  { {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0} };
+static COLOUR_DEF _THE_FAR keditw_colours[ATTR_MAX] = { {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0} };
+static COLOUR_DEF _THE_FAR xedit_colours[ATTR_MAX] =  { {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0} };
 #endif
 
 /* A - comments */

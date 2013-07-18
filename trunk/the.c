@@ -265,6 +265,7 @@ static void init_signals();
    chtype *linebufch; /* Buffer for one terminal line in chtype-mode, >= 81 */
 #endif
    int max_slk_labels=0;
+   int slk_format_switch=0;
 
    LASTOP _THE_FAR lastop[LASTOP_MAX] =
    {
@@ -566,8 +567,9 @@ char *argv[];
             SLKx = TRUE;
             if ( optarg == NULL )
             {
-               slk_format = 55;
-               max_slk_labels = 10;
+               slk_format = 3;
+               slk_format_switch = 4;
+               max_slk_labels = 12;
                break;
             }
             slk_format = atoi( optarg );
@@ -588,6 +590,7 @@ char *argv[];
                CLOSEDOWNCONSOLE();
                return(4);
             }
+            slk_format_switch = slk_format;
             switch( slk_format )
             {
                case 1:
@@ -601,7 +604,6 @@ char *argv[];
                   slk_format--;
                   break;
                case 5:
-               case 55:
                   slk_format = 55;
                   max_slk_labels = 10;
                   break;
@@ -1066,10 +1068,10 @@ char *argv[];
 #if defined(PDCURSES_MOUSE_ENABLED) || defined(NCURSES_MOUSE_VERSION)
    initialise_mouse_commands();
 #endif
-   /*
-    * Start up curses. This is done ONLY for interactive sessions!
-    */
 /*traceon();*/
+/*
+ * Initialise Soft Label Keys
+ */
 #if defined(HAVE_SLK_INIT)
 # if MAX_SLK == 0
    if (SLKx) slk_init(1);
@@ -1080,7 +1082,9 @@ char *argv[];
 #if defined(HAVE_SB_INIT)
    if (SBx) sb_init();
 #endif
-
+   /*
+    * Start up curses. This is done ONLY for interactive sessions!
+    */
 #if defined(USE_XCURSES) && PDC_BUILD >= 2401
    if ( X11_switches )
    {
@@ -1498,7 +1502,7 @@ CHARTYPE *specified_prf;
          local_prf = NULL;
          return(rc);
       }
-      if (!file_exists(local_prf))
+      if ( file_exists( local_prf ) != THE_FILE_EXISTS )
       {
          display_error(9,local_prf,FALSE);
          (*the_free)(local_prf);
@@ -1508,7 +1512,7 @@ CHARTYPE *specified_prf;
       /*
        * If the file is not readable, error.
        */
-      if (!file_readable(local_prf))
+      if ( !file_readable( local_prf ) )
       {
          display_error(8,local_prf,FALSE);
          (*the_free)(local_prf);
@@ -1526,7 +1530,7 @@ CHARTYPE *specified_prf;
       if ((local_prf = (CHARTYPE *)(*the_malloc)((MAX_FILE_NAME+1)*sizeof(CHARTYPE))) == NULL)
          return(RC_OUT_OF_MEMORY);
       strcpy((DEFCHAR *)local_prf,envptr);
-      if (!file_exists(local_prf))
+      if ( file_exists( local_prf ) != THE_FILE_EXISTS )
       {
          display_error(9,local_prf,FALSE);
          (*the_free)(local_prf);
@@ -1536,7 +1540,7 @@ CHARTYPE *specified_prf;
       /*
        * If the file is not readable, error.
        */
-      if (!file_readable(local_prf))
+      if ( !file_readable( local_prf ) )
       {
          display_error(8,local_prf,FALSE);
          (*the_free)(local_prf);
@@ -1750,13 +1754,13 @@ void cleanup()
 #endif
    if (tempfilename)
    {
-      if (file_exists(tempfilename))
+      if ( file_exists( tempfilename ) == THE_FILE_EXISTS )
          remove_file(tempfilename);
       (*the_free)(tempfilename);
    }
    if (stdinprofile)
    {
-      if (file_exists(stdinprofile))
+      if ( file_exists( stdinprofile ) == THE_FILE_EXISTS )
          remove_file(stdinprofile);
       (*the_free)(stdinprofile);
    }

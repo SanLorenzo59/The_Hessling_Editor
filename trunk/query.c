@@ -406,39 +406,47 @@ COLOUR [*|area]
      for all areas of the screen.
      (QE)
 
-     color.0         - 32
-     color.1         - FILEAREA    followed by its color
-     color.2         - CURLINE     followed by its color
-     color.3         - BLOCK       followed by its color
-     color.4         - CBLOCK      followed by its color
-     color.5         - CMDLINE     followed by its color
-     color.6         - IDLINE      followed by its color
-     color.7         - MSGLINE     followed by its color
-     color.8         - ARROW       followed by its color
-     color.9         - PREFIX      followed by its color
-     color.10        - CPREFIX     followed by its color
-     color.11        - PENDING     followed by its color
-     color.12        - SCALE       followed by its color
-     color.13        - TOFEOF      followed by its color
-     color.14        - CTOFEOF     followed by its color
-     color.15        - TABLINE     followed by its color
-     color.16        - SHADOW      followed by its color
-     color.17        - STATAREA    followed by its color
-     color.18        - DIVIDER     followed by its color
-     color.19        - RESERVED    followed by its color
-     color.20        - NONDISP     followed by its color
-     color.21        - HIGHLIGHT   followed by its color
-     color.22        - CHIGHLIGHT  followed by its color
-     color.23        - THIGHLIGHT  followed by its color
-     color.24        - SLK         followed by its color
-     color.25        - GAP         followed by its color
-     color.26        - CGAP        followed by its color
-     color.27        - ALERT       followed by its color
-     color.28        - DIALOG      followed by its color
-     color.29        - BOUNDMARKER followed by its color
-     color.30        - FILETABS    followed by its color
-     color.31        - FILETABSDIV followed by its color
-     color.32        - CURSORLINE  followed by its color
+     color.0         - 40
+     color.1         - FILEAREA        followed by its color
+     color.2         - CURLINE         followed by its color
+     color.3         - BLOCK           followed by its color
+     color.4         - CBLOCK          followed by its color
+     color.5         - CMDLINE         followed by its color
+     color.6         - IDLINE          followed by its color
+     color.7         - MSGLINE         followed by its color
+     color.8         - ARROW           followed by its color
+     color.9         - PREFIX          followed by its color
+     color.10        - CPREFIX         followed by its color
+     color.11        - PENDING         followed by its color
+     color.12        - SCALE           followed by its color
+     color.13        - TOFEOF          followed by its color
+     color.14        - CTOFEOF         followed by its color
+     color.15        - TABLINE         followed by its color
+     color.16        - SHADOW          followed by its color
+     color.17        - STATAREA        followed by its color
+     color.18        - DIVIDER         followed by its color
+     color.19        - RESERVED        followed by its color
+     color.20        - NONDISP         followed by its color
+     color.21        - HIGHLIGHT       followed by its color
+     color.22        - CHIGHLIGHT      followed by its color
+     color.23        - THIGHLIGHT      followed by its color
+     color.24        - SLK             followed by its color
+     color.25        - GAP             followed by its color
+     color.26        - CGAP            followed by its color
+     color.27        - ALERT           followed by its color
+     color.28        - DIALOG          followed by its color
+     color.29        - BOUNDMARKER     followed by its color
+     color.30        - FILETABS        followed by its color
+     color.31        - FILETABSDIV     followed by its color
+     color.32        - CURSORLINE      followed by its color
+     color.33        - DIALOGBORDER    followed by its color
+     color.34        - DIALOGEDITFIELD followed by its color
+     color.35        - DIALOGBUTTON    followed by its color
+     color.36        - DIALOGABUTTON   followed by its color
+     color.37        - POPUPBORDER     followed by its color
+     color.38        - POPUPCURLINE    followed by its color
+     color.39        - POPUP           followed by its color
+     color.40        - POPUPDIVIDER    followed by its color
 
      With the ['area'] option, returns color settings
      for the specified area of the screen.
@@ -948,7 +956,8 @@ LASTmsg
      lastmsg.1       - text of last message.
 
 LASTKEY [n]
-     Return information about the last key, or the nth last key pressed.
+     Return information about the last key, or the nth last key pressed. Only the last
+     8 keys are retained.
      (E)
 
      lastkey.0       - 4
@@ -1435,8 +1444,12 @@ SLK [*|number]
      With no optional argument.
      (QEMS)
 
-     slk.0           - 1
-     slk.1           - ON|OFF
+     slk.0           - 2
+     slk.1           - ON|OFF|UNAVAILABLE
+     slk.2           - value of -k switch from command line
+     UNAVAILABLE is returned if the -k switch is not supplied on command line.
+     ON is returned if -k switch supplied and SLK are showing.
+     OFF is returned if -k switch supplied but SLK are not showing.
 
      With ['number'] option, details about the specific label are returned.
      (QE)
@@ -2079,7 +2092,7 @@ QUERY_ITEM _THE_FAR query_item[] =
    {(CHARTYPE *)"shadow",          6, 4,ITEM_SHADOW,        1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_shadow                 },
    {(CHARTYPE *)"showkey",         7, 4,ITEM_SHOWKEY,       1, 1,          LVL_FILE,                         QUERY_EXTRACT             ,extract_showkey                },
    {(CHARTYPE *)"size",            4, 2,ITEM_SIZE,          1, 1,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT             ,extract_size                   },
-   {(CHARTYPE *)"slk",             3, 3,ITEM_SLK,           1, 0,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_slk                    },
+   {(CHARTYPE *)"slk",             3, 3,ITEM_SLK,           2, 0,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_slk                    },
    {(CHARTYPE *)"statopt",         7, 7,ITEM_STATOPT,       1, 1,          LVL_GLOB,QUERY_QUERY             |QUERY_EXTRACT             ,extract_statopt                },
    {(CHARTYPE *)"statusline",     10, 7,ITEM_STATUSLINE,    1, 1,          LVL_VIEW,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_statusline             },
    {(CHARTYPE *)"stay",            4, 4,ITEM_STAY,          1, 2,          LVL_GLOB,QUERY_QUERY|QUERY_STATUS|QUERY_EXTRACT|QUERY_MODIFY,extract_stay                   },
@@ -2475,7 +2488,7 @@ CHARTYPE *filename;
    /*
     * If the file already exists, display an error.
     */
-   if ( file_exists( sp_path ) )
+   if ( file_exists( sp_path ) == THE_FILE_EXISTS )
    {
       display_error( 8, filename, FALSE );
       TRACE_RETURN();

@@ -200,7 +200,7 @@ short area;
          break;
       case WINDOW_SLK:
 #if defined(HAVE_SLK_INIT)
-         if (SLKx)
+         if ( max_slk_labels )
          {
 #if defined(HAVE_SLK_ATTRSET)
             slk_attrset(set_colour(CURRENT_FILE->attr+area));
@@ -1568,36 +1568,44 @@ DESCRIPTION
 
      Valid values for 'area':
 
-          ALERT      - alert boxes; see <ALERT>
-          Arrow      - command line prompt
-          Block      - marked <block>
-          BOUNDmarker- bound markers (GUI platforms only)
-          CBlock     - <current line> if in marked <block>
-          CHIghlight - highlighted line if the same as <current line>
-          Cmdline    - <command line>
-          CTofeof    - as for TOfeof if the same as <current line>
-          CUrline    - the <current line>
-          CURSORline - the line in <filearea> that the cursor is or was on
-          DIALOG     - dialog boxes; see <DIALOG>
-          Divider    - dividing line between vertical split screens
-          Filearea   - area containing file lines
-          GAP        - the gap between the <prefix area> and <filearea>
-          CGAP       - the gap between the <prefix area> and <filearea> - current
-          HIghlight  - highlighted line
-          Idline     - line containing file specific info
-          Msgline    - error messages
-          Nondisp    - Non-display characters (<SET ETMODE> OFF)
-          Pending    - pending commands in <prefix area>
-          PRefix     - <prefix area>
-          CPRefix    - <prefix area> if the same as <current line>
-          Reserved   - default for <reserved line>
-          Scale      - line showing <scale line>
-          SHadow     - hidden line marker lines
-          SLK        - soft label keys
-          STatarea   - line showing status of editing session
-          Tabline    - line showing tab positions
-          TOfeof     - <Top-of-File line> and <Bottom-of-File line>
-          *          - All area (second format only)
+          ALERT           - alert boxes; see <ALERT>
+          Arrow           - command line prompt
+          Block           - marked <block>
+          BOUNDmarker     - bound markers (GUI platforms only)
+          CBlock          - <current line> if in marked <block>
+          CHIghlight      - highlighted line if the same as <current line>
+          Cmdline         - <command line>
+          CTofeof         - as for TOfeof if the same as <current line>
+          CUrline         - the <current line>
+          CURSORline      - the line in <filearea> that the cursor is or was on
+          Divider         - dividing line between vertical split screens
+          Filearea        - area containing file lines
+          GAP             - the gap between the <prefix area> and <filearea>
+          CGAP            - the gap between the <prefix area> and <filearea> - current
+          HIghlight       - highlighted line
+          Idline          - line containing file specific info
+          Msgline         - error messages
+          Nondisp         - Non-display characters (<SET ETMODE> OFF)
+          Pending         - pending commands in <prefix area>
+          PRefix          - <prefix area>
+          CPRefix         - <prefix area> if the same as <current line>
+          Reserved        - default for <reserved line>
+          Scale           - line showing <scale line>
+          SHadow          - hidden line marker lines
+          SLK             - soft label keys
+          STatarea        - line showing status of editing session
+          Tabline         - line showing tab positions
+          TOfeof          - <Top-of-File line> and <Bottom-of-File line>
+          DIALOG          - background of a dialog box; see <DIALOG>
+          DIALOGBORDER    - border for a dialog box
+          DIALOGEDITFIELD - edit field of a dialog box
+          DIALOGBUTTON    - inactive button in a dialog box
+          DIALOGABUTTON   - active button in a dialog box
+          POPUP           - all non-highlighted lines in a popup; see <POPUP>
+          POPUPBORDER     - border for a popup
+          POPUPCURLINE    - the highlighted line in a popup
+          POPUPDIVIDER    - dividing line in a popup
+          *               - All areas (second format only)
 
      Valid values for 'foreground', 'background' and 'color':
 
@@ -1651,7 +1659,7 @@ DEFAULT
      Depends on compatibility mode setting and monitor type.
 
 SEE ALSO
-     <SET COMPAT>, <SET COLOUR>, <SET ECOLOUR>
+     <SET COMPAT>, <SET COLOUR>, <SET ECOLOUR>, <DIALOG>, <POPUP>
 
 STATUS
      Complete.
@@ -1750,7 +1758,7 @@ CHARTYPE *params;
          {
             for ( i = 0; i < ATTR_MAX; i++ )
             {
-               if (equal(valid_areas[i].area,word[0],valid_areas[i].area_min_len))
+               if ( equal( valid_areas[i].area,word[0], valid_areas[i].area_min_len ) )
                {
                   parm[0] = TRUE;
                   area = i;

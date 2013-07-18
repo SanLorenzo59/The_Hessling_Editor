@@ -87,6 +87,7 @@
  CHARTYPE BACKUP_SUFFIXx[101];
  int COMMANDCALLSx=0;
  int FUNCTIONCALLSx=0;
+ bool inDIALOG=FALSE; /* indicates if we are running a dialog or alert */
 
 /*--------------------------- regular expression syntaxes -------------*/
 struct regexp_syntax _THE_FAR regexp_syntaxes[] =
@@ -979,7 +980,6 @@ FILE_DETAILS *fd;
    short rc=RC_OK;
 
    TRACE_FUNCTION("default.c: default_file_attributes");
-
    set_file_defaults(CURRENT_FILE);
 
    CURRENT_FILE->fname =           (CHARTYPE *)NULL;

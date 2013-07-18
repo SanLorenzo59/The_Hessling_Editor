@@ -870,7 +870,7 @@ LINETYPE number_occ;
    if (top_line != 0L
    &&  top_line != PENDING_FILE->number_lines+1)
    {
-      rc = rearrange_line_blocks( COMMAND_DUPLICATE, SOURCE_PREFIX, top_line, top_line, top_line, (short)number_occ, PENDING_VIEW, PENDING_VIEW, TRUE, &lines_affected );
+      rc = rearrange_line_blocks( COMMAND_DUPLICATE, SOURCE_PREFIX, top_line, top_line, top_line, number_occ, PENDING_VIEW, PENDING_VIEW, TRUE, &lines_affected );
    }
    return(rc);
 }
@@ -1208,7 +1208,7 @@ LINETYPE number_occ;
 
    clear_pending_prefix_command( curr_ppc, PENDING_FILE, (LINE *)NULL );
    clear_pending_prefix_command( top_ppc, PENDING_FILE, (LINE *)NULL );
-   rc = rearrange_line_blocks( COMMAND_DUPLICATE, SOURCE_PREFIX, top_line, bottom_line, bottom_line, (short)number_occ, PENDING_VIEW, PENDING_VIEW, FALSE, &lines_affected );
+   rc = rearrange_line_blocks( COMMAND_DUPLICATE, SOURCE_PREFIX, top_line, bottom_line, bottom_line, number_occ, PENDING_VIEW, PENDING_VIEW, FALSE, &lines_affected );
    return(rc);
 }
 /***********************************************************************/

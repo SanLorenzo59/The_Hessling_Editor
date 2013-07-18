@@ -1371,7 +1371,7 @@ CHARTYPE which_case;
 #ifdef HAVE_PROTO
 short rearrange_line_blocks(CHARTYPE command,CHARTYPE source,
                             LINETYPE start_line,LINETYPE end_line,LINETYPE dest_line,
-                            short num_occ,VIEW_DETAILS *src_view,VIEW_DETAILS *dst_view,
+                            long num_occ,VIEW_DETAILS *src_view,VIEW_DETAILS *dst_view,
                             bool lines_based_on_scope,LINETYPE *lines_affected)
 #else
 short rearrange_line_blocks(command,source,start_line,end_line,dest_line,num_occ,
@@ -4282,7 +4282,7 @@ bool alert;
          TRACE_RETURN();
          return(RC_OUT_OF_MEMORY);
       }
-      wattrset( CURRENT_WINDOW_COMMAND, set_colour( CURRENT_FILE->attr+ATTR_CMDLINE ) );
+      wattrset( CURRENT_WINDOW_COMMAND, set_colour( CURRENT_FILE->attr+ATTR_DIA_EDITFIELD ) );
    }
 #ifdef HAVE_WBKGD
    wbkgd( dialog_win, set_colour( CURRENT_FILE->attr+( ( alert ) ? ATTR_ALERT : ATTR_DIALOG ) ) );
@@ -4292,7 +4292,7 @@ bool alert;
    wclrtobot(dialog_win);
 #endif
 #if defined(HAVE_BOX)
-   wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_DIVIDER));
+   wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_DIA_BORDER));
    box(dialog_win,0,0);
 #endif
    wattrset( dialog_win, set_colour( CURRENT_FILE->attr+( ( alert ) ? ATTR_ALERT : ATTR_DIALOG ) ) );
@@ -4309,7 +4309,7 @@ bool alert;
     */
    if (title)
    {
-      wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_DIVIDER));
+      wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_DIA_BORDER));
       wmove(dialog_win,0,1);
       waddstr(dialog_win,(DEFCHAR *)title);
    }
@@ -4334,6 +4334,7 @@ bool alert;
       in_editfield = FALSE;
       draw_cursor(FALSE);
    }
+   inDIALOG = TRUE;
    while(1)
    {
       /*
@@ -4343,11 +4344,11 @@ bool alert;
       {
          if (default_button == i)
          {
-            wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_CBLOCK));
+            wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_DIA_ABUTTON));
             cursor_pos = button_col[i];
          }
          else
-            wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_BLOCK));
+            wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_DIA_BUTTON));
          wmove(dialog_win,dw_lines-3,button_col[i]);
          waddstr(dialog_win,button_text[i]);
       }
@@ -4469,7 +4470,7 @@ bool alert;
              */
             item_selected = i;
             touchwin(dialog_win);
-            wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_CBLOCK));
+            wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_DIA_ABUTTON));
             wmove(dialog_win,dw_lines-3,button_col[i]);
             waddstr(dialog_win,button_text[i]);
             wrefresh(dialog_win);
@@ -4531,6 +4532,7 @@ bool alert;
     * If we had an editfield, restore the CMDLINE window and contents (if there
     * was a CMDLINE window)
     */
+   inDIALOG = FALSE;
    CURRENT_VIEW->current_window = save_current_window;
    if ( editfield )
    {
@@ -5257,16 +5259,16 @@ int keyname_index;
 #endif
 
 #ifdef HAVE_WBKGD
-   wbkgd(pad,set_colour(CURRENT_FILE->attr+ATTR_FILEAREA));
+   wbkgd(pad,set_colour(CURRENT_FILE->attr+ATTR_POPUP));
 #else
-   wattrset(pad,set_colour(CURRENT_FILE->attr+ATTR_FILEAREA));
+   wattrset(pad,set_colour(CURRENT_FILE->attr+ATTR_POPUP));
    wmove(pad,0,0);
    wclrtobot(pad);
 #endif
    draw_cursor(FALSE);
    {
 #if defined(HAVE_BOX)
-      wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_DIVIDER));
+      wattrset(dialog_win,set_colour(CURRENT_FILE->attr+ATTR_POP_BORDER));
       box(dialog_win,0,0);
       if ( height != pad_height )
       {
@@ -5313,7 +5315,7 @@ int keyname_index;
       {
          if ((args[i][0]) == '-')
          {
-            wattrset(pad,set_colour(CURRENT_FILE->attr+ATTR_STATAREA));
+            wattrset(pad,set_colour(CURRENT_FILE->attr+ATTR_POP_DIVIDER));
             wmove(pad,i,0);
 #ifdef HAVE_WHLINE
             whline(pad,0,pad_width-2);
@@ -5330,9 +5332,9 @@ int keyname_index;
          else
          {
             if (i == highlighted_line)
-               wattrset(pad,set_colour(CURRENT_FILE->attr+ATTR_BLOCK));
+               wattrset(pad,set_colour(CURRENT_FILE->attr+ATTR_POP_CURLINE));
             else
-               wattrset(pad,set_colour(CURRENT_FILE->attr+ATTR_FILEAREA));
+               wattrset(pad,set_colour(CURRENT_FILE->attr+ATTR_POPUP));
             wmove(pad,i,1);
             waddstr(pad,(DEFCHAR *)args[i]);
             wmove(pad,i,1+strlen((DEFCHAR *)args[i]));
@@ -5407,7 +5409,7 @@ int keyname_index;
              * Got a valid line. Redisplay it in highlighted mode.
              */
             item_selected = i;
-            wattrset(pad,set_colour(CURRENT_FILE->attr+ATTR_BLOCK));
+            wattrset(pad,set_colour(CURRENT_FILE->attr+ATTR_POPUP));
             wmove(pad,i,1);
             waddstr(pad,(DEFCHAR *)args[i]);
             touchwin(pad);
@@ -5659,11 +5661,13 @@ int keyname_index;
 
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short execute_preserve(PRESERVED_VIEW_DETAILS **preserved_view_details, PRESERVED_FILE_DETAILS **preserved_file_details)
+short execute_preserve(VIEW_DETAILS *src_vd, PRESERVED_VIEW_DETAILS **preserved_view_details, FILE_DETAILS *src_fd, PRESERVED_FILE_DETAILS **preserved_file_details)
 #else
-short execute_preserve(preserved_view_details, preserved_file_details)
+short execute_preserve(src_vd, preserved_view_details, src_fd, preserved_file_details)
 PRESERVED_VIEW_DETAILS **preserved_view_details;
 PRESERVED_FILE_DETAILS **preserved_file_details;
+VIEW_DETAILS *src_vd;
+FILE_DETAILS *src_fd;
 #endif
 /***********************************************************************/
 {
@@ -5719,90 +5723,90 @@ PRESERVED_FILE_DETAILS **preserved_file_details;
    /*
     * Save the VIEW details...
     */
-   (*preserved_view_details)->arbchar_status              = CURRENT_VIEW->arbchar_status;
-   (*preserved_view_details)->arbchar_single              = CURRENT_VIEW->arbchar_single;
-   (*preserved_view_details)->arbchar_multiple            = CURRENT_VIEW->arbchar_multiple;
-   (*preserved_view_details)->arrow_on                    = CURRENT_VIEW->arrow_on;
-   (*preserved_view_details)->case_enter                  = CURRENT_VIEW->case_enter;
-   (*preserved_view_details)->case_enter_cmdline          = CURRENT_VIEW->case_enter_cmdline;
-   (*preserved_view_details)->case_enter_prefix           = CURRENT_VIEW->case_enter_prefix;
-   (*preserved_view_details)->case_locate                 = CURRENT_VIEW->case_locate;
-   (*preserved_view_details)->case_change                 = CURRENT_VIEW->case_change;
-   (*preserved_view_details)->case_sort                   = CURRENT_VIEW->case_sort;
-   (*preserved_view_details)->cmd_line                    = CURRENT_VIEW->cmd_line;
-   (*preserved_view_details)->current_row                 = CURRENT_VIEW->current_row;
-   (*preserved_view_details)->current_base                = CURRENT_VIEW->current_base;
-   (*preserved_view_details)->current_off                 = CURRENT_VIEW->current_off;
-   (*preserved_view_details)->display_low                 = CURRENT_VIEW->display_low;
-   (*preserved_view_details)->display_high                = CURRENT_VIEW->display_high;
-   (*preserved_view_details)->hex                         = CURRENT_VIEW->hex;
-   (*preserved_view_details)->hexshow_on                  = CURRENT_VIEW->hexshow_on;
-   (*preserved_view_details)->hexshow_base                = CURRENT_VIEW->hexshow_base;
-   (*preserved_view_details)->hexshow_off                 = CURRENT_VIEW->hexshow_off;
-   (*preserved_view_details)->highlight                   = CURRENT_VIEW->highlight;
-   (*preserved_view_details)->highlight_high              = CURRENT_VIEW->highlight_high;
-   (*preserved_view_details)->highlight_low               = CURRENT_VIEW->highlight_low;
-   (*preserved_view_details)->id_line                     = CURRENT_VIEW->id_line;
-   (*preserved_view_details)->imp_macro                   = CURRENT_VIEW->imp_macro;
-   (*preserved_view_details)->imp_os                      = CURRENT_VIEW->imp_os;
-   (*preserved_view_details)->inputmode                   = CURRENT_VIEW->inputmode;
-   (*preserved_view_details)->linend_status               = CURRENT_VIEW->linend_status;
-   (*preserved_view_details)->linend_value                = CURRENT_VIEW->linend_value;
-   (*preserved_view_details)->macro                       = CURRENT_VIEW->macro;
-   (*preserved_view_details)->margin_left                 = CURRENT_VIEW->margin_left;
-   (*preserved_view_details)->margin_right                = CURRENT_VIEW->margin_right;
-   (*preserved_view_details)->margin_indent               = CURRENT_VIEW->margin_indent;
-   (*preserved_view_details)->margin_indent_offset_status = CURRENT_VIEW->margin_indent_offset_status;
-   (*preserved_view_details)->msgline_base                = CURRENT_VIEW->msgline_base;
-   (*preserved_view_details)->msgline_off                 = CURRENT_VIEW->msgline_off;
-   (*preserved_view_details)->msgline_rows                = CURRENT_VIEW->msgline_rows;
-   (*preserved_view_details)->msgmode_status              = CURRENT_VIEW->msgmode_status;
-   (*preserved_view_details)->newline_aligned             = CURRENT_VIEW->newline_aligned;
-   (*preserved_view_details)->number                      = CURRENT_VIEW->number;
-   (*preserved_view_details)->position_status             = CURRENT_VIEW->position_status;
-   (*preserved_view_details)->prefix                      = CURRENT_VIEW->prefix;
-   (*preserved_view_details)->prefix_width                = CURRENT_VIEW->prefix_width;
-   (*preserved_view_details)->prefix_gap                  = CURRENT_VIEW->prefix_gap;
-   (*preserved_view_details)->scale_on                    = CURRENT_VIEW->scale_on;
-   (*preserved_view_details)->scale_base                  = CURRENT_VIEW->scale_base;
-   (*preserved_view_details)->scale_off                   = CURRENT_VIEW->scale_off;
-   (*preserved_view_details)->scope_all                   = CURRENT_VIEW->scope_all;
-   (*preserved_view_details)->shadow                      = CURRENT_VIEW->shadow;
-   (*preserved_view_details)->stay                        = CURRENT_VIEW->stay;
-   (*preserved_view_details)->synonym                     = CURRENT_VIEW->synonym;
-   (*preserved_view_details)->tab_on                      = CURRENT_VIEW->tab_on;
-   (*preserved_view_details)->tab_base                    = CURRENT_VIEW->tab_base;
-   (*preserved_view_details)->tab_off                     = CURRENT_VIEW->tab_off;
-   (*preserved_view_details)->tabsinc                     = CURRENT_VIEW->tabsinc;
-   (*preserved_view_details)->numtabs                     = CURRENT_VIEW->numtabs;
-   (*preserved_view_details)->tofeof                      = CURRENT_VIEW->tofeof;
-   (*preserved_view_details)->verify_col                  = CURRENT_VIEW->verify_col;
-   (*preserved_view_details)->verify_start                = CURRENT_VIEW->verify_start;
-   (*preserved_view_details)->verify_end                  = CURRENT_VIEW->verify_end;
-   (*preserved_view_details)->word                        = CURRENT_VIEW->word;
-   (*preserved_view_details)->wordwrap                    = CURRENT_VIEW->wordwrap;
-   (*preserved_view_details)->wrap                        = CURRENT_VIEW->wrap;
-   (*preserved_view_details)->zone_start                  = CURRENT_VIEW->zone_start;
-   (*preserved_view_details)->zone_end                    = CURRENT_VIEW->zone_end;
-   memcpy( (*preserved_view_details)->tabs,                 CURRENT_VIEW->tabs, sizeof(CURRENT_VIEW->tabs) );
-   (*preserved_view_details)->thighlight_on               = CURRENT_VIEW->thighlight_on;
-   (*preserved_view_details)->thighlight_active           = CURRENT_VIEW->thighlight_active;
-   (*preserved_view_details)->thighlight_target           = CURRENT_VIEW->thighlight_target;
+   (*preserved_view_details)->arbchar_status              = src_vd->arbchar_status;
+   (*preserved_view_details)->arbchar_single              = src_vd->arbchar_single;
+   (*preserved_view_details)->arbchar_multiple            = src_vd->arbchar_multiple;
+   (*preserved_view_details)->arrow_on                    = src_vd->arrow_on;
+   (*preserved_view_details)->case_enter                  = src_vd->case_enter;
+   (*preserved_view_details)->case_enter_cmdline          = src_vd->case_enter_cmdline;
+   (*preserved_view_details)->case_enter_prefix           = src_vd->case_enter_prefix;
+   (*preserved_view_details)->case_locate                 = src_vd->case_locate;
+   (*preserved_view_details)->case_change                 = src_vd->case_change;
+   (*preserved_view_details)->case_sort                   = src_vd->case_sort;
+   (*preserved_view_details)->cmd_line                    = src_vd->cmd_line;
+   (*preserved_view_details)->current_row                 = src_vd->current_row;
+   (*preserved_view_details)->current_base                = src_vd->current_base;
+   (*preserved_view_details)->current_off                 = src_vd->current_off;
+   (*preserved_view_details)->display_low                 = src_vd->display_low;
+   (*preserved_view_details)->display_high                = src_vd->display_high;
+   (*preserved_view_details)->hex                         = src_vd->hex;
+   (*preserved_view_details)->hexshow_on                  = src_vd->hexshow_on;
+   (*preserved_view_details)->hexshow_base                = src_vd->hexshow_base;
+   (*preserved_view_details)->hexshow_off                 = src_vd->hexshow_off;
+   (*preserved_view_details)->highlight                   = src_vd->highlight;
+   (*preserved_view_details)->highlight_high              = src_vd->highlight_high;
+   (*preserved_view_details)->highlight_low               = src_vd->highlight_low;
+   (*preserved_view_details)->id_line                     = src_vd->id_line;
+   (*preserved_view_details)->imp_macro                   = src_vd->imp_macro;
+   (*preserved_view_details)->imp_os                      = src_vd->imp_os;
+   (*preserved_view_details)->inputmode                   = src_vd->inputmode;
+   (*preserved_view_details)->linend_status               = src_vd->linend_status;
+   (*preserved_view_details)->linend_value                = src_vd->linend_value;
+   (*preserved_view_details)->macro                       = src_vd->macro;
+   (*preserved_view_details)->margin_left                 = src_vd->margin_left;
+   (*preserved_view_details)->margin_right                = src_vd->margin_right;
+   (*preserved_view_details)->margin_indent               = src_vd->margin_indent;
+   (*preserved_view_details)->margin_indent_offset_status = src_vd->margin_indent_offset_status;
+   (*preserved_view_details)->msgline_base                = src_vd->msgline_base;
+   (*preserved_view_details)->msgline_off                 = src_vd->msgline_off;
+   (*preserved_view_details)->msgline_rows                = src_vd->msgline_rows;
+   (*preserved_view_details)->msgmode_status              = src_vd->msgmode_status;
+   (*preserved_view_details)->newline_aligned             = src_vd->newline_aligned;
+   (*preserved_view_details)->number                      = src_vd->number;
+   (*preserved_view_details)->position_status             = src_vd->position_status;
+   (*preserved_view_details)->prefix                      = src_vd->prefix;
+   (*preserved_view_details)->prefix_width                = src_vd->prefix_width;
+   (*preserved_view_details)->prefix_gap                  = src_vd->prefix_gap;
+   (*preserved_view_details)->scale_on                    = src_vd->scale_on;
+   (*preserved_view_details)->scale_base                  = src_vd->scale_base;
+   (*preserved_view_details)->scale_off                   = src_vd->scale_off;
+   (*preserved_view_details)->scope_all                   = src_vd->scope_all;
+   (*preserved_view_details)->shadow                      = src_vd->shadow;
+   (*preserved_view_details)->stay                        = src_vd->stay;
+   (*preserved_view_details)->synonym                     = src_vd->synonym;
+   (*preserved_view_details)->tab_on                      = src_vd->tab_on;
+   (*preserved_view_details)->tab_base                    = src_vd->tab_base;
+   (*preserved_view_details)->tab_off                     = src_vd->tab_off;
+   (*preserved_view_details)->tabsinc                     = src_vd->tabsinc;
+   (*preserved_view_details)->numtabs                     = src_vd->numtabs;
+   (*preserved_view_details)->tofeof                      = src_vd->tofeof;
+   (*preserved_view_details)->verify_col                  = src_vd->verify_col;
+   (*preserved_view_details)->verify_start                = src_vd->verify_start;
+   (*preserved_view_details)->verify_end                  = src_vd->verify_end;
+   (*preserved_view_details)->word                        = src_vd->word;
+   (*preserved_view_details)->wordwrap                    = src_vd->wordwrap;
+   (*preserved_view_details)->wrap                        = src_vd->wrap;
+   (*preserved_view_details)->zone_start                  = src_vd->zone_start;
+   (*preserved_view_details)->zone_end                    = src_vd->zone_end;
+   memcpy( (*preserved_view_details)->tabs,                 src_vd->tabs, sizeof(src_vd->tabs) );
+   (*preserved_view_details)->thighlight_on               = src_vd->thighlight_on;
+   (*preserved_view_details)->thighlight_active           = src_vd->thighlight_active;
+   (*preserved_view_details)->thighlight_target           = src_vd->thighlight_target;
 
    /*
     * Save the FILE details...
     */
-   (*preserved_file_details)->autosave                  = CURRENT_FILE->autosave;
-   (*preserved_file_details)->backup                    = CURRENT_FILE->backup;
-   (*preserved_file_details)->eolout                    = CURRENT_FILE->eolout;
-   (*preserved_file_details)->tabsout_on                = CURRENT_FILE->tabsout_on;
-   (*preserved_file_details)->tabsout_num               = CURRENT_FILE->tabsout_num;
-   (*preserved_file_details)->trailing                  = CURRENT_FILE->trailing;
-   memcpy( (*preserved_file_details)->attr,               CURRENT_FILE->attr, ATTR_MAX*sizeof(COLOUR_ATTR) );
-   memcpy( (*preserved_file_details)->ecolour,            CURRENT_FILE->ecolour, ECOLOUR_MAX*sizeof(COLOUR_ATTR) );
-   (*preserved_file_details)->colouring                 = CURRENT_FILE->colouring;
-   (*preserved_file_details)->autocolour                = CURRENT_FILE->autocolour;
-   (*preserved_file_details)->parser                    = CURRENT_FILE->parser;
+   (*preserved_file_details)->autosave                  = src_fd->autosave;
+   (*preserved_file_details)->backup                    = src_fd->backup;
+   (*preserved_file_details)->eolout                    = src_fd->eolout;
+   (*preserved_file_details)->tabsout_on                = src_fd->tabsout_on;
+   (*preserved_file_details)->tabsout_num               = src_fd->tabsout_num;
+   (*preserved_file_details)->trailing                  = src_fd->trailing;
+   memcpy( (*preserved_file_details)->attr,               src_fd->attr, ATTR_MAX*sizeof(COLOUR_ATTR) );
+   memcpy( (*preserved_file_details)->ecolour,            src_fd->ecolour, ECOLOUR_MAX*sizeof(COLOUR_ATTR) );
+   (*preserved_file_details)->colouring                 = src_fd->colouring;
+   (*preserved_file_details)->autocolour                = src_fd->autocolour;
+   (*preserved_file_details)->parser                    = src_fd->parser;
 
    TRACE_RETURN();
    return(rc);
@@ -5810,11 +5814,13 @@ PRESERVED_FILE_DETAILS **preserved_file_details;
 
 /***********************************************************************/
 #ifdef HAVE_PROTO
-short execute_restore(PRESERVED_VIEW_DETAILS **preserved_view_details, PRESERVED_FILE_DETAILS **preserved_file_details)
+short execute_restore(VIEW_DETAILS *dst_vd, PRESERVED_VIEW_DETAILS **preserved_view_details, FILE_DETAILS *dst_fd, PRESERVED_FILE_DETAILS **preserved_file_details)
 #else
-short execute_restore(preserved_view_details, preserved_file_details)
+short execute_restore(dst_vd, preserved_view_details, dst_fd, preserved_file_details)
 PRESERVED_VIEW_DETAILS **preserved_view_details;
 PRESERVED_FILE_DETAILS **preserved_file_details;
+VIEW_DETAILS *dst_vd;
+FILE_DETAILS *dst_fd;
 #endif
 /***********************************************************************/
 {
@@ -5837,100 +5843,100 @@ PRESERVED_FILE_DETAILS **preserved_file_details;
     * Lets do this for everything!!
     */
 #if 0
-   if ( CURRENT_VIEW->prefix != (*preserved_view_details)->prefix
-   ||   CURRENT_VIEW->prefix_width != (*preserved_view_details)->prefix_width
-   ||   CURRENT_VIEW->prefix_gap != (*preserved_view_details)->prefix_gap
-   ||   CURRENT_VIEW->arrow_on != (*preserved_view_details)->arrow_on
-   ||   CURRENT_VIEW->cmd_line != (*preserved_view_details)->cmd_line
-   ||   CURRENT_VIEW->id_line != (*preserved_view_details)->id_line)
+   if ( dst_vd->prefix != (*preserved_view_details)->prefix
+   ||   dst_vd->prefix_width != (*preserved_view_details)->prefix_width
+   ||   dst_vd->prefix_gap != (*preserved_view_details)->prefix_gap
+   ||   dst_vd->arrow_on != (*preserved_view_details)->arrow_on
+   ||   dst_vd->cmd_line != (*preserved_view_details)->cmd_line
+   ||   dst_vd->id_line != (*preserved_view_details)->id_line)
 #endif
       rebuild_screen = TRUE;
    /*
     * Restore the VIEW details...
     */
-   CURRENT_VIEW->arbchar_status              = (*preserved_view_details)->arbchar_status;
-   CURRENT_VIEW->arbchar_single              = (*preserved_view_details)->arbchar_single;
-   CURRENT_VIEW->arbchar_multiple            = (*preserved_view_details)->arbchar_multiple;
-   CURRENT_VIEW->arrow_on                    = (*preserved_view_details)->arrow_on;
-   CURRENT_VIEW->case_enter                  = (*preserved_view_details)->case_enter;
-   CURRENT_VIEW->case_enter_cmdline          = (*preserved_view_details)->case_enter_cmdline;
-   CURRENT_VIEW->case_enter_prefix           = (*preserved_view_details)->case_enter_prefix;
-   CURRENT_VIEW->case_locate                 = (*preserved_view_details)->case_locate;
-   CURRENT_VIEW->case_change                 = (*preserved_view_details)->case_change;
-   CURRENT_VIEW->case_sort                   = (*preserved_view_details)->case_sort;
-   CURRENT_VIEW->cmd_line                    = (*preserved_view_details)->cmd_line;
-   CURRENT_VIEW->current_row                 = (*preserved_view_details)->current_row;
-   CURRENT_VIEW->current_base                = (*preserved_view_details)->current_base;
-   CURRENT_VIEW->current_off                 = (*preserved_view_details)->current_off;
-   CURRENT_VIEW->display_low                 = (*preserved_view_details)->display_low;
-   CURRENT_VIEW->display_high                = (*preserved_view_details)->display_high;
-   CURRENT_VIEW->hex                         = (*preserved_view_details)->hex;
-   CURRENT_VIEW->hexshow_on                  = (*preserved_view_details)->hexshow_on;
-   CURRENT_VIEW->hexshow_base                = (*preserved_view_details)->hexshow_base;
-   CURRENT_VIEW->hexshow_off                 = (*preserved_view_details)->hexshow_off;
-   CURRENT_VIEW->highlight                   = (*preserved_view_details)->highlight;
-   CURRENT_VIEW->highlight_high              = (*preserved_view_details)->highlight_high;
-   CURRENT_VIEW->highlight_low               = (*preserved_view_details)->highlight_low;
-   CURRENT_VIEW->id_line                     = (*preserved_view_details)->id_line;
-   CURRENT_VIEW->imp_macro                   = (*preserved_view_details)->imp_macro;
-   CURRENT_VIEW->imp_os                      = (*preserved_view_details)->imp_os;
-   CURRENT_VIEW->inputmode                   = (*preserved_view_details)->inputmode;
-   CURRENT_VIEW->linend_status               = (*preserved_view_details)->linend_status;
-   CURRENT_VIEW->linend_value                = (*preserved_view_details)->linend_value;
-   CURRENT_VIEW->macro                       = (*preserved_view_details)->macro;
-   CURRENT_VIEW->margin_left                 = (*preserved_view_details)->margin_left;
-   CURRENT_VIEW->margin_right                = (*preserved_view_details)->margin_right;
-   CURRENT_VIEW->margin_indent               = (*preserved_view_details)->margin_indent;
-   CURRENT_VIEW->margin_indent_offset_status = (*preserved_view_details)->margin_indent_offset_status;
-   CURRENT_VIEW->msgline_base                = (*preserved_view_details)->msgline_base;
-   CURRENT_VIEW->msgline_off                 = (*preserved_view_details)->msgline_off;
-   CURRENT_VIEW->msgline_rows                = (*preserved_view_details)->msgline_rows;
-   CURRENT_VIEW->msgmode_status              = (*preserved_view_details)->msgmode_status;
-   CURRENT_VIEW->newline_aligned             = (*preserved_view_details)->newline_aligned;
-   CURRENT_VIEW->number                      = (*preserved_view_details)->number;
-   CURRENT_VIEW->position_status             = (*preserved_view_details)->position_status;
-   CURRENT_VIEW->prefix                      = (*preserved_view_details)->prefix;
-   CURRENT_VIEW->prefix_width                = (*preserved_view_details)->prefix_width;
-   CURRENT_VIEW->prefix_gap                  = (*preserved_view_details)->prefix_gap;
-   CURRENT_VIEW->scale_on                    = (*preserved_view_details)->scale_on;
-   CURRENT_VIEW->scale_base                  = (*preserved_view_details)->scale_base;
-   CURRENT_VIEW->scale_off                   = (*preserved_view_details)->scale_off;
-   CURRENT_VIEW->scope_all                   = (*preserved_view_details)->scope_all;
-   CURRENT_VIEW->shadow                      = (*preserved_view_details)->shadow;
-   CURRENT_VIEW->stay                        = (*preserved_view_details)->stay;
-   CURRENT_VIEW->synonym                     = (*preserved_view_details)->synonym;
-   CURRENT_VIEW->tab_on                      = (*preserved_view_details)->tab_on;
-   CURRENT_VIEW->tab_base                    = (*preserved_view_details)->tab_base;
-   CURRENT_VIEW->tab_off                     = (*preserved_view_details)->tab_off;
-   CURRENT_VIEW->tabsinc                     = (*preserved_view_details)->tabsinc;
-   CURRENT_VIEW->numtabs                     = (*preserved_view_details)->numtabs;
-   CURRENT_VIEW->tofeof                      = (*preserved_view_details)->tofeof;
-   CURRENT_VIEW->verify_col                  = (*preserved_view_details)->verify_col;
-   CURRENT_VIEW->verify_start                = (*preserved_view_details)->verify_start;
-   CURRENT_VIEW->verify_end                  = (*preserved_view_details)->verify_end;
-   CURRENT_VIEW->word                        = (*preserved_view_details)->word;
-   CURRENT_VIEW->wordwrap                    = (*preserved_view_details)->wordwrap;
-   CURRENT_VIEW->wrap                        = (*preserved_view_details)->wrap;
-   CURRENT_VIEW->zone_start                  = (*preserved_view_details)->zone_start;
-   CURRENT_VIEW->zone_end                    = (*preserved_view_details)->zone_end;
-   memcpy( CURRENT_VIEW->tabs,                 (*preserved_view_details)->tabs, sizeof((*preserved_view_details)->tabs) ); /* FGC */
-   CURRENT_VIEW->thighlight_on               = (*preserved_view_details)->thighlight_on;
-   CURRENT_VIEW->thighlight_active           = (*preserved_view_details)->thighlight_active;
-   CURRENT_VIEW->thighlight_target           = (*preserved_view_details)->thighlight_target;
+   dst_vd->arbchar_status              = (*preserved_view_details)->arbchar_status;
+   dst_vd->arbchar_single              = (*preserved_view_details)->arbchar_single;
+   dst_vd->arbchar_multiple            = (*preserved_view_details)->arbchar_multiple;
+   dst_vd->arrow_on                    = (*preserved_view_details)->arrow_on;
+   dst_vd->case_enter                  = (*preserved_view_details)->case_enter;
+   dst_vd->case_enter_cmdline          = (*preserved_view_details)->case_enter_cmdline;
+   dst_vd->case_enter_prefix           = (*preserved_view_details)->case_enter_prefix;
+   dst_vd->case_locate                 = (*preserved_view_details)->case_locate;
+   dst_vd->case_change                 = (*preserved_view_details)->case_change;
+   dst_vd->case_sort                   = (*preserved_view_details)->case_sort;
+   dst_vd->cmd_line                    = (*preserved_view_details)->cmd_line;
+   dst_vd->current_row                 = (*preserved_view_details)->current_row;
+   dst_vd->current_base                = (*preserved_view_details)->current_base;
+   dst_vd->current_off                 = (*preserved_view_details)->current_off;
+   dst_vd->display_low                 = (*preserved_view_details)->display_low;
+   dst_vd->display_high                = (*preserved_view_details)->display_high;
+   dst_vd->hex                         = (*preserved_view_details)->hex;
+   dst_vd->hexshow_on                  = (*preserved_view_details)->hexshow_on;
+   dst_vd->hexshow_base                = (*preserved_view_details)->hexshow_base;
+   dst_vd->hexshow_off                 = (*preserved_view_details)->hexshow_off;
+   dst_vd->highlight                   = (*preserved_view_details)->highlight;
+   dst_vd->highlight_high              = (*preserved_view_details)->highlight_high;
+   dst_vd->highlight_low               = (*preserved_view_details)->highlight_low;
+   dst_vd->id_line                     = (*preserved_view_details)->id_line;
+   dst_vd->imp_macro                   = (*preserved_view_details)->imp_macro;
+   dst_vd->imp_os                      = (*preserved_view_details)->imp_os;
+   dst_vd->inputmode                   = (*preserved_view_details)->inputmode;
+   dst_vd->linend_status               = (*preserved_view_details)->linend_status;
+   dst_vd->linend_value                = (*preserved_view_details)->linend_value;
+   dst_vd->macro                       = (*preserved_view_details)->macro;
+   dst_vd->margin_left                 = (*preserved_view_details)->margin_left;
+   dst_vd->margin_right                = (*preserved_view_details)->margin_right;
+   dst_vd->margin_indent               = (*preserved_view_details)->margin_indent;
+   dst_vd->margin_indent_offset_status = (*preserved_view_details)->margin_indent_offset_status;
+   dst_vd->msgline_base                = (*preserved_view_details)->msgline_base;
+   dst_vd->msgline_off                 = (*preserved_view_details)->msgline_off;
+   dst_vd->msgline_rows                = (*preserved_view_details)->msgline_rows;
+   dst_vd->msgmode_status              = (*preserved_view_details)->msgmode_status;
+   dst_vd->newline_aligned             = (*preserved_view_details)->newline_aligned;
+   dst_vd->number                      = (*preserved_view_details)->number;
+   dst_vd->position_status             = (*preserved_view_details)->position_status;
+   dst_vd->prefix                      = (*preserved_view_details)->prefix;
+   dst_vd->prefix_width                = (*preserved_view_details)->prefix_width;
+   dst_vd->prefix_gap                  = (*preserved_view_details)->prefix_gap;
+   dst_vd->scale_on                    = (*preserved_view_details)->scale_on;
+   dst_vd->scale_base                  = (*preserved_view_details)->scale_base;
+   dst_vd->scale_off                   = (*preserved_view_details)->scale_off;
+   dst_vd->scope_all                   = (*preserved_view_details)->scope_all;
+   dst_vd->shadow                      = (*preserved_view_details)->shadow;
+   dst_vd->stay                        = (*preserved_view_details)->stay;
+   dst_vd->synonym                     = (*preserved_view_details)->synonym;
+   dst_vd->tab_on                      = (*preserved_view_details)->tab_on;
+   dst_vd->tab_base                    = (*preserved_view_details)->tab_base;
+   dst_vd->tab_off                     = (*preserved_view_details)->tab_off;
+   dst_vd->tabsinc                     = (*preserved_view_details)->tabsinc;
+   dst_vd->numtabs                     = (*preserved_view_details)->numtabs;
+   dst_vd->tofeof                      = (*preserved_view_details)->tofeof;
+   dst_vd->verify_col                  = (*preserved_view_details)->verify_col;
+   dst_vd->verify_start                = (*preserved_view_details)->verify_start;
+   dst_vd->verify_end                  = (*preserved_view_details)->verify_end;
+   dst_vd->word                        = (*preserved_view_details)->word;
+   dst_vd->wordwrap                    = (*preserved_view_details)->wordwrap;
+   dst_vd->wrap                        = (*preserved_view_details)->wrap;
+   dst_vd->zone_start                  = (*preserved_view_details)->zone_start;
+   dst_vd->zone_end                    = (*preserved_view_details)->zone_end;
+   memcpy( dst_vd->tabs,                 (*preserved_view_details)->tabs, sizeof((*preserved_view_details)->tabs) ); /* FGC */
+   dst_vd->thighlight_on               = (*preserved_view_details)->thighlight_on;
+   dst_vd->thighlight_active           = (*preserved_view_details)->thighlight_active;
+   dst_vd->thighlight_target           = (*preserved_view_details)->thighlight_target;
    /*
     * Restore the FILE details...
     */
-   CURRENT_FILE->autosave                  = (*preserved_file_details)->autosave;
-   CURRENT_FILE->backup                    = (*preserved_file_details)->backup;
-   CURRENT_FILE->eolout                    = (*preserved_file_details)->eolout;
-   CURRENT_FILE->tabsout_on                = (*preserved_file_details)->tabsout_on;
-   CURRENT_FILE->tabsout_num               = (*preserved_file_details)->tabsout_num;
-   CURRENT_FILE->trailing                  = (*preserved_file_details)->trailing;
-   memcpy( CURRENT_FILE->attr,               (*preserved_file_details)->attr, ATTR_MAX*sizeof(COLOUR_ATTR) );
-   memcpy( CURRENT_FILE->ecolour,            (*preserved_file_details)->ecolour, ECOLOUR_MAX*sizeof(COLOUR_ATTR) );
-   CURRENT_FILE->colouring                 = (*preserved_file_details)->colouring;
-   CURRENT_FILE->autocolour                = (*preserved_file_details)->autocolour;
-   CURRENT_FILE->parser                    = (*preserved_file_details)->parser;
+   dst_fd->autosave                  = (*preserved_file_details)->autosave;
+   dst_fd->backup                    = (*preserved_file_details)->backup;
+   dst_fd->eolout                    = (*preserved_file_details)->eolout;
+   dst_fd->tabsout_on                = (*preserved_file_details)->tabsout_on;
+   dst_fd->tabsout_num               = (*preserved_file_details)->tabsout_num;
+   dst_fd->trailing                  = (*preserved_file_details)->trailing;
+   memcpy( dst_fd->attr,               (*preserved_file_details)->attr, ATTR_MAX*sizeof(COLOUR_ATTR) );
+   memcpy( dst_fd->ecolour,            (*preserved_file_details)->ecolour, ECOLOUR_MAX*sizeof(COLOUR_ATTR) );
+   dst_fd->colouring                 = (*preserved_file_details)->colouring;
+   dst_fd->autocolour                = (*preserved_file_details)->autocolour;
+   dst_fd->parser                    = (*preserved_file_details)->parser;
    /*
     * Free any memory for preserved VIEW and FILE details
     */

@@ -30,7 +30,7 @@
  */
 
 /*
-$Id: the.h,v 1.79 2013/06/22 10:59:41 mark Exp $
+$Id: the.h,v 1.80 2013/07/10 02:07:24 mark Exp $
 */
 
 #include "thedefs.h"
@@ -862,7 +862,15 @@ extern void ClosedownConsole( void );
 #define ATTR_FILETABS   29
 #define ATTR_FILETABSDIV 30
 #define ATTR_CURSORLINE 31
-#define ATTR_MAX        32
+#define ATTR_DIA_BORDER 32
+#define ATTR_DIA_EDITFIELD 33
+#define ATTR_DIA_BUTTON 34
+#define ATTR_DIA_ABUTTON 35
+#define ATTR_POP_BORDER 36
+#define ATTR_POP_CURLINE 37
+#define ATTR_POPUP 38
+#define ATTR_POP_DIVIDER 39
+#define ATTR_MAX        40
 /*--------------------- -- ecolour defines -----------------------------*/
 #define ECOLOUR_COMMENTS               0
 #define ECOLOUR_STRINGS                1
@@ -1958,6 +1966,12 @@ struct regexp_syntax
 #define THE_KEY_DEFINE_DEFINE 2
 #define THE_KEY_DEFINE_RAW    3
 #define THE_KEY_DEFINE_QUERY  4
+/*
+ * following #defines for file_exists()
+ */
+#define THE_FILE_UNKNOWN       0
+#define THE_FILE_EXISTS        1
+#define THE_FILE_NAME_TOO_LONG 2
 /*
  * Following are used for determining the button action of the mouse
  */

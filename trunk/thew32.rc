@@ -19,10 +19,10 @@ BEGIN
         BEGIN
             VALUE "Author", "Mark Hessling\0"
             VALUE "License", "GNU General Public License. See file COPYING for details\0"
-            VALUE "FileDescription", "The Hessling Editor (x86)\0"
+            VALUE "FileDescription", "The Hessling Editor (x86_32)\0"
             VALUE "FileVersion", "3.3\0"
             VALUE "InternalName", "THE\0"
-            VALUE "LegalCopyright", "Copyright © Mark Hessling 1990 - 2011\0"
+            VALUE "LegalCopyright", "Copyright © Mark Hessling 1990 - 2013\0"
             VALUE "OriginalFilename", "THE.EXE\0"
             VALUE "ProductName", "The Hessling Editor\0"
             VALUE "ProductVersion", "3.3\0"

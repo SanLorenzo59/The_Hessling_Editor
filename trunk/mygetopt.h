@@ -18,7 +18,7 @@
 #ifndef _GETOPT_H
 #define _GETOPT_H 1
 
-#ifdef	__cplusplus
+#ifdef  __cplusplus
 extern "C" {
 #endif
 
@@ -59,9 +59,9 @@ extern int optopt;
    zero.
 
    The field `has_arg' is:
-   no_argument		(or 0) if the option does not take an argument,
-   required_argument	(or 1) if the option requires an argument,
-   optional_argument 	(or 2) if the option takes an optional argument.
+   no_argument      (or 0) if the option does not take an argument,
+   required_argument    (or 1) if the option requires an argument,
+   optional_argument    (or 2) if the option takes an optional argument.
 
    If the field `flag' is not NULL, it points to a variable that is set
    to the value given in the field `val' when the option is found, but
@@ -76,7 +76,7 @@ extern int optopt;
 
 struct my_getopt_option
 {
-#if	__STDC__
+#if __STDC__
   const char *name;
 #else
   char *name;
@@ -90,9 +90,9 @@ struct my_getopt_option
 
 /* Names for the values of the `has_arg' field of `struct option'.  */
 
-#define	no_argument		0
-#define required_argument	1
-#define optional_argument	2
+#define no_argument         0
+#define required_argument   1
+#define optional_argument   2
 
 #if __STDC__
 #if defined(__GNU_LIBRARY__) || defined(__cplusplus)
@@ -104,16 +104,16 @@ extern int my_getopt (int argc, char *const *argv, const char *shortopts);
 extern int my_getopt ();
 #endif /* not __GNU_LIBRARY__ */
 extern int my_getopt_long (int argc, char *const *argv, const char *shortopts,
-		        const struct my_getopt_option *longopts, int *longind);
+           const struct my_getopt_option *longopts, int *longind);
 extern int my_getopt_long_only (int argc, char *const *argv,
-			     const char *shortopts,
-		             const struct my_getopt_option *longopts, int *longind);
+           const char *shortopts,
+           const struct my_getopt_option *longopts, int *longind);
 
 /* Internal only.  Users should not call this directly.  */
 extern int _getopt_internal (int argc, char *const *argv,
-			     const char *shortopts,
-		             const struct my_getopt_option *longopts, int *longind,
-			     int long_only);
+           const char *shortopts,
+           const struct my_getopt_option *longopts, int *longind,
+           int long_only);
 #else /* not __STDC__ */
 extern int my_getopt ();
 extern int my_getopt_long ();
@@ -122,7 +122,7 @@ extern int my_getopt_long_only ();
 extern int _getopt_internal ();
 #endif /* not __STDC__ */
 
-#ifdef	__cplusplus
+#ifdef  __cplusplus
 }
 #endif
 

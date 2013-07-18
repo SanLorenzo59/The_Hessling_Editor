@@ -2484,7 +2484,6 @@ COMPATIBILITY
 
 DEFAULT
      ON  - if support for Soft Label Keys is available
-     OFF - if support for Soft Label Keys in unavailable
 
 SEE ALSO
      <SET COLOUR>
@@ -2509,7 +2508,7 @@ CHARTYPE *params;
 
    TRACE_FUNCTION("commset2.c:Slk");
 #if defined(HAVE_SLK_INIT)
-   if (SLKx)
+   if ( max_slk_labels )
    {
       strip[0]=STRIP_BOTH;
       strip[1]=STRIP_NONE;
@@ -2523,6 +2522,7 @@ CHARTYPE *params;
       if ( num_params == 1
       &&   equal( (CHARTYPE *)"off", word[0], 3 ) )
       {
+         SLKx = FALSE;
          slk_clear();
          TRACE_RETURN();
          return(RC_OK);
@@ -2530,6 +2530,7 @@ CHARTYPE *params;
       if ( num_params == 1
       &&   equal( (CHARTYPE *)"on", word[0], 2 ) )
       {
+         SLKx = TRUE;
          slk_restore();
          TRACE_RETURN();
          return(RC_OK);
@@ -2543,10 +2544,11 @@ CHARTYPE *params;
       }
       if (key > max_slk_labels)
       {
-         display_error(2,word[0],FALSE);
+         display_error(6,word[0],FALSE);
          TRACE_RETURN();
          return(RC_INVALID_OPERAND);
       }
+      SLKx = TRUE;
       slk_restore();
       slk_set(key,(DEFCHAR*)word[1],1);
       slk_noutrefresh();

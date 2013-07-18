@@ -181,14 +181,14 @@ CHARTYPE *filename;
 /***********************************************************************/
 {
    LINE *curr=NULL;
-   CHARTYPE _THE_FAR work_filename[MAX_FILE_NAME+1] ;
+   CHARTYPE *work_filename;
    VIEW_DETAILS *save_current_view=NULL,*found_file=NULL;
    short rc=RC_OK;
    FILE_DETAILS *save_current_file=NULL;
    bool save_scope=FALSE;
    bool save_stay=FALSE;
    CHARTYPE pseudo_file=PSEUDO_REAL;
-   LENGTHTYPE len;
+   LENGTHTYPE len,sp_path_len,sp_fname_len;
 
    TRACE_FUNCTION("file.c:    get_file");
 #if defined(MULTIPLE_PSEUDO_FILES)
@@ -428,10 +428,15 @@ CHARTYPE *filename;
    default_file_attributes(save_current_file);
    CURRENT_FILE->pseudo_file = pseudo_file;
    /*
+    * Get length of path and filename components
+    */
+   sp_path_len = strlen( (DEFCHAR *)sp_path );
+   sp_fname_len = strlen( (DEFCHAR *)sp_fname );
+   /*
     * Copy the filename and path strings split up at the start of the
     * function.
     */
-   if ((CURRENT_FILE->fname = (CHARTYPE *)(*the_malloc)(strlen((DEFCHAR *)sp_fname)+1)) == NULL)
+   if ((CURRENT_FILE->fname = (CHARTYPE *)(*the_malloc)(sp_fname_len+1)) == NULL)
    {
       free_view_memory(TRUE,TRUE);
       display_error(30,(CHARTYPE *)"",FALSE);
@@ -440,7 +445,7 @@ CHARTYPE *filename;
    }
    strcpy((DEFCHAR *)CURRENT_FILE->fname,(DEFCHAR *)sp_fname);
 
-   if ((CURRENT_FILE->fpath = (CHARTYPE *)(*the_malloc)(strlen((DEFCHAR *)sp_path)+1)) == NULL)
+   if ((CURRENT_FILE->fpath = (CHARTYPE *)(*the_malloc)(sp_path_len+1)) == NULL)
    {
       free_view_memory(TRUE,TRUE);
       display_error(30,(CHARTYPE *)"",FALSE);
@@ -457,8 +462,7 @@ CHARTYPE *filename;
       return(RC_OUT_OF_MEMORY);
    }
    strcpy((DEFCHAR *)CURRENT_FILE->actualfname,(DEFCHAR *)filename);
-
-   if ( (CURRENT_FILE->efileid = (CHARTYPE *)(*the_malloc)( strlen( (DEFCHAR *)sp_path ) + strlen( (DEFCHAR *)sp_fname ) + 1 ) ) == NULL )
+   if ( (CURRENT_FILE->efileid = (CHARTYPE *)(*the_malloc)( sp_path_len + sp_fname_len + 1 ) ) == NULL )
    {
       free_view_memory( TRUE, TRUE );
       display_error( 30, (CHARTYPE *)"", FALSE );
@@ -473,15 +477,21 @@ CHARTYPE *filename;
     */
    if (!CURRENT_FILE->pseudo_file)
    {
-      if ((CURRENT_FILE->autosave_fname =
-         (CHARTYPE *)(*the_malloc)(strlen((DEFCHAR *)sp_fname)+strlen((DEFCHAR *)sp_path)+7)) == NULL)
+      if ( ( CURRENT_FILE->autosave_fname = (CHARTYPE *)(*the_malloc)( sp_path_len + sp_fname_len + 7 ) ) == NULL )
       {
          free_view_memory(TRUE,TRUE);
          display_error(30,(CHARTYPE *)"",FALSE);
          TRACE_RETURN();
          return(RC_OUT_OF_MEMORY);
       }
-      new_filename(sp_path,sp_fname,CURRENT_FILE->autosave_fname,(CHARTYPE *)".aus");
+      new_filename( sp_path, sp_fname, CURRENT_FILE->autosave_fname, (CHARTYPE *)".aus" );
+   }
+   if ( ( work_filename = alloca( sp_path_len + sp_fname_len + 1 ) ) == NULL )
+   {
+      free_view_memory(TRUE,TRUE);
+      display_error(30,(CHARTYPE *)"",FALSE);
+      TRACE_RETURN();
+      return(RC_OUT_OF_MEMORY);
    }
    /*
     * Save the path and filename in a working area.
@@ -531,47 +541,63 @@ CHARTYPE *filename;
       TRACE_RETURN();
       return(RC_OK);
    }
-   if (file_exists(work_filename))
+   /*
+    * Everything below here is relevant only to "real" files
+    */
+   rc = file_exists( work_filename );
+   switch ( rc )
    {
-      if (file_writable(work_filename))
-         CURRENT_FILE->disposition = FILE_NORMAL;
-      else
-      {
-         if (file_readable(work_filename))
-         {
-            CURRENT_FILE->disposition = FILE_READONLY;
-            display_error(14,(CHARTYPE *)work_filename,FALSE);
-         }
+      case THE_FILE_EXISTS:
+         if (file_writable(work_filename))
+            CURRENT_FILE->disposition = FILE_NORMAL;
          else
+         {
+            if (file_readable(work_filename))
+            {
+               CURRENT_FILE->disposition = FILE_READONLY;
+               display_error(14,(CHARTYPE *)work_filename,FALSE);
+            }
+            else
+            {
+               display_error(8,work_filename,FALSE);
+               free_view_memory(TRUE,TRUE);
+               TRACE_RETURN();
+               return(RC_ACCESS_DENIED);
+            }
+         }
+         stat((DEFCHAR *)work_filename,&stat_buf);
+         CURRENT_FILE->fmode = stat_buf.st_mode;
+         CURRENT_FILE->modtime = stat_buf.st_mtime;
+#ifdef HAVE_CHOWN
+         CURRENT_FILE->uid = stat_buf.st_uid;
+         CURRENT_FILE->gid = stat_buf.st_gid;
+#endif
+         if ((CURRENT_FILE->fp = fopen((DEFCHAR *)work_filename,"rb")) == NULL)
          {
             display_error(8,work_filename,FALSE);
             free_view_memory(TRUE,TRUE);
             TRACE_RETURN();
             return(RC_ACCESS_DENIED);
          }
-      }
-      stat((DEFCHAR *)work_filename,&stat_buf);
-      CURRENT_FILE->fmode = stat_buf.st_mode;
-      CURRENT_FILE->modtime = stat_buf.st_mtime;
-#ifdef HAVE_CHOWN
-      CURRENT_FILE->uid = stat_buf.st_uid;
-      CURRENT_FILE->gid = stat_buf.st_gid;
-#endif
-      if ((CURRENT_FILE->fp = fopen((DEFCHAR *)work_filename,"rb")) == NULL)
-      {
-         display_error(8,work_filename,FALSE);
+         break;
+      case THE_FILE_NAME_TOO_LONG:
+         display_error(8,(CHARTYPE *)"- file name too long",TRUE);
          free_view_memory(TRUE,TRUE);
          TRACE_RETURN();
          return(RC_ACCESS_DENIED);
-      }
+         break;
+      default:
+         CURRENT_FILE->fmode = 0;
+         CURRENT_FILE->modtime = 0;
+         CURRENT_FILE->disposition = FILE_NEW;
+         display_error(20,(CHARTYPE *)work_filename,TRUE);
+         break;
    }
-   else
-   {
-      CURRENT_FILE->fmode = 0;
-      CURRENT_FILE->modtime = 0;
-      CURRENT_FILE->disposition = FILE_NEW;
-      display_error(20,(CHARTYPE *)work_filename,TRUE);
-   }
+   /*
+    * Reset RC to RC_OK after we used it when checking for file's existence.
+    * It is assumed to be RC_OK at this point!
+    */
+   rc = RC_OK;
    /*
     * first_line is set to "Top of File"
     */
@@ -719,7 +745,7 @@ bool called_from_get_command;
       chars_read = (LENGTHTYPE)fread( brec, sizeof(CHARTYPE), max_line_length, fp );
       if ( chars_read + read_start > trec_len )
       {
-         sprintf( (DEFCHAR *)trec, "Line %ld exceeds max. width of %ld", total_lines_read + 1, max_line_length );
+         sprintf( (DEFCHAR *)trec, "Line %ld exceeds max. width of %ld. File: %s", total_lines_read + 1, max_line_length, filename );
          display_error(29,trec,FALSE);
          if (!called_from_get_command)
             CURRENT_FILE->first_line = CURRENT_FILE->last_line = lll_free(CURRENT_FILE->first_line);
@@ -795,7 +821,7 @@ bool called_from_get_command;
                total_line_length += len;
                if (total_line_length > max_line_length)
                {
-                  sprintf((DEFCHAR *)trec,"Line %ld exceeds max. width of %ld",total_lines_read,max_line_length);
+                  sprintf( (DEFCHAR *)trec, "Line %ld exceeds max. width of %ld. File: %s", total_lines_read, max_line_length, filename );
                   display_error(29,trec,FALSE);
                   if (!called_from_get_command)
                      CURRENT_FILE->first_line = CURRENT_FILE->last_line = lll_free(CURRENT_FILE->first_line);
@@ -839,7 +865,7 @@ bool called_from_get_command;
                   total_line_length += len;
                   if (total_line_length > max_line_length)
                   {
-                     sprintf((DEFCHAR *)trec,"Line %ld exceeds max. width of %ld",total_lines_read,max_line_length);
+                     sprintf( (DEFCHAR *)trec, "Line %ld exceeds max. width of %ld. File: %s", total_lines_read, max_line_length, filename );
                      display_error(29,trec,FALSE);
                      if (!called_from_get_command)
                         CURRENT_FILE->first_line = CURRENT_FILE->last_line = lll_free(CURRENT_FILE->first_line);
@@ -1070,7 +1096,7 @@ bool autosave;
        * Test to make sure that the write fname doesn't exist...
        * ...unless we are forcing the write.
        */
-      if ((!force) && file_exists(write_fname))
+      if ( (!force) && file_exists(write_fname) == THE_FILE_EXISTS )
       {
          display_error(31,write_fname,FALSE);
          if (bak_filename != (CHARTYPE *)NULL)
@@ -1131,7 +1157,7 @@ bool autosave;
        * If the file exists, test to make sure we can write it and save a
        * backup copy.
        */
-      if (file_exists(write_fname))
+      if ( file_exists(write_fname) == THE_FILE_EXISTS )
       {
          /*
           * Test to make sure that we can write the file.
@@ -2206,6 +2232,32 @@ CHARTYPE *fp,*fn;
 }
 /***********************************************************************/
 #ifdef HAVE_PROTO
+VIEW_DETAILS *find_pseudo_file(CHARTYPE file)
+#else
+VIEW_DETAILS *find_pseudo_file(file)
+CHARTYPE file;
+#endif
+/***********************************************************************/
+{
+   VIEW_DETAILS *cv;
+
+   TRACE_FUNCTION("file.c:    find_pseudo_file");
+   cv = vd_first;
+   while( cv )
+   {
+      if ( cv->file_for_view
+      &&   cv->file_for_view->pseudo_file == file )
+      {
+         TRACE_RETURN();
+         return(cv);
+      }
+      cv = cv->next;
+   }
+   TRACE_RETURN();
+   return((VIEW_DETAILS *)NULL);
+}
+/***********************************************************************/
+#ifdef HAVE_PROTO
 static short process_command_line(CHARTYPE *profile_command_line,LINETYPE line_number)
 #else
 static short process_command_line(profile_command_line,line_number)
@@ -2340,8 +2392,8 @@ int *buffer_size;
 
    TRACE_FUNCTION("file.c:    read_file_into_memory");
 
-   if ((stat((DEFCHAR *)filename,&stat_buf) == 0)
-   &&  (is_a_dir(stat_buf.st_mode)))
+   if ( ( stat( (DEFCHAR *)filename, &stat_buf ) == 0 )
+   &&   ( is_a_dir_stat( stat_buf.st_mode ) ) )
    {
       display_error(8,(CHARTYPE *)"specified file is a directory",FALSE);
       TRACE_RETURN();
