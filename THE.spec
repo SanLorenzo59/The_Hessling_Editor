@@ -6,24 +6,50 @@ Name: THE
 Name: THE-%{mycurses}-%{myrexx}
 %endif
 Version: %{myversion}
-Release: 1
+Release: 0
 License: GPL
-Group: Applications/Editors
-Source: THE-%{version}.tar.gz
+Group: Productivity/Text/Editors
+Source: THE-%{version}.tar.bz2
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 Vendor: Mark Hessling
-Packager: Mark Hessling
 URL: http://hessling-editor.sourceforge.net
 Prefix: /usr
-Icon: the64.xpm
-Provides: %{name}
+#Icon: the64.xpm
+%if "%{mycurses}" == "ncurses"
+BuildRequires: ncurses-devel
+%endif
+%if "%{mycurses}" == "ncursesw"
+BuildRequires: ncurses-devel
+%endif
+%if "%{mycurses}" == "X11"
+BuildRequires: PDCurses-devel
+%endif
+%if "%{mycurses}" == "X11w"
+BuildRequires: PDCurses-devel
+%endif
+%if "%{mycurses}" == "dwindows"
+BuildRequires: dwindows
+%endif
+#Provides: _{name}
 %if "%{myrexx}" == "regina"
+BuildRequires: Regina-REXX-lib
+BuildRequires: Regina-REXX
+BuildRequires: Regina-REXX-devel
 Conflicts: THE-X11-oorexx THE-ncurses-oorexx THE-X11-rexxtrans THE-ncurses-rexxtrans
 %endif
 %if "%{myrexx}" == "oorexx"
+BuildRequires: ooRexx
+%if 0%{?opensuse_bs}
+#BuildRequires:
+%endif
 Conflicts: THE-X11-regina THE-ncurses-regina THE-X11-rexxtrans THE-ncurses-rexxtrans
 %endif
 %if "%{myrexx}" == "rexxtrans"
+BuildRequires: RexxTrans-devel
+%if 0%{?opensuse_bs}
+BuildRequires: Regina-REXX-lib
+BuildRequires: Regina-REXX
+%endif
 Conflicts: THE-X11-regina THE-ncurses-regina THE-X11-oorexx THE-ncurses-oorexx
 %endif
 Requires: THE-common
@@ -60,7 +86,7 @@ For more information on Rexx, visit http://www.rexxla.org
 
 %package -n THE-common
 Summary: The Hessling Editor Common
-Group: Applications/Editors
+Group: Productivity/Text/Editors
 %description -n THE-common
 This package provides an executable which invokes either the text-mode or GUI version
 of THE together with sample macros and syntax files.
@@ -71,7 +97,7 @@ For more information on Rexx, visit http://www.rexxla.org
 
 %package -n THE-doc
 Summary: The Hessling Editor Documentation
-Group: Applications/Editors
+Group: Productivity/Text/Editors
 BuildArch: noarch
 %description -n THE-doc
 This package contains the documentation for THE; The Hessling Editor
@@ -126,6 +152,7 @@ rm -fr %{buildroot}
 make DESTDIR=%{buildroot} installrpm installcommon installdoc
 
 %files
+%defattr(-,root,root,-)
 %if "%{mycurses}" == "ncurses"
  %{_bindir}/nthe
 %endif
@@ -161,7 +188,7 @@ ln -sf ./the.1.gz ./dwthe.1.gz
 %endif
 
 %preun
-cd %{_mandir}/THE
+cd %{_mandir}/man1
 if [ "$1" = 0 ] ; then
 %if "%{mycurses}" == "ncurses"
    rm -f ./nthe.1.gz
@@ -182,12 +209,14 @@ fi
 exit 0
 
 %files -n THE-common
- %{_bindir}/the
+%defattr(-,root,root,-)
+%{_bindir}/the
 %doc %{_mandir}/man1/the.1.gz
 %{_datadir}/THE
 
 
 %files -n THE-doc
+%defattr(-,root,root,-)
 %doc COPYING
 %doc README
 %doc TODO

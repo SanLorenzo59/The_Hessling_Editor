@@ -36,6 +36,8 @@
   provides: alt 5
   release: alt 5
   requires: alt 5
+  buildrequires: alt 5
+  buildarch: alt 5
   source: alt 5
   summary: alt 5
   url: alt 5

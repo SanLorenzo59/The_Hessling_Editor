@@ -1959,6 +1959,12 @@ else
       *cygwin*)
          MYDISTRO="`echo $target | cut -f2- -d-`"
       ;;
+      *nto-qnx*)
+         MYDISTRO="`uname -s`-`uname -r`"
+      ;;
+      *qnx*)
+         MYDISTRO="`uname -s`-`uname -v`"
+      ;;
       *)
          MYDISTRO="$target"
       ;;

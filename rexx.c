@@ -870,6 +870,7 @@ short initialise_rexx
    }
 
 #if !defined(USE_REXX6000)
+#if 0
    rc = RexxRegisterExitExe((RREE_ARG0_TYPE)"THE_FUNCTION_EXIT",
                             (RREE_ARG1_TYPE)THE_Function_Exit_Handler,
                             (RREE_ARG2_TYPE)NULL);
@@ -878,6 +879,7 @@ short initialise_rexx
       TRACE_RETURN();
       return((short)rc);
    }
+#endif
    rc = RexxRegisterExitExe((RREE_ARG0_TYPE)"THE_SAYTRACE_EXIT",
                             (RREE_ARG1_TYPE)THE_SayTrace_Exit_Handler,
                             (RREE_ARG2_TYPE)NULL);
@@ -913,7 +915,6 @@ short initialise_rexx
       if (rc != RXFUNC_OK)
          break;
    }
-   rc = MyRexxRegisterFunctionExe( (CHARTYPE *)"XXYYZZ" );
    TRACE_RETURN();
    return((short)rc);
 }
@@ -1056,9 +1057,15 @@ short execute_macro_file
    exit_list[0].sysexit_name = "THE_SAYTRACE_EXIT";
    exit_list[1].sysexit_name = "THE_FUNCTION_EXIT";
 #endif
+
+#if 0
    exit_list[0].sysexit_code = RXSIO;
    exit_list[1].sysexit_code = RXFNC;
    exit_list[2].sysexit_code = RXENDLST;
+#else
+   exit_list[0].sysexit_code = RXSIO;
+   exit_list[1].sysexit_code = RXENDLST;
+#endif
    /*
     * Under OS/2 use of interactive trace in a macro only works if an OS
     * command has been run before executing the macro, so we run a REM
