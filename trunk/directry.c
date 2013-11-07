@@ -332,6 +332,27 @@ struct dirfile **dplast;
 #endif
    }
    *dplast = dp;
+#if defined(DOS) && defined(TC)
+   findclose(&ffblk);
+#endif
+#if defined(DOS) && defined(MSC)
+    _dos_findclose(&ffblk);
+#endif
+#if defined(DOS) && defined(GO32)
+    findclose(&ffblk);
+#endif
+#if defined(WIN32) && defined(__WATCOMC__)
+    _dos_findclose(&ffblk);
+#endif
+#if defined(DOS) && defined(__WATCOMC__)
+    _dos_findclose(&ffblk);
+#endif
+#if defined (WIN32) && defined(_MSC_VER)
+    _findclose(handle);
+#endif
+#ifdef OS2
+   DosFindClose((HDIR)hdir);
+#endif
    return(RC_OK);
 }
 #endif

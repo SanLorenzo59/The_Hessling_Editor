@@ -1,6 +1,6 @@
 #
 # Use full month and no spaces in date
 #
-VER=33RC4
-VER_DOT=3.3RC4
-VER_DATE="10-July-2013"
+VER=33RC5
+VER_DOT=3.3RC5
+VER_DATE="23-October-2013"

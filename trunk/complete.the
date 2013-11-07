@@ -100,7 +100,7 @@ Select
       dircmd = "ls -dp"  /* slash after dir name ??? */
    End
 
-   When (os == "WIN32") Then Do
+   When os == "WIN32" | os == "WIN64" Then Do
       dirsep = "\"
       dircmd = "dir /B"
    End

@@ -299,7 +299,7 @@ uninstallbase: uninstallrpm uninstalldoc uninstallcommon
 installrpm: perminstall $(THEBIN)
 	$(INSTALL) -m 755 -d $(DESTDIR)$(bindir)
 	$(INSTALL) -m 755 -c ./$(THEBIN) $(DESTDIR)$(bindir)/$(THEBIN)
-	$(INSTALL) -m 755 -c ./$(THEBIN) $(DESTDIR)$(bindir)/the
+	$(INSTALL) -m 755 -c ./the $(DESTDIR)$(bindir)/the
 
 uninstallrpm: $(THEBIN)
 	-rm -f $(DESTDIR)$(bindir)/the
@@ -709,6 +709,12 @@ dist:
 	(cd $(srcdir)/..;rm -f $(THE_DIR))
 	(cd $(srcdir)/..;ln -sf $(abs_srcdir) $(THE_DIR))
 	(cd $(srcdir)/..;tar -cvf - $(ARCHIVE_FILES) | gzip > $(THE_DIR).tar.gz )
+	(cd $(srcdir)/..;rm -f $(THE_DIR))
+
+bzip:
+	(cd $(srcdir)/..;rm -f $(THE_DIR))
+	(cd $(srcdir)/..;ln -sf $(abs_srcdir) $(THE_DIR))
+	(cd $(srcdir)/..;tar -cvf - $(ARCHIVE_FILES) | bzip2 > $(THE_DIR).tar.bz2 )
 	(cd $(srcdir)/..;rm -f $(THE_DIR))
 
 tar:
